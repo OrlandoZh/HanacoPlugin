@@ -48,11 +48,11 @@ rsync -a plugins/llm-wiki-viewer/ ~/.hanako/plugins/llm-wiki-viewer/
 
 本仓库基于多个开源项目和社区实现整理而来，感谢：
 
-- OpenHanaco / Hana：提供 skill、plugin、页面和工具调用的运行环境，也是本仓库集成工作的主要宿主。
+- [liliMozi/openhanako](https://github.com/liliMozi/openhanako/releases)：提供 OpenHanako 的 skill、plugin、页面和工具调用运行环境，也是本仓库集成工作的主要宿主。
 - [sdyckjq-lab/llm-wiki-skill](https://github.com/sdyckjq-lab/llm-wiki-skill)：LLM Wiki 方法论、脚本、模板和图谱生成主线。
 - [Andrej Karpathy 的 llm-wiki 方法论](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)：知识库持续编译和维护思路来源。
 - Obsidian 社区生态：CLI、Markdown、Canvas、Bases 等工作流参考。
 - `baoyu-url-to-markdown`、`youtube-transcript` 等内容提取相关 skill / 工具。
 - D3、Rough.js、Marked、DOMPurify：LLM Wiki 图谱页面使用的前端渲染与安全处理依赖。
 
-这些项目让个人知识库可以从“保存材料”进一步变成“持续生长的可查询 wiki”。本仓库主要维护 OpenHanaco/Hana 侧的集成方式与个人工作流适配。
+这些项目让个人知识库可以从“保存材料”进一步变成“持续生长的可查询 wiki”。本仓库主要维护 OpenHanako 侧的集成方式与个人工作流适配。
