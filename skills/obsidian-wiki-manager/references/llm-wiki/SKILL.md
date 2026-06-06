@@ -60,11 +60,7 @@ Scripts located in `scripts/` subdirectory.
 
 只有当用户给的是 URL 类来源，并且明确要自动提取网页 / X / 微信公众号 / YouTube / 知乎内容时，才检查以下可选依赖。
 
-如果缺失，提示用户运行：
-
-```bash
-bash ${SKILL_DIR}/install.sh --platform <当前平台> --with-optional-adapters
-```
+如果缺失，不要在 Hana 集成环境中运行 upstream `install.sh` / `setup.sh`。当前集成复用已随 skill 打包的脚本与可选依赖；缺失的 URL 提取外挂应提示用户改走手动入口（粘贴文本、本地文件路径、或已提取的 Markdown），并说明可在外部环境单独补齐对应 adapter 后再重试。
 
 可选依赖 skill / 工具：
 - `baoyu-url-to-markdown` — 普通网页、X/Twitter、部分知乎提取

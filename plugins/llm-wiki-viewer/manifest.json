@@ -2,12 +2,12 @@
   "manifestVersion": 1,
   "id": "llm-wiki-viewer",
   "name": "LLM Wiki Viewer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Generate and view llm-wiki knowledge graph HTML inside Hana without running upstream installers.",
   "minAppVersion": "0.171.3",
   "trust": "full-access",
   "ui": {
-    "hostCapabilities": ["external.open", "clipboard.writeText", "toast.show"]
+    "hostCapabilities": ["external.open", "clipboard.writeText"]
   },
   "activationEvents": ["onStartup"],
   "contributes": {
@@ -27,5 +27,16 @@
         }
       }
     }
+  },
+  "dev": {
+    "scenarios": [
+      {
+        "id": "open-viewer",
+        "title": "Open LLM Wiki Viewer",
+        "steps": [
+          { "openSurface": "/viewer" }
+        ]
+      }
+    ]
   }
 }
