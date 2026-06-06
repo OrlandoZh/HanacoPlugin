@@ -1,11 +1,11 @@
 # HanacoPlugin
 
-自用 OpenHanaco / Hana 扩展仓库，用来集中维护我创建和整理的 skills、plugins，以及它们依赖的可复用参考实现。
+自用 OpenHanako 扩展仓库，用来集中维护我创建和整理的 skills、plugins，以及它们依赖的可复用参考实现。
 
 当前仓库重点收纳 Obsidian + LLM Wiki 工作流：
 
 - `skills/obsidian-wiki-manager`：Obsidian wiki 总控 skill，统一调度 vault 写入、CLI 查询、Markdown、Canvas、Bases、LLM Wiki 初始化/ingest/query/graph 等能力。
-- `plugins/llm-wiki-viewer`：Hana 插件，用于在 Hana 页面内生成和查看 LLM Wiki 交互式知识图谱。
+- `plugins/llm-wiki-viewer`：OpenHanako 插件，用于在 OpenHanako 页面内生成和查看 LLM Wiki 交互式知识图谱。
 
 ## 目录结构
 
@@ -19,7 +19,7 @@ HanacoPlugin/
 
 ## 使用方式
 
-安装到本机 OpenHanaco/Hana 时，可以把目录复制或同步到对应位置：
+安装到本机 OpenHanako 时，可以把目录复制或同步到对应位置：
 
 ```bash
 mkdir -p ~/.hanako/skills ~/.hanako/plugins
@@ -42,7 +42,7 @@ rsync -a plugins/llm-wiki-viewer/ ~/.hanako/plugins/llm-wiki-viewer/
 - `wiki/graph-data.json`
 - `wiki/knowledge-graph.html`
 
-然后在 Hana 插件页面中托管并展示图谱。
+然后在 OpenHanako 插件页面中托管并展示图谱。
 
 ## 开源项目致谢
 
