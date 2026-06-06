@@ -1,0 +1,4 @@
+interface:
+  display_name: "Obsidian Canvas"
+  short_description: "Generate `.canvas` files from notes, outlines, and articles"
+  default_prompt: "Create an Obsidian Canvas file from this content, choose a mind map or freeform layout, and save the `.canvas` artifact if I asked for one."

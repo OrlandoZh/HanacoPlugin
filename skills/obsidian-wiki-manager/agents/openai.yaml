@@ -1,0 +1,4 @@
+interface:
+  display_name: "Obsidian Wiki Manager"
+  short_description: "Organize, query, write, and visualize the Obsidian vault"
+  default_prompt: "Work with my Obsidian vault: search or read notes, organize wiki links and metadata, save knowledge, or create/interpret Canvas and Bases as needed."

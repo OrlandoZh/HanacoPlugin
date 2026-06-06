@@ -1,0 +1,31 @@
+{
+  "manifestVersion": 1,
+  "id": "llm-wiki-viewer",
+  "name": "LLM Wiki Viewer",
+  "version": "0.1.0",
+  "description": "Generate and view llm-wiki knowledge graph HTML inside Hana without running upstream installers.",
+  "minAppVersion": "0.171.3",
+  "trust": "full-access",
+  "ui": {
+    "hostCapabilities": ["external.open", "clipboard.writeText", "toast.show"]
+  },
+  "activationEvents": ["onStartup"],
+  "contributes": {
+    "page": {
+      "title": { "zh": "LLM Wiki 图谱", "en": "LLM Wiki Graph" },
+      "route": "/viewer",
+      "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><circle cx=\"6\" cy=\"7\" r=\"2.5\"/><circle cx=\"17\" cy=\"6\" r=\"2.5\"/><circle cx=\"8\" cy=\"17\" r=\"2.5\"/><circle cx=\"18\" cy=\"16\" r=\"2.5\"/><path d=\"M8.4 7h6.2M7 9.3l1 5.3M16.4 8.3l1.2 5.4M10.4 16.8h5.2\"/></svg>"
+    },
+    "configuration": {
+      "properties": {
+        "defaultWikiRoot": {
+          "type": "string",
+          "title": "Default LLM Wiki root",
+          "description": "Optional default wiki root containing .wiki-schema.md and wiki/.",
+          "default": "",
+          "ui": { "control": "text" }
+        }
+      }
+    }
+  }
+}
