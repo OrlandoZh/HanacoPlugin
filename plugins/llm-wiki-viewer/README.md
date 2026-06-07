@@ -1,6 +1,6 @@
 # LLM Wiki Viewer
 
-Hana plugin for an integrated `llm-wiki` skill. This v1.13 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
+Hana plugin for an integrated `llm-wiki` skill. This v1.14 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
 
 ## What It Does
 
@@ -29,6 +29,8 @@ The viewer's `Agent 工作流` panel does not call model providers directly. It 
 The `启动知识库上下文` action is the Hana-native replacement for the reference project's Claude `SessionStart` hook: it sends the current `wikiRoot`, `purpose.md`, `.wiki-schema.md`, and `index.md` context to an existing session. It is not a background agent and does not create a new Hana session.
 
 Agent handoff prompts ask the selected Hana Agent to prioritize `purpose.md` and to tell the user to click `生成/刷新` after content changes. The plugin still does not perform content generation or maintenance writes itself.
+
+Agent handoff diagnostics show a Chinese delivery summary with action, target session, accepted state, next step, and the full prompt. The viewer also keeps the latest prompt available through `复制 Prompt` so users can manually paste it into a Hana session when the bus is busy or unavailable.
 
 Adapter diagnostics are visibility-only: the plugin does not install adapters, run upstream `install.sh` or `setup.sh`, repair dependencies, or perform automatic extraction.
 
@@ -86,7 +88,7 @@ The contributed page is `/viewer`. It keeps the graph as the main view and adds:
 - source image and source/cache contract diagnostics
 - maintenance diagnostics for orphan sources/raw files, duplicate titles, raw/cache/frontmatter/source signal issues, query/digest index gaps, and `purpose.md` hints
 - init controls
-- Agent workflow handoff controls for existing Hana Agent sessions, with Chinese templates for context startup, adding sources, querying, deep organization, page updates, crystallization, and maintenance checks
+- Agent workflow handoff controls for existing Hana Agent sessions, with Chinese templates, delivery summary, and `复制 Prompt` fallback
 - latest stdout/stderr log
 
 ## Configuration
@@ -111,6 +113,7 @@ This Hana integration does not run upstream `install.sh` or `setup.sh`. Optional
 - Confirm `/api/source-image-diagnostics` and `/api/source-contract-diagnostics` report read-only source issues.
 - Confirm `/api/agents`, `/api/sessions`, and `/api/agent-send` can list Hana agents/sessions and hand a llm-wiki task to the chosen session.
 - Confirm selecting `启动知识库上下文` sends the current wiki context to an existing Hana session without requiring task input or creating a new session.
+- Confirm Agent output shows action, target session, accepted state, next step, and full prompt; `复制 Prompt` copies the latest prompt for manual fallback.
 - Confirm the plugin test suite includes selected upstream graph HTML contract checks and graph build failure handling.
 - Confirm `purpose.md` and Mermaid graph status appear in the viewer status area.
 - Confirm build refreshes the iframe graph and graph node source links open Markdown through `/wiki-file/*`.

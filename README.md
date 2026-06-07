@@ -37,7 +37,7 @@ rsync -a plugins/llm-wiki-viewer/ ~/.hanako/plugins/llm-wiki-viewer/
 
 `obsidian-wiki-manager` 是一个总控 skill：日常 Obsidian 写入、搜索、Canvas、Bases 等请求由它分流到对应 reference skill；当任务涉及 LLM Wiki 初始化、素材消化、查询、digest、lint、status 或图谱生成时，再进入 `references/llm-wiki`。
 
-`llm-wiki-viewer` 当前收口到 v1.13 只读预检与参考回归补齐版。它不运行上游安装脚本，也不把 ingest、query、digest、delete、crystallize 做成插件 GUI；这些内容生成工作流仍由 skill/agent 主导。插件侧只提供可验证的辅助能力：
+`llm-wiki-viewer` 当前收口到 v1.14 只读预检与参考回归补齐版。它不运行上游安装脚本，也不把 ingest、query、digest、delete、crystallize 做成插件 GUI；这些内容生成工作流仍由 skill/agent 主导。插件侧只提供可验证的辅助能力：
 
 - `wiki/graph-data.json`
 - `wiki/knowledge-graph.html`
@@ -51,7 +51,7 @@ rsync -a plugins/llm-wiki-viewer/ ~/.hanako/plugins/llm-wiki-viewer/
 
 参考项目路径以仓库根目录的 `reference/llm-wiki-skill-main` 为准；插件测试会迁移其中对 Hana 集成有价值且无外部依赖的回归契约。
 
-## v1.13 验收清单
+## v1.14 验收清单
 
 - 在 `plugins/llm-wiki-viewer` 运行 `npm test`，要求 Node 内置测试全绿。
 - 测试套件会在存在 `reference/openhanako-main` 时用 OpenHanako `PluginManager` 做宿主 loader smoke，验证 `/viewer` 和全部 Agent tools 可被发现。
@@ -62,6 +62,7 @@ rsync -a plugins/llm-wiki-viewer/ ~/.hanako/plugins/llm-wiki-viewer/
 - 确认 `/api/source-signal-eligibility` 与 `/api/runtime-context` 能只读报告来源信号可用性和 skill 布局状态。
 - 确认 `/api/lint-fix-preview` 与 `/api/source-page-contract-preview` 只返回预检结果，不修改 wiki 内容。
 - 确认 Agent 工作流只能投递到已有 Hana session；OpenHanako plugin bus 当前稳定公开的是 `agent:list`、`session:list`、`session:send` 等已有会话能力。
+- 确认 Agent 投递输出包含任务类型、目标会话、接收状态、下一步提示和完整 Prompt；`复制 Prompt` 可用于 bus 忙或不可用时的手动兜底。
 - 点击图谱节点时，`source_path` 应经 `/wiki-file/*` 打开对应 Markdown。
 
 ## 开源项目致谢

@@ -1,4 +1,4 @@
-import { graphSourcePaths, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
+import { graphSourcePaths, toToolResult } from "../lib/wiki-core.js?v=0.1.14";
 
 export const name = "llm_wiki_graph_source_paths";
 export const description = "Check graph-data.json node source_path coverage and whether source Markdown files can be opened through the viewer.";

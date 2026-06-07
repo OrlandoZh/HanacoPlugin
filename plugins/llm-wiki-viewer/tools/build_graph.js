@@ -1,4 +1,4 @@
-import { buildGraph, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
+import { buildGraph, toToolResult } from "../lib/wiki-core.js?v=0.1.14";
 
 export const name = "llm_wiki_build_graph";
 export const description = "Build graph-data.json and knowledge-graph.html for an initialized llm-wiki root so it can be viewed in the LLM Wiki Viewer page.";

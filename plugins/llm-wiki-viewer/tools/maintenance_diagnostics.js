@@ -1,4 +1,4 @@
-import { maintenanceDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
+import { maintenanceDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.14";
 
 export const name = "llm_wiki_maintenance_diagnostics";
 export const description = "Run read-only llm-wiki maintenance diagnostics for orphan sources, source_path/raw file issues, duplicate titles, and purpose.md hints.";

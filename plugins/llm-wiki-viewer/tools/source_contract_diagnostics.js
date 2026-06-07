@@ -1,4 +1,4 @@
-import { sourceContractDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
+import { sourceContractDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.14";
 
 export const name = "llm_wiki_source_contract_diagnostics";
 export const description = "Run read-only llm-wiki source/cache contract diagnostics for source_path, raw files, and cache entries.";

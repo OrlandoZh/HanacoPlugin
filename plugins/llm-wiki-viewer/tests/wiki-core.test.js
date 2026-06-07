@@ -1579,6 +1579,9 @@ test("viewer API routes bridge to Hana Agent bus", async () => {
   });
   assert.equal(sent.status, 200);
   assert.equal(sent.body.ok, true);
+  assert.equal(sent.body.action, "maintenance");
+  assert.equal(sent.body.sessionPath, "/agents/a1/sessions/s1.jsonl");
+  assert.match(sent.body.prompt, /任务类型：维护检查/);
   assert.equal(sent.body.result.accepted, true);
   assert.deepEqual(calls.map(([type]) => type), ["agent:list", "session:list", "session:send"]);
 });
@@ -1601,6 +1604,9 @@ test("viewer API routes report busy Hana Agent sessions", async () => {
   assert.equal(result.status, 503);
   assert.equal(result.body.ok, false);
   assert.equal(result.body.error, "session_busy");
+  assert.equal(result.body.action, "ingest");
+  assert.equal(result.body.sessionPath, "/agents/a/sessions/busy.jsonl");
+  assert.match(result.body.prompt, /任务类型：添加素材/);
 });
 
 test("graph route shows a Chinese placeholder before graph generation", async () => {
@@ -1683,6 +1689,16 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /可留空；插件会发送当前知识库上下文/);
   assert.match(viewer.body, /function updateAgentInputPlaceholder\(\)/);
   assert.match(viewer.body, /已把当前知识库上下文发送给 Agent/);
+  assert.match(viewer.body, /复制 Prompt/);
+  assert.match(viewer.body, /function copyAgentPrompt\(\)/);
+  assert.match(viewer.body, /function writeClipboardText\(text\)/);
+  assert.match(viewer.body, /clipboard\.writeText/);
+  assert.match(viewer.body, /Agent 投递摘要/);
+  assert.match(viewer.body, /任务类型: /);
+  assert.match(viewer.body, /目标会话: /);
+  assert.match(viewer.body, /已接收: /);
+  assert.match(viewer.body, /完整 Prompt/);
+  assert.match(viewer.body, /目标会话正在生成。请稍后重试、换一个会话，或复制 Prompt 手动发送。/);
   assert.match(viewer.body, /添加素材/);
   assert.match(viewer.body, /深度整理/);
   assert.match(viewer.body, /更新页面/);

@@ -1,4 +1,4 @@
-import { adapterStatus, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
+import { adapterStatus, toToolResult } from "../lib/wiki-core.js?v=0.1.14";
 
 export const name = "llm_wiki_adapter_status";
 export const description = "Report optional llm-wiki adapter status. With sourceId, checks one source; without sourceId, returns a human summary.";

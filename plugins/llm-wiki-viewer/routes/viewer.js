@@ -25,7 +25,7 @@ import {
   sourceImageDiagnostics,
   sourcePageContractPreview,
   sourceSignalEligibility,
-} from "../lib/wiki-core.js?v=0.1.13";
+} from "../lib/wiki-core.js?v=0.1.14";
 
 export default function registerViewerRoutes(app, ctx) {
   app.get("/viewer", async (c) => c.html(await renderViewer(c, ctx)));
@@ -334,6 +334,7 @@ async function renderViewer(c, ctx) {
         <textarea id="agentInput" aria-label="Agent 任务内容" placeholder="可留空；插件会发送当前知识库上下文"></textarea>
         <div class="agent-actions">
           <button id="sendAgent" class="primary">交给 Agent</button>
+          <button id="copyAgentPrompt">复制 Prompt</button>
           <button id="clearAgentInput">清空内容</button>
         </div>
       </section>
@@ -372,7 +373,9 @@ async function renderViewer(c, ctx) {
     const agentInput = document.getElementById("agentInput");
     const refreshAgentsButton = document.getElementById("refreshAgents");
     const sendAgentButton = document.getElementById("sendAgent");
+    const copyAgentPromptButton = document.getElementById("copyAgentPrompt");
     const clearAgentInputButton = document.getElementById("clearAgentInput");
+    let lastAgentPrompt = "";
 
     function openDrawer() {
       document.body.classList.add("drawer-open");
@@ -429,7 +432,7 @@ async function renderViewer(c, ctx) {
         not_llm_wiki_root: "不是 LLM Wiki 根目录",
         skill_missing: "Skill 缺失",
         wikiRoot_required: "请先输入位置",
-        hana_bus_unavailable: "Hana Agent 通道不可用",
+        hana_bus_unavailable: "Hana Agent 通道不可用，请重载 Hana 插件后重试",
         agent_list_failed: "Agent 列表读取失败",
         session_list_failed: "会话列表读取失败",
         sessionPath_required: "请先选择会话",
@@ -443,19 +446,38 @@ async function renderViewer(c, ctx) {
         target_not_directory: "当前位置是文件，不是文件夹。请换一个文件夹路径，或先删除/改名这个同名文件后再点击“生成/刷新”。",
         target_not_empty: "为避免覆盖资料，插件不会初始化非空普通目录。请选择空文件夹或不存在的新文件夹路径。",
         not_llm_wiki_root: "请点击顶部“生成/刷新”让插件先安全初始化，或选择一个已有 LLM Wiki 根目录。",
-        sessionPath_required: "请选择一个已有 Hana 会话。当前 OpenHanako 原生 bus 稳定支持向已有会话发送任务，暂不由插件创建新会话。",
-        session_busy: "这个会话正在生成，请等待完成后重试，或选择另一个会话。",
+        hana_bus_unavailable: "当前页面拿不到 Hana 原生 Agent 通道。请重载插件或重启 HanaAgent，再回到本页重试。",
+        sessionPath_required: "请选择一个已有 Hana 会话；插件不会自动创建新会话。",
+        session_busy: "目标会话正在生成。请稍后重试、换一个会话，或复制 Prompt 手动发送。",
       };
       return hints[error] || "";
     }
 
     function formatAgentResult(data) {
-      const lines = ["agent workflow:"];
-      if (data.action) lines.push("action: " + data.action);
-      if (data.sessionPath) lines.push("session: " + data.sessionPath);
-      if (data.result) lines.push("accepted: " + Boolean(data.result.accepted));
-      if (data.prompt) lines.push("\\nprompt:\\n" + data.prompt);
+      const lines = ["Agent 投递摘要:"];
+      if (data.action) lines.push("任务类型: " + formatAgentAction(data.action));
+      if (data.sessionPath) lines.push("目标会话: " + data.sessionPath);
+      if (data.result) lines.push("已接收: " + (data.result.accepted ? "是" : "否"));
+      if (data.error) lines.push("状态: " + formatError(data.error));
+      lines.push("下一步: " + (data.ok
+        ? "等待 Agent 在目标会话完成；如有内容写入，请点击顶部“生成/刷新”。"
+        : "按上方错误提示处理；必要时可复制 Prompt 手动发送。"));
+      if (data.prompt) lines.push("\\n完整 Prompt:\\n" + data.prompt);
       return lines.join("\\n");
+    }
+
+    function formatAgentAction(action) {
+      const labels = {
+        context: "启动知识库上下文",
+        ingest: "添加素材",
+        "batch-ingest": "批量消化",
+        query: "查询知识库",
+        digest: "深度整理",
+        update: "更新页面",
+        maintenance: "维护检查",
+        crystallize: "结晶化对话",
+      };
+      return labels[action] || action || "未指定";
     }
 
     function formatDiagnostics(data) {
@@ -739,6 +761,7 @@ async function renderViewer(c, ctx) {
         body: JSON.stringify(body),
       });
       const data = await r.json();
+      if (data.prompt) lastAgentPrompt = data.prompt;
       statusEl.textContent = data.ok ? "已交给 Agent" : "Agent 调用失败";
       if (data.ok) {
         data.stdout = agentAction.value === "context"
@@ -747,6 +770,63 @@ async function renderViewer(c, ctx) {
       }
       showLog(data);
       setBusy(sendAgentButton, false);
+    }
+
+    async function copyAgentPrompt() {
+      if (!lastAgentPrompt) {
+        statusEl.textContent = "暂无可复制 Prompt";
+        showLog({ ok: false, error: "no_agent_prompt", stderr: "请先向 Agent 投递一次任务，或在投递失败后再复制 Prompt。" });
+        return;
+      }
+      try {
+        await writeClipboardText(lastAgentPrompt);
+        statusEl.textContent = "Prompt 已复制";
+        showLog({ ok: true, stdout: "Prompt 已复制，可手动粘贴到目标 Hana 会话。" });
+      } catch (error) {
+        statusEl.textContent = "复制失败";
+        showLog({ ok: false, error: "copy_prompt_failed", stderr: error.message || String(error) });
+      }
+    }
+
+    async function writeClipboardText(text) {
+      if (window.hana?.clipboard?.writeText) {
+        return window.hana.clipboard.writeText(text);
+      }
+      try {
+        await hanaHostRequest("clipboard.writeText", { text });
+        return;
+      } catch {
+        if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text);
+        throw new Error("clipboard_unavailable");
+      }
+    }
+
+    function hanaHostRequest(type, payload, timeoutMs = 10000) {
+      const params = new URLSearchParams(location.search);
+      const explicitOrigin = params.get("hana-host-origin");
+      let origin = explicitOrigin || "*";
+      if (!explicitOrigin) {
+        try { origin = new URL(document.referrer).origin || "*"; } catch { origin = "*"; }
+      }
+      const id = "llm-wiki-viewer-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+      return new Promise((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          window.removeEventListener("message", onMessage);
+          reject(new Error("host_request_timeout"));
+        }, timeoutMs);
+        function onMessage(event) {
+          if (event.source !== window.parent) return;
+          if (origin !== "*" && event.origin !== origin) return;
+          const message = event.data || {};
+          if (message.protocol !== "hana-plugin" || message.version !== 1 || message.id !== id || message.type !== type) return;
+          window.clearTimeout(timer);
+          window.removeEventListener("message", onMessage);
+          if (message.kind === "error") reject(new Error(message.error?.message || "host_request_failed"));
+          else resolve(message.payload);
+        }
+        window.addEventListener("message", onMessage);
+        window.parent?.postMessage?.({ protocol: "hana-plugin", version: 1, id, kind: "request", type, payload }, origin);
+      });
     }
 
     function updateAgentInputPlaceholder() {
@@ -1069,6 +1149,7 @@ async function renderViewer(c, ctx) {
     agentAction.addEventListener("change", updateAgentInputPlaceholder);
     sessionSelect.addEventListener("change", () => lockButton(sendAgentButton, !sessionSelect.value));
     sendAgentButton.addEventListener("click", sendAgentWorkflow);
+    copyAgentPromptButton.addEventListener("click", copyAgentPrompt);
     clearAgentInputButton.addEventListener("click", () => { agentInput.value = ""; agentInput.focus(); });
 
     function escapeHtml(value) {
