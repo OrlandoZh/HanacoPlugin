@@ -1,6 +1,6 @@
 # LLM Wiki Viewer
 
-Hana plugin for an integrated `llm-wiki` skill. This v1.12 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
+Hana plugin for an integrated `llm-wiki` skill. This v1.13 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
 
 ## What It Does
 
@@ -16,7 +16,7 @@ Hana plugin for an integrated `llm-wiki` skill. This v1.12 is a reliable helper 
 - Runs safety diagnostics for delete dry-run references, broken/orphan links, and graph `source_path` coverage.
 - Provides source registry lookup/match helpers plus low-risk adapter/cache/Step 1 validation diagnostics for agents.
 - Previews `create-source-page.sh` contract checks without writing source pages or updating cache.
-- Can hand knowledge-base generation, update, query, digest, maintenance, and crystallize tasks to a selected Hana Agent session through Hana's native `session:send` bus capability.
+- Can hand knowledge-base context startup, generation, update, query, digest, maintenance, and crystallize tasks to a selected Hana Agent session through Hana's native `session:send` bus capability.
 - Shows `purpose.md` and Mermaid graph status, plus read-only source image and source/cache contract diagnostics.
 - Adds graph contract diagnostics that summarize graph-data, graph HTML, `source_path`, link, long-label, isolated-node, and source overlap signals.
 - Adds maintenance diagnostics for orphan sources/raw files, missing `source_path`, broken raw files, stale cache entries, source frontmatter gaps, missing source signals, query/digest index gaps, duplicate titles, and `purpose.md` quality hints.
@@ -25,6 +25,8 @@ Hana plugin for an integrated `llm-wiki` skill. This v1.12 is a reliable helper 
 Content-heavy workflows such as ingest, query, digest, delete, and crystallize remain agent/skill-led. The plugin provides script-backed or read-only tools and a lightweight console for those workflows to lean on.
 
 The viewer's `Agent 工作流` panel does not call model providers directly. It reads Hana agents via `agent:list`, reads existing sessions via `session:list`, and sends a structured llm-wiki task prompt to the selected session via `session:send`. Current OpenHanako plugin bus support documents `session:send`, `session:abort`, `session:history`, `session:list`, and `agent:list`; session operations require an explicit existing `sessionPath`, so the plugin asks the user to choose a session instead of creating one implicitly.
+
+The `启动知识库上下文` action is the Hana-native replacement for the reference project's Claude `SessionStart` hook: it sends the current `wikiRoot`, `purpose.md`, `.wiki-schema.md`, and `index.md` context to an existing session. It is not a background agent and does not create a new Hana session.
 
 Agent handoff prompts ask the selected Hana Agent to prioritize `purpose.md` and to tell the user to click `生成/刷新` after content changes. The plugin still does not perform content generation or maintenance writes itself.
 
@@ -84,7 +86,7 @@ The contributed page is `/viewer`. It keeps the graph as the main view and adds:
 - source image and source/cache contract diagnostics
 - maintenance diagnostics for orphan sources/raw files, duplicate titles, raw/cache/frontmatter/source signal issues, query/digest index gaps, and `purpose.md` hints
 - init controls
-- Agent workflow handoff controls for existing Hana Agent sessions, with Chinese templates for adding sources, querying, deep organization, page updates, crystallization, and maintenance checks
+- Agent workflow handoff controls for existing Hana Agent sessions, with Chinese templates for context startup, adding sources, querying, deep organization, page updates, crystallization, and maintenance checks
 - latest stdout/stderr log
 
 ## Configuration
@@ -108,6 +110,7 @@ This Hana integration does not run upstream `install.sh` or `setup.sh`. Optional
 - Confirm `/api/link-diagnostics`, `/api/graph-source-paths`, and `/api/delete-dry-run` return readable safety diagnostics and never mutate wiki content.
 - Confirm `/api/source-image-diagnostics` and `/api/source-contract-diagnostics` report read-only source issues.
 - Confirm `/api/agents`, `/api/sessions`, and `/api/agent-send` can list Hana agents/sessions and hand a llm-wiki task to the chosen session.
+- Confirm selecting `启动知识库上下文` sends the current wiki context to an existing Hana session without requiring task input or creating a new session.
 - Confirm the plugin test suite includes selected upstream graph HTML contract checks and graph build failure handling.
 - Confirm `purpose.md` and Mermaid graph status appear in the viewer status area.
 - Confirm build refreshes the iframe graph and graph node source links open Markdown through `/wiki-file/*`.

@@ -32,6 +32,7 @@ const {
   sourceRegistry,
   sourceRegistryLookup,
   lintWiki,
+  normalizeAgentWorkflowAction,
   parseTsv,
   removeSavedWikiRoot,
   resolveOpenFolderTarget,
@@ -1514,6 +1515,29 @@ test("Hana Agent workflow helpers use native bus session APIs", async () => {
   const prompt = buildAgentWorkflowPrompt({ wikiRoot, action: "batch_ingest", input: "/tmp/raw" });
   assert.match(prompt, /任务类型：批量消化/);
   assert.match(prompt, /\/tmp\/raw/);
+
+  assert.equal(normalizeAgentWorkflowAction("context"), "context");
+  assert.equal(normalizeAgentWorkflowAction("session-start"), "context");
+  assert.equal(normalizeAgentWorkflowAction("启动上下文"), "context");
+
+  const contextPrompt = buildAgentWorkflowPrompt({ wikiRoot, action: "context" });
+  assert.match(contextPrompt, /任务类型：启动知识库上下文/);
+  assert.match(contextPrompt, new RegExp(escapeRegExp(wikiRoot)));
+  assert.match(contextPrompt, /purpose\.md/);
+  assert.match(contextPrompt, /\.wiki-schema\.md/);
+  assert.match(contextPrompt, /index\.md/);
+  assert.match(contextPrompt, /obsidian-wiki-manager\/references\/llm-wiki\/SKILL\.md/);
+  assert.match(contextPrompt, /llm-wiki skill/);
+  assert.match(contextPrompt, /生成\/刷新/);
+
+  const contextSent = await sendHanaAgentWorkflow(ctx, {
+    wikiRoot,
+    sessionPath: "/agents/agent-1/sessions/a.jsonl",
+    action: "context",
+  });
+  assert.equal(contextSent.ok, true);
+  assert.equal(contextSent.action, "context");
+  assert.match(contextSent.prompt, /启动当前知识库上下文/);
 });
 
 test("viewer API routes bridge to Hana Agent bus", async () => {
@@ -1655,6 +1679,10 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /id="agentSelect"/);
   assert.match(viewer.body, /id="sessionSelect"/);
   assert.match(viewer.body, /id="agentAction"/);
+  assert.match(viewer.body, /启动知识库上下文/);
+  assert.match(viewer.body, /可留空；插件会发送当前知识库上下文/);
+  assert.match(viewer.body, /function updateAgentInputPlaceholder\(\)/);
+  assert.match(viewer.body, /已把当前知识库上下文发送给 Agent/);
   assert.match(viewer.body, /添加素材/);
   assert.match(viewer.body, /深度整理/);
   assert.match(viewer.body, /更新页面/);

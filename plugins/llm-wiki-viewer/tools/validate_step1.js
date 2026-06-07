@@ -1,4 +1,4 @@
-import { validateStep1, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
+import { validateStep1, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
 
 export const name = "llm_wiki_validate_step1";
 export const description = "Validate an ingest Step 1 JSON file using validate-step1.sh before the agent continues the llm-wiki workflow.";

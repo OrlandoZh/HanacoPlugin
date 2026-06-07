@@ -17,8 +17,9 @@
 | adapter status | Covered | Covered in v1.2 | Plugin wraps `adapter-state.sh summary-human` and `check`; it does not install or repair adapters. |
 | adapter classify-run | Covered | Covered in v1.5 | Plugin wraps `adapter-state.sh classify-run` for result diagnosis only. |
 | diagnostics | Covered by scripts/workflow | Covered in v1.2 | Plugin aggregates status, wiki counts, source coverage, registry counts, and adapter summary. |
+| Agent context startup | Covered by SessionStart hook/workflow context | Covered in v1.13 | Plugin sends the current `wikiRoot`, `purpose.md`, `.wiki-schema.md`, and `index.md` context to an existing Hana session via `session:send`; it does not create sessions or run a background agent. |
 | graph contract diagnostics | Covered by graph/lint expectations | Covered in v1.8 | Plugin summarizes graph-data, HTML, source_path, links, long labels, isolated nodes, and source overlap signals read-only. |
-| maintenance diagnostics | Covered by workflow expectations | Covered in v1.9; expanded in v1.12 | Plugin checks orphan sources/raw files, missing `source_path`, broken raw files, stale cache entries, missing source signals, query/digest index gaps, duplicate titles, and `purpose.md` quality hints read-only. |
+| maintenance diagnostics | Covered by workflow expectations | Covered in v1.9; expanded in v1.13 | Plugin checks orphan sources/raw files, missing `source_path`, broken raw files, stale cache entries, missing source signals, query/digest index gaps, duplicate titles, and `purpose.md` quality hints read-only. |
 | purpose.md visibility | Covered | Covered in v1.7 | Plugin reports `purpose.md` status and includes a purpose summary in diagnostics. |
 | status | Covered by workflow instructions | Covered | Plugin reports root, schema, wiki, graph, Mermaid graph, purpose, cache, and skill state. |
 | graph | Covered | Covered | Plugin builds and serves graph HTML inside Hana. |
@@ -33,5 +34,5 @@
 | validate Step 1 JSON | Covered | Covered in v1.5 | Plugin wraps `validate-step1.sh` for agent workflow preflight. |
 | crystallize | Covered by agent workflow | Not pluginized | Agent-led conversation synthesis. |
 | optional URL adapters | Partially covered | Diagnostic only | Plugin reports adapter state but does not install, repair, or run extraction adapters. |
-| upstream regression tests | Present in reference | Expanded through v1.12 | Plugin uses Node smoke tests plus selected graph HTML, graph failure, source signal, preview, adapter, and validation regression contracts. |
+| upstream regression tests | Present in reference | Expanded through v1.13 | Plugin uses Node smoke tests plus selected graph HTML, graph failure, source signal, preview, adapter, and validation regression contracts. |
 | upstream installer/docs assets | Reference only | Not copied | Hana integration avoids upstream installer execution. |

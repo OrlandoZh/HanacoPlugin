@@ -1,4 +1,4 @@
-import { lintFixPreview, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
+import { lintFixPreview, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
 
 export const name = "llm_wiki_lint_fix_preview";
 export const description = "Preview low-risk lint fixes with lint-fix.sh --dry-run. It does not modify wiki files.";

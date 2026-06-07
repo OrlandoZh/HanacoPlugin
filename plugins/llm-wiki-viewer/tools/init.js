@@ -1,4 +1,4 @@
-import { initWiki, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
+import { initWiki, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
 
 export const name = "llm_wiki_init";
 export const description = "Initialize a new llm-wiki root with Chinese or English seed files.";

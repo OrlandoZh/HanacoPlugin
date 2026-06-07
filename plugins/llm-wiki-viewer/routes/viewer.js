@@ -25,7 +25,7 @@ import {
   sourceImageDiagnostics,
   sourcePageContractPreview,
   sourceSignalEligibility,
-} from "../lib/wiki-core.js?v=0.1.12";
+} from "../lib/wiki-core.js?v=0.1.13";
 
 export default function registerViewerRoutes(app, ctx) {
   app.get("/viewer", async (c) => c.html(await renderViewer(c, ctx)));
@@ -320,6 +320,7 @@ async function renderViewer(c, ctx) {
         </div>
         <div class="agent-row">
           <select id="agentAction" aria-label="知识库任务">
+            <option value="context">启动知识库上下文</option>
             <option value="ingest">添加素材</option>
             <option value="batch-ingest">批量消化</option>
             <option value="query">查询知识库</option>
@@ -330,7 +331,7 @@ async function renderViewer(c, ctx) {
           </select>
           <button id="refreshAgents">刷新 Agent</button>
         </div>
-        <textarea id="agentInput" aria-label="Agent 任务内容" placeholder="粘贴链接、文件路径、问题或维护目标"></textarea>
+        <textarea id="agentInput" aria-label="Agent 任务内容" placeholder="可留空；插件会发送当前知识库上下文"></textarea>
         <div class="agent-actions">
           <button id="sendAgent" class="primary">交给 Agent</button>
           <button id="clearAgentInput">清空内容</button>
@@ -739,9 +740,19 @@ async function renderViewer(c, ctx) {
       });
       const data = await r.json();
       statusEl.textContent = data.ok ? "已交给 Agent" : "Agent 调用失败";
-      if (data.ok) data.stdout = "任务已交给 Agent。Agent 完成内容写入后，请点击顶部“生成/刷新”更新图谱。";
+      if (data.ok) {
+        data.stdout = agentAction.value === "context"
+          ? "已把当前知识库上下文发送给 Agent。后续写入完成后，请点击顶部“生成/刷新”。"
+          : "任务已交给 Agent。Agent 完成内容写入后，请点击顶部“生成/刷新”更新图谱。";
+      }
       showLog(data);
       setBusy(sendAgentButton, false);
+    }
+
+    function updateAgentInputPlaceholder() {
+      agentInput.placeholder = agentAction.value === "context"
+        ? "可留空；插件会发送当前知识库上下文"
+        : "粘贴链接、文件路径、问题或维护目标";
     }
 
     async function saveCurrentRoot() {
@@ -1055,6 +1066,7 @@ async function renderViewer(c, ctx) {
     maintenanceDiagnosticsButton.addEventListener("click", runMaintenanceDiagnostics);
     refreshAgentsButton.addEventListener("click", refreshAgents);
     agentSelect.addEventListener("change", refreshSessions);
+    agentAction.addEventListener("change", updateAgentInputPlaceholder);
     sessionSelect.addEventListener("change", () => lockButton(sendAgentButton, !sessionSelect.value));
     sendAgentButton.addEventListener("click", sendAgentWorkflow);
     clearAgentInputButton.addEventListener("click", () => { agentInput.value = ""; agentInput.focus(); });
@@ -1075,6 +1087,7 @@ async function renderViewer(c, ctx) {
     }
 
     refreshWikiRoots().finally(refreshStatus);
+    updateAgentInputPlaceholder();
     refreshAgents();
     window.parent?.postMessage?.({ source: "hana-plugin", type: "ready" }, "*");
   </script>

@@ -8,6 +8,10 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const SCRIPT_TIMEOUT_MS = 60000;
 const AGENT_WORKFLOW_SPECS = {
+  context: {
+    label: "启动知识库上下文",
+    instruction: "请启动当前知识库上下文：读取知识库根目录下的 purpose.md、.wiki-schema.md、index.md，并准备按 obsidian-wiki-manager/references/llm-wiki/SKILL.md 的工作流处理后续任务。本消息只用于建立上下文和准备工作，不需要写入内容。",
+  },
   ingest: {
     label: "添加素材",
     instruction: "请将用户输入中的链接、文件路径或粘贴文本作为素材，执行 ingest 工作流，把有价值的内容整理进知识库。",
@@ -1136,6 +1140,14 @@ export async function sendHanaAgentWorkflow(ctx, input = {}) {
 export function normalizeAgentWorkflowAction(action) {
   const raw = String(action || "").trim().toLowerCase();
   const aliases = {
+    context: "context",
+    start: "context",
+    "session-start": "context",
+    session_start: "context",
+    "start-context": "context",
+    start_context: "context",
+    "启动上下文": "context",
+    "知识库上下文": "context",
     ingest: "ingest",
     "batch-ingest": "batch-ingest",
     batch_ingest: "batch-ingest",
@@ -1158,6 +1170,32 @@ export function buildAgentWorkflowPrompt(input = {}) {
   const userInput = String(input.input || "").trim();
   const notes = String(input.notes || "").trim();
   const spec = AGENT_WORKFLOW_SPECS[action] || AGENT_WORKFLOW_SPECS.ingest;
+  if (action === "context") {
+    const lines = [
+      "请启动当前知识库上下文。",
+      "",
+      `知识库根目录：${wikiRoot}`,
+      `任务类型：${spec.label}`,
+      "",
+      "执行要求：",
+      "- 当前消息用于建立上下文和准备工作，不需要写入或改动知识库内容。",
+      "- 请读取并理解 knowledge root 下的 purpose.md；如果缺失，请建议用户补充研究目标、关键问题和范围。",
+      "- 请检查 .wiki-schema.md 和 index.md，确认后续任务都以这个知识库根目录为准。",
+      "- 后续用户可能要求添加素材、批量消化、查询知识库、深度整理、更新页面、结晶化对话或维护检查。",
+      "- 请按 obsidian-wiki-manager/references/llm-wiki/SKILL.md 中的 llm-wiki skill 工作流规则处理后续任务。",
+      "- 后续如果完成了内容写入或更新，请提醒用户回到 LLM Wiki 控制台点击“生成/刷新”更新图谱。",
+      "",
+      "具体任务：",
+      spec.instruction,
+    ];
+    if (userInput) {
+      lines.push("", "用户输入：", userInput);
+    }
+    if (notes) {
+      lines.push("", "补充说明：", notes);
+    }
+    return lines.join("\n");
+  }
   const lines = [
     "请使用 llm-wiki skill 处理下面的知识库任务。",
     "",

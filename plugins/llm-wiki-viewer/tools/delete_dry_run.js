@@ -1,4 +1,4 @@
-import { deleteDryRun, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
+import { deleteDryRun, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
 
 export const name = "llm_wiki_delete_dry_run";
 export const description = "Dry-run llm-wiki source deletion by listing wiki pages that reference a source file. It never deletes files.";

@@ -1,4 +1,4 @@
-import { adapterClassify, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
+import { adapterClassify, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
 
 export const name = "llm_wiki_adapter_classify";
 export const description = "Classify an optional adapter extraction result using adapter-state.sh classify-run without installing or repairing anything.";

@@ -1,4 +1,4 @@
-import { getStatus, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
+import { getStatus, toToolResult } from "../lib/wiki-core.js?v=0.1.13";
 
 export const name = "llm_wiki_status";
 export const description = "Check whether a path is an initialized llm-wiki root and report graph/lint readiness.";
