@@ -13,8 +13,8 @@ resolve_platform_skill_root() {
         printf '%s\n' "$HOME/.Codex/skills"
       fi
       ;;
-    openclaw)
-      printf '%s\n' "$HOME/.openclaw/skills"
+    hanaagent)
+      printf '%s\n' "$HOME/.hanako/skills"
       ;;
     hermes)
       printf '%s\n' "$HOME/.hermes/skills"

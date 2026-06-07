@@ -12,7 +12,7 @@
 
 [![version](https://img.shields.io/badge/v3.6.2-数字山水图谱-E8D5B5?style=flat-square&labelColor=3a3026&color=E8D5B5)](https://github.com/sdyckjq-lab/llm-wiki-skill/releases)
 [![license](https://img.shields.io/badge/MIT-license-5a6e5c?style=flat-square&labelColor=3a3026)](LICENSE)
-[![platforms](https://img.shields.io/badge/Claude·Codex·OpenClaw·Hermes-多平台-7a96a6?style=flat-square&labelColor=3a3026)]
+[![platforms](https://img.shields.io/badge/Claude·Codex·HanaAgent·Hermes-多平台-7a96a6?style=flat-square&labelColor=3a3026)]
 
 </div>
 
@@ -39,8 +39,8 @@ bash install.sh --platform claude
 # Codex
 bash install.sh --platform codex
 
-# OpenClaw
-bash install.sh --platform openclaw
+# HanaAgent
+bash install.sh --platform hanaagent
 
 # Hermes
 bash install.sh --platform hermes
@@ -94,7 +94,7 @@ bash install.sh --platform claude --with-optional-adapters
 
 - [Claude Code](platforms/claude/CLAUDE.md)
 - [Codex](platforms/codex/AGENTS.md)
-- [OpenClaw](platforms/openclaw/README.md)
+- [HanaAgent](platforms/hanaagent/README.md)
 - [Hermes](platforms/hermes/README.md)
 - [Obsidian Integration Guide](docs/obsidian.md)
 
@@ -129,7 +129,7 @@ bash install.sh --platform claude --with-optional-adapters
 |---|---|
 | Claude Code | `~/.claude/skills/llm-wiki` |
 | Codex | `~/.codex/skills/llm-wiki` |
-| OpenClaw | `~/.openclaw/skills/llm-wiki` |
+| HanaAgent | `<hanaagent-skill-dir>/llm-wiki` |
 | Hermes | `~/.hermes/skills/llm-wiki` |
 
 ### 更新
@@ -147,7 +147,7 @@ Claude Code 默认安装的，可以直接用 `/llm-wiki-upgrade`。
 自定义目录：
 
 ```bash
-bash install.sh --upgrade --platform openclaw --target-dir <你的技能目录>/llm-wiki
+bash install.sh --upgrade --platform hanaagent --target-dir <你的技能目录>/llm-wiki
 ```
 
 ```bash
@@ -196,7 +196,7 @@ bash install.sh --upgrade --platform hermes --target-dir <你的技能目录>/ll
 <summary><strong>常见问题</strong></summary>
 
 **这个仓库还是只给 Claude 用吗？**
-不是。Claude 只是其中一个入口。同一个链接能被 Claude Code、Codex、OpenClaw、Hermes 安装和使用。
+不是。Claude 只是其中一个入口。同一个链接能被 Claude Code、Codex、HanaAgent、Hermes 安装和使用。
 
 **为什么 Hermes 要看 `HERMES.md`？**
 Hermes 会优先加载仓库根的 `HERMES.md` 作为项目上下文。这个文件只负责 Hermes 的入口与安装说明，核心能力和工作流仍以 `SKILL.md` 为准。

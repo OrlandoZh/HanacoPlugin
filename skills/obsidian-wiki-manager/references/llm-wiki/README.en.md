@@ -12,7 +12,7 @@ Turn scattered information into a growing, interconnected knowledge base
 
 [![version](https://img.shields.io/badge/v3.6.2-Digital%20Landscape%20Graph-E8D5B5?style=flat-square&labelColor=3a3026&color=E8D5B5)](https://github.com/sdyckjq-lab/llm-wiki-skill/releases)
 [![license](https://img.shields.io/badge/MIT-license-5a6e5c?style=flat-square&labelColor=3a3026)](LICENSE)
-[![platforms](https://img.shields.io/badge/Claude·Codex·OpenClaw·Hermes-multi--platform-7a96a6?style=flat-square&labelColor=3a3026)]
+[![platforms](https://img.shields.io/badge/Claude·Codex·HanaAgent·Hermes-multi--platform-7a96a6?style=flat-square&labelColor=3a3026)]
 
 </div>
 
@@ -39,8 +39,8 @@ bash install.sh --platform claude
 # Codex
 bash install.sh --platform codex
 
-# OpenClaw
-bash install.sh --platform openclaw
+# HanaAgent
+bash install.sh --platform hanaagent
 
 # Hermes
 bash install.sh --platform hermes
@@ -94,7 +94,7 @@ Each platform has its own setup guide:
 
 - [Claude Code](platforms/claude/CLAUDE.md)
 - [Codex](platforms/codex/AGENTS.md)
-- [OpenClaw](platforms/openclaw/README.md)
+- [HanaAgent](platforms/hanaagent/README.md)
 - [Hermes](platforms/hermes/README.md)
 
 ---
@@ -127,7 +127,7 @@ Each platform has its own setup guide:
 |---|---|
 | Claude Code | `~/.claude/skills/llm-wiki` |
 | Codex | `~/.codex/skills/llm-wiki` |
-| OpenClaw | `~/.openclaw/skills/llm-wiki` |
+| HanaAgent | `<hanaagent-skill-dir>/llm-wiki` |
 | Hermes | `~/.hermes/skills/llm-wiki` |
 
 ### Updating
@@ -145,7 +145,7 @@ For Claude Code with default install, you can also use `/llm-wiki-upgrade` direc
 Custom directories:
 
 ```bash
-bash install.sh --upgrade --platform openclaw --target-dir <your-skill-dir>/llm-wiki
+bash install.sh --upgrade --platform hanaagent --target-dir <your-skill-dir>/llm-wiki
 ```
 
 ```bash
@@ -194,7 +194,7 @@ your-knowledge-base/
 <summary><strong>FAQ</strong></summary>
 
 **Is this Claude-only?**
-No. Claude is one of multiple entry points. The same repo can be installed by Claude Code, Codex, OpenClaw, or Hermes.
+No. Claude is one of multiple entry points. The same repo can be installed by Claude Code, Codex, HanaAgent, or Hermes.
 
 **Why does Hermes care about `HERMES.md`?**
 Hermes loads the repo root `HERMES.md` as its highest-priority project context. That file only defines the Hermes entry and install path; the shared workflow still lives in `SKILL.md`.

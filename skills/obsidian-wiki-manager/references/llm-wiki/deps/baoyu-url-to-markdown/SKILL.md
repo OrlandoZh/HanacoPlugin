@@ -3,7 +3,7 @@ name: baoyu-url-to-markdown
 description: Fetch any URL and convert to markdown using Chrome CDP. Saves the rendered HTML snapshot alongside the markdown, uses an upgraded Defuddle pipeline with better web-component handling and YouTube transcript extraction, and automatically falls back to the pre-Defuddle HTML-to-Markdown pipeline when needed. If local browser capture fails entirely, it can fall back to the hosted defuddle.md API. Supports two modes - auto-capture on page load, or wait for user signal (for pages requiring login). Use when user wants to save a webpage as markdown.
 version: 1.58.1
 metadata:
-  openclaw:
+  hanaagent:
     homepage: https://github.com/JimLiu/baoyu-skills#baoyu-url-to-markdown
     requires:
       anyBins:

@@ -26,9 +26,9 @@ bash install.sh --platform codex --with-optional-adapters
 
 ## 重要提醒
 
-- 不要把这个仓库当成 Codex 专属仓库；Claude Code、OpenClaw、Hermes 也共用同一套核心内容
+- 不要把这个仓库当成 Codex 专属仓库；Claude Code、HanaAgent、Hermes 也共用同一套核心内容
 - 安装完成后，再按 [SKILL.md](SKILL.md) 的工作流继续做事
-- 如果 OpenClaw 使用的是自定义技能目录，可以改用 `--target-dir <你的技能目录>/llm-wiki`
+- 如果 HanaAgent 使用的是自定义技能目录，可以改用 `--target-dir <你的技能目录>/llm-wiki`
 
 ## 使用顺序
 
