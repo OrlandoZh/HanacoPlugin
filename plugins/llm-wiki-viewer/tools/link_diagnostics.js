@@ -1,4 +1,4 @@
-import { linkDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
+import { linkDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
 
 export const name = "llm_wiki_link_diagnostics";
 export const description = "Run read-only llm-wiki Markdown link diagnostics for broken links, orphan pages, and duplicate page titles.";

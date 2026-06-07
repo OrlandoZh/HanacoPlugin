@@ -859,7 +859,7 @@ test("source contract diagnostics reports source_path, raw, and cache issues", a
   assert.equal(nonWiki.error, "not_llm_wiki_root");
 });
 
-test("maintenance diagnostics reports orphan sources, source_path/raw issues, duplicate titles, and purpose hints", async () => {
+test("maintenance diagnostics reports source, raw, cache, source signal, index, and purpose issues", async () => {
   const wikiRoot = await createSampleWiki();
   await fsp.writeFile(path.join(wikiRoot, "purpose.md"), [
     "# 研究目的与方向",
@@ -876,9 +876,14 @@ test("maintenance diagnostics reports orphan sources, source_path/raw issues, du
   ].join("\n"), "utf8");
   await fsp.mkdir(path.join(wikiRoot, "raw", "notes"), { recursive: true });
   await fsp.writeFile(path.join(wikiRoot, "raw", "notes", "used.txt"), "raw\n", "utf8");
+  await fsp.writeFile(path.join(wikiRoot, "raw", "notes", "orphan-raw.txt"), "raw\n", "utf8");
   await fsp.writeFile(path.join(wikiRoot, "wiki", "sources", "used.md"), [
     "---",
     "source_path: raw/notes/used.txt",
+    "source_type: note",
+    "sources: []",
+    "images: 0",
+    "image_paths: []",
     "---",
     "# Used Source",
     "",
@@ -886,6 +891,10 @@ test("maintenance diagnostics reports orphan sources, source_path/raw issues, du
   await fsp.writeFile(path.join(wikiRoot, "wiki", "sources", "orphan.md"), [
     "---",
     "source_path: raw/notes/missing.txt",
+    "source_type: note",
+    "sources: []",
+    "images: 0",
+    "image_paths: []",
     "---",
     "# Orphan Source",
     "",
@@ -897,24 +906,57 @@ test("maintenance diagnostics reports orphan sources, source_path/raw issues, du
     "# Missing Source Path",
     "",
   ].join("\n"), "utf8");
-  await fsp.writeFile(path.join(wikiRoot, "wiki", "entities", "Duplicate.md"), "# Duplicate\n\nsource: raw/notes/used.txt\n", "utf8");
+  await fsp.mkdir(path.join(wikiRoot, "wiki", "queries"), { recursive: true });
+  await fsp.mkdir(path.join(wikiRoot, "wiki", "synthesis"), { recursive: true });
+  await fsp.writeFile(path.join(wikiRoot, "wiki", "queries", "Search.md"), "---\ntype: query\nderived: true\n---\n# Search\n", "utf8");
+  await fsp.writeFile(path.join(wikiRoot, "wiki", "synthesis", "Digest.md"), "---\ntype: synthesis\nderived: true\n---\n# Digest\n", "utf8");
+  await fsp.writeFile(path.join(wikiRoot, ".wiki-cache.json"), JSON.stringify({
+    entries: {
+      "raw/notes/stale.txt": { source_page: "wiki/sources/stale.md" },
+      "raw/notes/used.txt": { source_page: "wiki/sources/used.md" },
+    },
+  }, null, 2), "utf8");
+  await fsp.writeFile(path.join(wikiRoot, "wiki", "entities", "Duplicate.md"), [
+    "---",
+    "sources: []",
+    "---",
+    "# Duplicate",
+    "",
+    "source: raw/notes/used.txt",
+    "",
+  ].join("\n"), "utf8");
   await fsp.writeFile(path.join(wikiRoot, "wiki", "topics", "Duplicate.md"), "# Duplicate\n", "utf8");
 
   const result = await maintenanceDiagnostics(wikiRoot);
   assert.equal(result.ok, true);
   assert.equal(result.summary.orphanSources >= 1, true);
+  assert.equal(result.summary.orphanRawFiles, 1);
   assert.equal(result.summary.missingSourcePaths, 1);
   assert.equal(result.summary.brokenRawFiles, 1);
+  assert.equal(result.summary.staleCacheEntries, 1);
+  assert.equal(result.summary.sourceFrontmatterIssues >= 1, true);
+  assert.equal(result.summary.missingSourceSignals >= 2, true);
+  assert.equal(result.summary.queryDigestIndexGaps, 2);
   assert.equal(result.summary.duplicateTitles >= 1, true);
   assert.equal(result.summary.purposeHints >= 3, true);
   assert.ok(result.orphanSources.includes("wiki/sources/orphan.md"));
+  assert.deepEqual(result.orphanRawFiles, ["raw/notes/orphan-raw.txt"]);
   assert.ok(result.missingSourcePaths.includes("wiki/sources/missing-source-path.md"));
   assert.ok(result.brokenRawFiles.some((item) => item.source_path === "raw/notes/missing.txt"));
+  assert.ok(result.staleCacheEntries.some((item) => item.rawPath === "raw/notes/stale.txt"));
+  assert.ok(result.sourceFrontmatterIssues.some((item) => item.page === "wiki/sources/missing-source-path.md"));
+  assert.ok(result.missingSourceSignals.some((item) => item.path === "wiki/entities/Duplicate.md" && item.reason === "empty_sources"));
+  assert.ok(result.queryDigestIndexStatus.missingFromIndex.some((item) => item.path === "wiki/queries/Search.md"));
+  assert.ok(result.queryDigestIndexStatus.missingFromIndex.some((item) => item.path === "wiki/synthesis/Digest.md"));
   assert.ok(result.duplicateTitles.some((item) => item.title === "duplicate"));
   assert.ok(result.purposeHints.includes("core_goal_placeholder"));
+  assert.match(result.stdout, /orphan raw files: 1/);
+  assert.match(result.stdout, /stale cache entries: 1/);
+  assert.match(result.stdout, /query\/digest index gaps: 2/);
 
   const tool = await maintenanceDiagnosticsTool.execute({ wikiRoot });
   assert.equal(tool.details.summary.missingSourcePaths, 1);
+  assert.equal(tool.details.summary.orphanRawFiles, 1);
 
   const nonWiki = await maintenanceDiagnostics(await tempDir());
   assert.equal(nonWiki.ok, false);
@@ -1603,6 +1645,11 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /基础状态/);
   assert.match(viewer.body, /图谱诊断/);
   assert.match(viewer.body, /维护诊断/);
+  assert.match(viewer.body, /孤儿 raw 文件/);
+  assert.match(viewer.body, /陈旧 cache/);
+  assert.match(viewer.body, /source frontmatter 问题/);
+  assert.match(viewer.body, /缺来源信号页面/);
+  assert.match(viewer.body, /query\/digest 索引缺口/);
   assert.match(viewer.body, /任务已交给 Agent。Agent 完成内容写入后/);
   assert.match(viewer.body, /Agent 工作流/);
   assert.match(viewer.body, /id="agentSelect"/);

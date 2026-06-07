@@ -1,4 +1,4 @@
-import { sourceRegistryLookup, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
+import { sourceRegistryLookup, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
 
 export const name = "llm_wiki_source_match_url";
 export const description = "Match a URL against the llm-wiki source registry and return the source definition to use.";

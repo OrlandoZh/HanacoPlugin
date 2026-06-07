@@ -1,6 +1,6 @@
 # LLM Wiki Viewer
 
-Hana plugin for an integrated `llm-wiki` skill. This v1.11 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
+Hana plugin for an integrated `llm-wiki` skill. This v1.12 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
 
 ## What It Does
 
@@ -19,7 +19,7 @@ Hana plugin for an integrated `llm-wiki` skill. This v1.11 is a reliable helper 
 - Can hand knowledge-base generation, update, query, digest, maintenance, and crystallize tasks to a selected Hana Agent session through Hana's native `session:send` bus capability.
 - Shows `purpose.md` and Mermaid graph status, plus read-only source image and source/cache contract diagnostics.
 - Adds graph contract diagnostics that summarize graph-data, graph HTML, `source_path`, link, long-label, isolated-node, and source overlap signals.
-- Adds maintenance diagnostics for orphan sources, missing `source_path`, broken raw files, duplicate titles, and `purpose.md` quality hints.
+- Adds maintenance diagnostics for orphan sources/raw files, missing `source_path`, broken raw files, stale cache entries, source frontmatter gaps, missing source signals, query/digest index gaps, duplicate titles, and `purpose.md` quality hints.
 - Carries selected upstream graph HTML regression contracts into the plugin test suite.
 
 Content-heavy workflows such as ingest, query, digest, delete, and crystallize remain agent/skill-led. The plugin provides script-backed or read-only tools and a lightweight console for those workflows to lean on.
@@ -82,7 +82,7 @@ The contributed page is `/viewer`. It keeps the graph as the main view and adds:
 - safety diagnostics and delete dry-run references
 - graph contract diagnostics inside the diagnostics output
 - source image and source/cache contract diagnostics
-- maintenance diagnostics for orphan sources, duplicate titles, raw file issues, and `purpose.md` hints
+- maintenance diagnostics for orphan sources/raw files, duplicate titles, raw/cache/frontmatter/source signal issues, query/digest index gaps, and `purpose.md` hints
 - init controls
 - Agent workflow handoff controls for existing Hana Agent sessions, with Chinese templates for adding sources, querying, deep organization, page updates, crystallization, and maintenance checks
 - latest stdout/stderr log
@@ -104,7 +104,7 @@ This Hana integration does not run upstream `install.sh` or `setup.sh`. Optional
 - Confirm `/api/diagnostics` reports wiki counts, source coverage summary, adapter summary, and graph contract summary.
 - Confirm `/api/source-signal-eligibility` and `/api/runtime-context` report read-only source signal and skill layout diagnostics.
 - Confirm `/api/lint-fix-preview` and `/api/source-page-contract-preview` report preview results without mutating wiki content.
-- Confirm `/api/maintenance-diagnostics` reports orphan sources, source_path/raw issues, duplicate titles, and `purpose.md` hints without mutating wiki content.
+- Confirm `/api/maintenance-diagnostics` reports orphan sources/raw files, source_path/raw/cache/frontmatter/source signal issues, query/digest index gaps, duplicate titles, and `purpose.md` hints without mutating wiki content.
 - Confirm `/api/link-diagnostics`, `/api/graph-source-paths`, and `/api/delete-dry-run` return readable safety diagnostics and never mutate wiki content.
 - Confirm `/api/source-image-diagnostics` and `/api/source-contract-diagnostics` report read-only source issues.
 - Confirm `/api/agents`, `/api/sessions`, and `/api/agent-send` can list Hana agents/sessions and hand a llm-wiki task to the chosen session.

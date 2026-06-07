@@ -627,16 +627,30 @@ export async function maintenanceDiagnostics(wikiRoot) {
     return { ok: false, error: "not_llm_wiki_root", wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, status };
   }
 
-  const [sourceContracts, links, purposeSummary] = await Promise.all([
+  const [sourceContracts, links, purposeSummary, eligibility] = await Promise.all([
     sourceContractDiagnostics(status.wikiRoot),
     linkDiagnostics(status.wikiRoot),
     summarizePurpose(status.wikiRoot),
+    sourceSignalEligibility(status.wikiRoot),
   ]);
   const sourcePages = await collectSourcePages(status.wikiRoot);
   const sourceReferences = await collectSourceReferenceCounts(status.wikiRoot, sourcePages);
   const orphanSources = sourcePages
     .filter((page) => (sourceReferences.get(page.relativePath) || 0) === 0)
     .map((page) => page.relativePath);
+  const rawFiles = await collectRawFiles(status.wikiRoot);
+  const orphanRawFiles = await collectOrphanRawFiles(status.wikiRoot, rawFiles, sourcePages);
+  const cache = await readWikiCache(status.wikiRoot);
+  const staleCacheEntries = await collectStaleCacheEntries(status.wikiRoot, cache);
+  const sourceFrontmatterIssues = await collectSourceFrontmatterIssues(sourcePages);
+  const missingSourceSignals = (eligibility.pages || [])
+    .filter((page) => page.applicable && page.reason !== "ok")
+    .map((page) => ({
+      path: page.path,
+      pageType: page.pageType,
+      reason: page.reason,
+    }));
+  const queryDigestIndexStatus = await collectQueryDigestIndexStatus(status.wikiRoot);
   const purposeHints = await collectPurposeHints(status.wikiRoot, purposeSummary);
   const duplicateTitles = links.duplicateTitles || [];
   const missingSourcePaths = sourceContracts.missingSourcePath || [];
@@ -648,13 +662,24 @@ export async function maintenanceDiagnostics(wikiRoot) {
   if (!sourceContracts.ok) warnings.push("source_contract_issues");
   if (!links.ok) warnings.push("link_diagnostics_issues");
   if (orphanSources.length > 0) warnings.push("orphan_sources");
+  if (orphanRawFiles.length > 0) warnings.push("orphan_raw_files");
+  if (staleCacheEntries.length > 0) warnings.push("stale_cache_entries");
+  if (sourceFrontmatterIssues.length > 0) warnings.push("source_frontmatter_issues");
+  if (missingSourceSignals.length > 0) warnings.push("missing_source_signals");
+  if (queryDigestIndexStatus.missingFromIndex.length > 0) warnings.push("query_digest_index_gaps");
   if (purposeHints.length > 0) warnings.push("purpose_needs_attention");
 
   const summary = {
     sourcePages: sourcePages.length,
+    rawFiles: rawFiles.length,
     orphanSources: orphanSources.length,
+    orphanRawFiles: orphanRawFiles.length,
     missingSourcePaths: missingSourcePaths.length,
     brokenRawFiles: brokenRawFiles.length,
+    staleCacheEntries: staleCacheEntries.length,
+    sourceFrontmatterIssues: sourceFrontmatterIssues.length,
+    missingSourceSignals: missingSourceSignals.length,
+    queryDigestIndexGaps: queryDigestIndexStatus.missingFromIndex.length,
     duplicateTitles: duplicateTitles.length,
     purposeHints: purposeHints.length,
   };
@@ -666,13 +691,18 @@ export async function maintenanceDiagnostics(wikiRoot) {
     status,
     summary,
     orphanSources,
+    orphanRawFiles,
     missingSourcePaths,
     brokenRawFiles,
+    staleCacheEntries,
+    sourceFrontmatterIssues,
+    missingSourceSignals,
+    queryDigestIndexStatus,
     duplicateTitles,
     purposeHints,
     warnings,
     stdout: formatMaintenanceDiagnosticsSummary(summary, warnings),
-    stderr: [sourceContracts.stderr, links.stderr].filter(Boolean).join("\n"),
+    stderr: [sourceContracts.stderr, links.stderr, eligibility.stderr, cache.ok ? "" : cache.error].filter(Boolean).join("\n"),
     code: 0,
   };
 }
@@ -1495,7 +1525,7 @@ function formatDiagnosticsSummary(counts, coverageSummary, adapterSummary, warni
     parts.push(`graph contract issues: ${extras.graphContractSummary.issues}`);
   }
   if (extras.maintenanceSummary) {
-    parts.push(`maintenance issues: ${extras.maintenanceSummary.orphanSources + extras.maintenanceSummary.missingSourcePaths + extras.maintenanceSummary.brokenRawFiles + extras.maintenanceSummary.duplicateTitles + extras.maintenanceSummary.purposeHints}`);
+    parts.push(`maintenance issues: ${countMaintenanceIssues(extras.maintenanceSummary)}`);
   }
   if (warnings.length > 0) {
     parts.push(`warnings: ${warnings.join(", ")}`);
@@ -1664,6 +1694,33 @@ async function collectSourcePages(wikiRoot) {
   return collectMarkdownPagesInDir(wikiRoot, sourceDir);
 }
 
+async function collectRawFiles(wikiRoot) {
+  const rawDir = path.join(wikiRoot, "raw");
+  const files = [];
+  async function walk(dir) {
+    let entries;
+    try {
+      entries = await fsp.readdir(dir, { withFileTypes: true });
+    } catch (error) {
+      if (error.code === "ENOENT") return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath);
+      } else if (entry.isFile()) {
+        files.push({
+          absolutePath: fullPath,
+          relativePath: normalizeSlash(path.relative(wikiRoot, fullPath)),
+        });
+      }
+    }
+  }
+  await walk(rawDir);
+  return files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+}
+
 async function summarizePurpose(wikiRoot) {
   const purposePath = path.join(wikiRoot, "purpose.md");
   try {
@@ -1710,6 +1767,104 @@ async function collectSourceReferenceCounts(wikiRoot, sourcePages) {
     }
   }
   return counts;
+}
+
+async function collectOrphanRawFiles(wikiRoot, rawFiles, sourcePages) {
+  const referencedRaw = new Set();
+  for (const page of sourcePages) {
+    const frontmatter = await readFrontmatter(page.absolutePath);
+    const rawPath = String(frontmatter.source_path || "").trim();
+    if (!rawPath) continue;
+    const absolute = resolveWikiScopedPath(wikiRoot, rawPath);
+    if (isInside(wikiRoot, absolute)) {
+      referencedRaw.add(normalizeSlash(path.relative(wikiRoot, absolute)).toLowerCase());
+    }
+  }
+  return rawFiles
+    .filter((file) => !referencedRaw.has(file.relativePath.toLowerCase()))
+    .map((file) => file.relativePath);
+}
+
+async function collectStaleCacheEntries(wikiRoot, cache) {
+  if (!cache.ok) return [];
+  const stale = [];
+  for (const [rawPath, entry] of Object.entries(cache.entries || {})) {
+    const rawAbsolute = resolveWikiScopedPath(wikiRoot, rawPath);
+    const sourcePage = String(entry?.source_page || "").trim();
+    const sourceAbsolute = sourcePage ? resolveWikiScopedPath(wikiRoot, sourcePage) : "";
+    const rawExists = Boolean(rawAbsolute && isInside(wikiRoot, rawAbsolute) && fs.existsSync(rawAbsolute));
+    const sourceExists = Boolean(sourceAbsolute && isInside(wikiRoot, sourceAbsolute) && fs.existsSync(sourceAbsolute));
+    if (!rawExists || !sourcePage || !sourceExists) {
+      stale.push({
+        rawPath,
+        source_page: sourcePage,
+        rawExists,
+        sourceExists,
+        reason: !rawExists ? "raw_missing" : !sourcePage ? "source_page_missing" : "source_page_file_missing",
+      });
+    }
+  }
+  return stale;
+}
+
+async function collectSourceFrontmatterIssues(sourcePages) {
+  const requiredFields = ["tags", "created", "updated", "sources", "source_type", "source_path", "images", "image_paths"];
+  const issues = [];
+  for (const page of sourcePages) {
+    const frontmatter = await readFrontmatter(page.absolutePath);
+    const missing = requiredFields.filter((field) => !(field in frontmatter));
+    const invalid = [];
+    if ("images" in frontmatter) {
+      const imageCount = Number.parseInt(String(frontmatter.images), 10);
+      if (!Number.isFinite(imageCount) || imageCount < 0) invalid.push("images");
+    }
+    if ("image_paths" in frontmatter && !Array.isArray(parseFrontmatterList(frontmatter.image_paths))) {
+      invalid.push("image_paths");
+    }
+    if (missing.length > 0 || invalid.length > 0) {
+      issues.push({
+        page: page.relativePath,
+        missing,
+        invalid,
+      });
+    }
+  }
+  return issues;
+}
+
+async function collectQueryDigestIndexStatus(wikiRoot) {
+  const indexPath = path.join(wikiRoot, "index.md");
+  let indexContent = "";
+  try {
+    indexContent = await fsp.readFile(indexPath, "utf8");
+  } catch {
+    indexContent = "";
+  }
+  const queryPages = await collectMarkdownPagesInDirSafe(wikiRoot, path.join(wikiRoot, "wiki", "queries"));
+  const digestPages = await collectMarkdownPagesInDirSafe(wikiRoot, path.join(wikiRoot, "wiki", "synthesis"));
+  const pages = [
+    ...queryPages.map((page) => ({ ...page, pageType: "query" })),
+    ...digestPages.map((page) => ({ ...page, pageType: "digest" })),
+  ];
+  const missingFromIndex = pages
+    .filter((page) => !indexMentionsPage(indexContent, page.relativePath))
+    .map((page) => ({ path: page.relativePath, pageType: page.pageType }));
+  return {
+    indexExists: fs.existsSync(indexPath),
+    queries: queryPages.length,
+    digests: digestPages.length,
+    indexed: pages.length - missingFromIndex.length,
+    missingFromIndex,
+  };
+}
+
+function indexMentionsPage(indexContent, relativePath) {
+  const content = String(indexContent || "").toLowerCase();
+  const normalized = normalizeSlash(relativePath);
+  const stem = path.posix.basename(normalized, ".md");
+  return content.includes(normalized.toLowerCase())
+    || content.includes(`[[${stem.toLowerCase()}`)
+    || content.includes(`](${normalized.toLowerCase()})`);
 }
 
 async function collectPurposeHints(wikiRoot, purposeSummary) {
@@ -2121,13 +2276,34 @@ function formatMaintenanceDiagnosticsSummary(summary, warnings) {
   return [
     "LLM Wiki maintenance diagnostics",
     `source pages: ${summary.sourcePages}`,
+    `raw files: ${summary.rawFiles}`,
     `orphan sources: ${summary.orphanSources}`,
+    `orphan raw files: ${summary.orphanRawFiles}`,
     `missing source_path: ${summary.missingSourcePaths}`,
     `broken raw files: ${summary.brokenRawFiles}`,
+    `stale cache entries: ${summary.staleCacheEntries}`,
+    `source frontmatter issues: ${summary.sourceFrontmatterIssues}`,
+    `missing source signals: ${summary.missingSourceSignals}`,
+    `query/digest index gaps: ${summary.queryDigestIndexGaps}`,
     `duplicate titles: ${summary.duplicateTitles}`,
     `purpose hints: ${summary.purposeHints}`,
     `warnings: ${warnings.length ? warnings.join(", ") : "none"}`,
   ].join("\n");
+}
+
+function countMaintenanceIssues(summary = {}) {
+  return [
+    "orphanSources",
+    "orphanRawFiles",
+    "missingSourcePaths",
+    "brokenRawFiles",
+    "staleCacheEntries",
+    "sourceFrontmatterIssues",
+    "missingSourceSignals",
+    "queryDigestIndexGaps",
+    "duplicateTitles",
+    "purposeHints",
+  ].reduce((sum, key) => sum + Number(summary[key] || 0), 0);
 }
 
 function formatSourceSignalEligibilitySummary(summary) {

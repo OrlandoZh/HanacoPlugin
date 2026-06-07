@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "llm-wiki-viewer",
   "name": "LLM Wiki Viewer",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Generate and view llm-wiki knowledge graph HTML inside Hana without running upstream installers.",
   "minAppVersion": "0.171.3",
   "trust": "full-access",

@@ -1,4 +1,4 @@
-import { sourcePageContractPreview, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
+import { sourcePageContractPreview, toToolResult } from "../lib/wiki-core.js?v=0.1.12";
 
 export const name = "llm_wiki_source_page_contract_preview";
 export const description = "Preview create-source-page contract checks without writing source pages or updating cache.";

@@ -25,7 +25,7 @@ import {
   sourceImageDiagnostics,
   sourcePageContractPreview,
   sourceSignalEligibility,
-} from "../lib/wiki-core.js?v=0.1.11";
+} from "../lib/wiki-core.js?v=0.1.12";
 
 export default function registerViewerRoutes(app, ctx) {
   app.get("/viewer", async (c) => c.html(await renderViewer(c, ctx)));
@@ -484,13 +484,7 @@ async function renderViewer(c, ctx) {
         lines.push("\\n图谱诊断: " + ((data.graphContractSummary.issues ?? 0) + " 个问题"));
       }
       if (data.maintenanceSummary) {
-        lines.push("\\n维护诊断: " + [
-          data.maintenanceSummary.orphanSources ?? 0,
-          data.maintenanceSummary.missingSourcePaths ?? 0,
-          data.maintenanceSummary.brokenRawFiles ?? 0,
-          data.maintenanceSummary.duplicateTitles ?? 0,
-          data.maintenanceSummary.purposeHints ?? 0,
-        ].join("/") + " 个摘要项");
+        lines.push("\\n维护诊断: " + maintenanceIssueCount(data.maintenanceSummary) + " 个问题");
       }
       if (Array.isArray(data.warnings) && data.warnings.length) {
         lines.push("\\n警告: " + data.warnings.join(", "));
@@ -543,16 +537,41 @@ async function renderViewer(c, ctx) {
       const summary = data.maintenanceSummary || data.summary || {};
       const lines = ["维护诊断:"];
       lines.push("孤儿来源: " + (summary.orphanSources ?? 0));
+      lines.push("孤儿 raw 文件: " + (summary.orphanRawFiles ?? 0));
       lines.push("缺失 source_path: " + (summary.missingSourcePaths ?? 0));
       lines.push("raw 文件问题: " + (summary.brokenRawFiles ?? 0));
+      lines.push("陈旧 cache: " + (summary.staleCacheEntries ?? 0));
+      lines.push("source frontmatter 问题: " + (summary.sourceFrontmatterIssues ?? 0));
+      lines.push("缺来源信号页面: " + (summary.missingSourceSignals ?? 0));
+      lines.push("query/digest 索引缺口: " + (summary.queryDigestIndexGaps ?? 0));
       lines.push("重复标题/文件名: " + (summary.duplicateTitles ?? 0));
       lines.push("purpose.md 提示: " + (summary.purposeHints ?? 0));
       if (Array.isArray(data.orphanSources) && data.orphanSources.length) lines.push("孤儿来源示例: " + data.orphanSources.slice(0, 8).join(", "));
+      if (Array.isArray(data.orphanRawFiles) && data.orphanRawFiles.length) lines.push("孤儿 raw 示例: " + data.orphanRawFiles.slice(0, 8).join(", "));
       if (Array.isArray(data.missingSourcePaths) && data.missingSourcePaths.length) lines.push("缺 source_path: " + data.missingSourcePaths.slice(0, 8).join(", "));
       if (Array.isArray(data.brokenRawFiles) && data.brokenRawFiles.length) lines.push("raw 问题: " + data.brokenRawFiles.slice(0, 8).map((item) => item.page || item.source_path || JSON.stringify(item)).join(", "));
+      if (Array.isArray(data.staleCacheEntries) && data.staleCacheEntries.length) lines.push("陈旧 cache: " + data.staleCacheEntries.slice(0, 8).map((item) => item.rawPath + " / " + item.reason).join(", "));
+      if (Array.isArray(data.sourceFrontmatterIssues) && data.sourceFrontmatterIssues.length) lines.push("frontmatter 问题: " + data.sourceFrontmatterIssues.slice(0, 8).map((item) => item.page).join(", "));
+      if (Array.isArray(data.missingSourceSignals) && data.missingSourceSignals.length) lines.push("缺来源信号: " + data.missingSourceSignals.slice(0, 8).map((item) => item.path + " / " + item.reason).join(", "));
+      if (data.queryDigestIndexStatus?.missingFromIndex?.length) lines.push("索引缺口: " + data.queryDigestIndexStatus.missingFromIndex.slice(0, 8).map((item) => item.path).join(", "));
       if (Array.isArray(data.duplicateTitles) && data.duplicateTitles.length) lines.push("重复标题: " + data.duplicateTitles.slice(0, 8).map((item) => item.title).join(", "));
       if (Array.isArray(data.purposeHints) && data.purposeHints.length) lines.push("purpose.md 建议: " + data.purposeHints.join(", "));
       return lines.join("\\n");
+    }
+
+    function maintenanceIssueCount(summary) {
+      return [
+        "orphanSources",
+        "orphanRawFiles",
+        "missingSourcePaths",
+        "brokenRawFiles",
+        "staleCacheEntries",
+        "sourceFrontmatterIssues",
+        "missingSourceSignals",
+        "queryDigestIndexGaps",
+        "duplicateTitles",
+        "purposeHints",
+      ].reduce((sum, key) => sum + Number(summary?.[key] || 0), 0);
     }
 
     function setBusy(button, busy) {
@@ -623,7 +642,7 @@ async function renderViewer(c, ctx) {
         ["图谱契约", data.graphContractSummary ? ((data.graphContractSummary.issues ?? 0) + " 个问题") : ""],
         ["Images", data.sourceImageSummary ? ((data.sourceImageSummary.missingImagePaths ?? 0) + " 缺失") : ""],
         ["Source/cache", data.sourceContractSummary ? ((data.sourceContractSummary.cacheMissing ?? 0) + " cache 缺失") : ""],
-        ["维护诊断", data.maintenanceSummary ? ((data.maintenanceSummary.orphanSources ?? 0) + " 孤儿 / " + (data.maintenanceSummary.purposeHints ?? 0) + " 提示") : ""],
+        ["维护诊断", data.maintenanceSummary ? (maintenanceIssueCount(data.maintenanceSummary) + " 个问题") : ""],
       ];
       const html = extra.map(([key, value]) => '<div class="key diag-row">' + escapeHtml(key) + '</div><div class="value diag-row" title="' + escapeHtml(value ?? "") + '">' + escapeHtml(value ?? "") + '</div>').join("");
       summary.insertAdjacentHTML("beforeend", html);
