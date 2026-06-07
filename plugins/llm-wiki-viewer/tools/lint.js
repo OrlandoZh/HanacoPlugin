@@ -1,4 +1,4 @@
-import { lintWiki, toToolResult } from "../lib/wiki-core.js";
+import { lintWiki, toToolResult } from "../lib/wiki-core.js?v=0.1.10";
 
 export const name = "llm_wiki_lint";
 export const description = "Run the llm-wiki lint health check for an initialized wiki root.";

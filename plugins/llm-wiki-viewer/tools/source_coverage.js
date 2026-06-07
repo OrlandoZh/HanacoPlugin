@@ -1,4 +1,4 @@
-import { sourceCoverage, toToolResult } from "../lib/wiki-core.js";
+import { sourceCoverage, toToolResult } from "../lib/wiki-core.js?v=0.1.10";
 
 export const name = "llm_wiki_source_coverage";
 export const description = "Run llm-wiki source signal coverage diagnostics for an initialized wiki root.";

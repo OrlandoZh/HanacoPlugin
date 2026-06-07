@@ -37,12 +37,31 @@ rsync -a plugins/llm-wiki-viewer/ ~/.hanako/plugins/llm-wiki-viewer/
 
 `obsidian-wiki-manager` 是一个总控 skill：日常 Obsidian 写入、搜索、Canvas、Bases 等请求由它分流到对应 reference skill；当任务涉及 LLM Wiki 初始化、素材消化、查询、digest、lint、status 或图谱生成时，再进入 `references/llm-wiki`。
 
-`llm-wiki-viewer` 不运行上游安装脚本。它调用已集成的 LLM Wiki graph 脚本生成：
+`llm-wiki-viewer` 当前收口到 v1.10 参考回归与只读诊断收口版。它不运行上游安装脚本，也不把 ingest、query、digest、delete、crystallize 做成插件 GUI；这些内容生成工作流仍由 skill/agent 主导。插件侧只提供可验证的辅助能力：
 
 - `wiki/graph-data.json`
 - `wiki/knowledge-graph.html`
+- wiki root 状态、lint、source coverage、source signal eligibility、runtime context、source registry、adapter status、diagnostics
+- 删除预检、链接诊断、graph `source_path` 诊断、graph contract 诊断、维护诊断、source registry get/match、adapter classify、cache status、Step 1 JSON validation
+- `purpose.md`、Mermaid 图谱状态、source image、source/cache contract 等只读诊断
+- Hana Agent 入口：列出 agent/session，并通过 `session:send` 把任务投递到已有会话
+- 保守初始化：只初始化不存在路径或空目录，不覆盖已有资料
 
 然后在 OpenHanako 插件页面中托管并展示图谱。
+
+参考项目路径以仓库根目录的 `reference/llm-wiki-skill-main` 为准；插件测试会迁移其中对 Hana 集成有价值且无外部依赖的回归契约。
+
+## v1.10 验收清单
+
+- 在 `plugins/llm-wiki-viewer` 运行 `npm test`，要求 Node 内置测试全绿。
+- 测试套件会在存在 `reference/openhanako-main` 时用 OpenHanako `PluginManager` 做宿主 loader smoke，验证 `/viewer` 和全部 Agent tools 可被发现。
+- 在 Hana 里打开 `/viewer`，输入真实 wikiRoot 后确认状态、图谱 iframe、build、lint、source coverage、diagnostics、安全诊断、来源诊断和删除预检都可用。
+- 确认 Agent 工具列表能发现 22 个 `llm-wiki-viewer_llm_wiki_*` tools，包括 source signal eligibility、runtime context、maintenance diagnostics、source lookup/match、adapter classify、cache status 和 Step 1 validation。
+- 确认 `/api/diagnostics` 包含 graph contract summary，并能看到 graph-data、HTML、source_path、断链、长标签、孤立节点和来源覆盖摘要。
+- 确认 `/api/maintenance-diagnostics` 能只读报告孤儿来源、source_path/raw 问题、重复标题和 `purpose.md` 提示。
+- 确认 `/api/source-signal-eligibility` 与 `/api/runtime-context` 能只读报告来源信号可用性和 skill 布局状态。
+- 确认 Agent 工作流只能投递到已有 Hana session；OpenHanako plugin bus 当前稳定公开的是 `agent:list`、`session:list`、`session:send` 等已有会话能力。
+- 点击图谱节点时，`source_path` 应经 `/wiki-file/*` 打开对应 Markdown。
 
 ## 开源项目致谢
 

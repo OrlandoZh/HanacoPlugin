@@ -1,7 +1,7 @@
-import { buildGraph, toToolResult } from "../lib/wiki-core.js?v=0.1.10";
+import { maintenanceDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.10";
 
-export const name = "llm_wiki_build_graph";
-export const description = "Build graph-data.json and knowledge-graph.html for an initialized llm-wiki root so it can be viewed in the LLM Wiki Viewer page.";
+export const name = "llm_wiki_maintenance_diagnostics";
+export const description = "Run read-only llm-wiki maintenance diagnostics for orphan sources, source_path/raw file issues, duplicate titles, and purpose.md hints.";
 export const parameters = {
   type: "object",
   properties: {
@@ -17,5 +17,5 @@ export const parameters = {
 export async function execute(input = {}) {
   const wikiRoot = String(input.wikiRoot || "").trim();
   if (!wikiRoot) throw new Error("wikiRoot is required.");
-  return toToolResult("graph build", await buildGraph(wikiRoot));
+  return toToolResult("maintenance diagnostics", await maintenanceDiagnostics(wikiRoot));
 }
