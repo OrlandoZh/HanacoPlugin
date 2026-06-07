@@ -1,7 +1,7 @@
-import { maintenanceDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
+import { lintFixPreview, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
 
-export const name = "llm_wiki_maintenance_diagnostics";
-export const description = "Run read-only llm-wiki maintenance diagnostics for orphan sources, source_path/raw file issues, duplicate titles, and purpose.md hints.";
+export const name = "llm_wiki_lint_fix_preview";
+export const description = "Preview low-risk lint fixes with lint-fix.sh --dry-run. It does not modify wiki files.";
 export const parameters = {
   type: "object",
   properties: {
@@ -17,5 +17,5 @@ export const parameters = {
 export async function execute(input = {}) {
   const wikiRoot = String(input.wikiRoot || "").trim();
   if (!wikiRoot) throw new Error("wikiRoot is required.");
-  return toToolResult("maintenance diagnostics", await maintenanceDiagnostics(wikiRoot));
+  return toToolResult("lint fix preview", await lintFixPreview(wikiRoot));
 }

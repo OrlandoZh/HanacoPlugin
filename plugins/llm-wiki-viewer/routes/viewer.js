@@ -11,6 +11,7 @@ import {
   listHanaSessions,
   linkDiagnostics,
   lintWiki,
+  lintFixPreview,
   maintenanceDiagnostics,
   removeSavedWikiRoot,
   openWikiFolder,
@@ -22,8 +23,9 @@ import {
   sourceContractDiagnostics,
   sourceCoverage,
   sourceImageDiagnostics,
+  sourcePageContractPreview,
   sourceSignalEligibility,
-} from "../lib/wiki-core.js?v=0.1.10";
+} from "../lib/wiki-core.js?v=0.1.11";
 
 export default function registerViewerRoutes(app, ctx) {
   app.get("/viewer", async (c) => c.html(await renderViewer(c, ctx)));
@@ -120,6 +122,12 @@ export default function registerViewerRoutes(app, ctx) {
     return c.json(result, result.ok ? 200 : 422);
   });
 
+  app.post("/api/lint-fix-preview", async (c) => {
+    const wikiRoot = await resolveWikiRoot(c, ctx, await readJson(c));
+    const result = await lintFixPreview(wikiRoot);
+    return c.json(result, result.ok ? 200 : 422);
+  });
+
   app.post("/api/init", async (c) => {
     const body = await readJson(c);
     const wikiRoot = await resolveWikiRoot(c, ctx, body);
@@ -138,6 +146,13 @@ export default function registerViewerRoutes(app, ctx) {
     const body = await readJson(c);
     const wikiRoot = await resolveWikiRoot(c, ctx, body);
     const result = await deleteDryRun({ ...body, wikiRoot });
+    return c.json(result, result.ok ? 200 : 422);
+  });
+
+  app.post("/api/source-page-contract-preview", async (c) => {
+    const body = await readJson(c);
+    const wikiRoot = await resolveWikiRoot(c, ctx, body);
+    const result = await sourcePageContractPreview({ ...body, wikiRoot });
     return c.json(result, result.ok ? 200 : 422);
   });
 

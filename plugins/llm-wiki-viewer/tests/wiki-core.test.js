@@ -27,6 +27,7 @@ const {
   listHanaAgents,
   listHanaSessions,
   linkDiagnostics,
+  lintFixPreview,
   maintenanceDiagnostics,
   sourceRegistry,
   sourceRegistryLookup,
@@ -42,6 +43,7 @@ const {
   sourceCoverage,
   sourceContractDiagnostics,
   sourceImageDiagnostics,
+  sourcePageContractPreview,
   sourceSignalEligibility,
   validateStep1,
 } = await import("../lib/wiki-core.js");
@@ -57,6 +59,7 @@ const linkDiagnosticsTool = await import("../tools/link_diagnostics.js");
 const maintenanceDiagnosticsTool = await import("../tools/maintenance_diagnostics.js");
 const statusTool = await import("../tools/status.js");
 const lintTool = await import("../tools/lint.js");
+const lintFixPreviewTool = await import("../tools/lint_fix_preview.js");
 const initTool = await import("../tools/init.js");
 const sourceCoverageTool = await import("../tools/source_coverage.js");
 const sourceContractDiagnosticsTool = await import("../tools/source_contract_diagnostics.js");
@@ -66,6 +69,7 @@ const sourceMatchFileTool = await import("../tools/source_match_file.js");
 const sourceMatchUrlTool = await import("../tools/source_match_url.js");
 const sourceRegistryTool = await import("../tools/source_registry.js");
 const sourceSignalEligibilityTool = await import("../tools/source_signal_eligibility.js");
+const sourcePageContractPreviewTool = await import("../tools/source_page_contract_preview.js");
 const runtimeContextStatusTool = await import("../tools/runtime_context_status.js");
 const validateStep1Tool = await import("../tools/validate_step1.js");
 
@@ -949,6 +953,59 @@ test("cache status and Step 1 validation are read-only wrappers", async () => {
   assert.notEqual(invalid.code, 0);
 });
 
+test("lint fix preview and source page contract preview are read-only", async () => {
+  const wikiRoot = await createSampleWiki();
+  const missingIndexPage = path.join(wikiRoot, "wiki", "entities", "Unlisted.md");
+  await fsp.writeFile(missingIndexPage, "# Unlisted\n", "utf8");
+  const indexBefore = await fsp.readFile(path.join(wikiRoot, "index.md"), "utf8");
+  const preview = await lintFixPreview(wikiRoot);
+  assert.equal(preview.ok, true, preview.stderr || preview.error);
+  assert.equal(preview.preview, true);
+  assert.equal(preview.summary.wouldModify, true);
+  assert.ok(preview.actions.some((action) => action.entry === "Unlisted"));
+  assert.equal(await fsp.readFile(path.join(wikiRoot, "index.md"), "utf8"), indexBefore);
+
+  const nonWiki = await lintFixPreview(await tempDir());
+  assert.equal(nonWiki.ok, false);
+  assert.equal(nonWiki.error, "not_llm_wiki_root");
+
+  await fsp.mkdir(path.join(wikiRoot, "raw", "notes"), { recursive: true });
+  const rawFile = path.join(wikiRoot, "raw", "notes", "source.txt");
+  const contentFile = path.join(await tempDir(), "source-page.md");
+  await fsp.writeFile(rawFile, "raw\n", "utf8");
+  await fsp.writeFile(contentFile, "---\nsource_path: raw/notes/source.txt\n---\n# Source\n", "utf8");
+  const sourcePreview = await sourcePageContractPreview({
+    wikiRoot,
+    rawFile: "raw/notes/source.txt",
+    outputPath: "wiki/sources/source.md",
+    contentFile,
+  });
+  assert.equal(sourcePreview.ok, true, sourcePreview.stderr || sourcePreview.error);
+  assert.equal(sourcePreview.preview, true);
+  assert.equal(sourcePreview.summary.wouldWriteSourcePage, true);
+  assert.equal(sourcePreview.summary.wouldUpdateCache, true);
+  assert.equal(fs.existsSync(path.join(wikiRoot, "wiki", "sources", "source.md")), false);
+
+  await fsp.writeFile(path.join(wikiRoot, "wiki", "sources", "source.md"), "# Existing\n", "utf8");
+  const overwrite = await sourcePageContractPreview({
+    wikiRoot,
+    rawFile,
+    outputPath: "wiki/sources/source.md",
+    contentFile,
+  });
+  assert.equal(overwrite.ok, false);
+  assert.ok(overwrite.issues.includes("output_would_overwrite"));
+
+  const outside = await sourcePageContractPreview({
+    wikiRoot,
+    rawFile,
+    outputPath: "../outside.md",
+    contentFile,
+  });
+  assert.equal(outside.ok, false);
+  assert.equal(outside.error, "outputPath_required");
+});
+
 test("tools expose content plus structured details", async () => {
   const wikiRoot = await createSampleWiki();
   const status = await statusTool.execute({ wikiRoot });
@@ -958,6 +1015,10 @@ test("tools expose content plus structured details", async () => {
   const lint = await lintTool.execute({ wikiRoot });
   assert.equal(lint.details.ok, true);
   assert.match(lint.details.stdout, /llm-wiki lint/);
+
+  const lintFix = await lintFixPreviewTool.execute({ wikiRoot });
+  assert.equal(lintFix.details.ok, true);
+  assert.equal(lintFix.details.preview, true);
 
   const build = await buildGraphTool.execute({ wikiRoot });
   assert.equal(build.details.ok, true);
@@ -1028,6 +1089,16 @@ test("tools expose content plus structured details", async () => {
   assert.equal(cache.details.ok, true);
   assert.equal(cache.details.cacheState.kind, "MISS");
 
+  const sourcePageContent = path.join(await tempDir(), "tool-source.md");
+  await fsp.writeFile(sourcePageContent, "---\nsource_path: raw/notes/tool.txt\n---\n# Tool\n", "utf8");
+  const sourcePagePreview = await sourcePageContractPreviewTool.execute({
+    wikiRoot,
+    rawFile: "raw/notes/tool.txt",
+    outputPath: "wiki/sources/tool-source.md",
+    contentFile: sourcePageContent,
+  });
+  assert.equal(sourcePagePreview.details.preview, true);
+
   const outputPath = path.join(await tempDir(), "adapter-tool.txt");
   await fsp.writeFile(outputPath, "adapter\n", "utf8");
   const classify = await adapterClassifyTool.execute({ sourceId: "plain_text", exitCode: 0, outputPath });
@@ -1061,6 +1132,7 @@ test("static tool files satisfy Hana loader contract", async () => {
     "llm_wiki_init",
     "llm_wiki_link_diagnostics",
     "llm_wiki_lint",
+    "llm_wiki_lint_fix_preview",
     "llm_wiki_maintenance_diagnostics",
     "llm_wiki_runtime_context_status",
     "llm_wiki_source_contract_diagnostics",
@@ -1069,6 +1141,7 @@ test("static tool files satisfy Hana loader contract", async () => {
     "llm_wiki_source_image_diagnostics",
     "llm_wiki_source_match_file",
     "llm_wiki_source_match_url",
+    "llm_wiki_source_page_contract_preview",
     "llm_wiki_source_registry",
     "llm_wiki_source_signal_eligibility",
     "llm_wiki_status",
@@ -1134,6 +1207,7 @@ test("OpenHanako PluginManager loads viewer routes and tools", { skip: !hasOpenH
     "llm-wiki-viewer_llm_wiki_init",
     "llm-wiki-viewer_llm_wiki_link_diagnostics",
     "llm-wiki-viewer_llm_wiki_lint",
+    "llm-wiki-viewer_llm_wiki_lint_fix_preview",
     "llm-wiki-viewer_llm_wiki_maintenance_diagnostics",
     "llm-wiki-viewer_llm_wiki_runtime_context_status",
     "llm-wiki-viewer_llm_wiki_source_contract_diagnostics",
@@ -1142,6 +1216,7 @@ test("OpenHanako PluginManager loads viewer routes and tools", { skip: !hasOpenH
     "llm-wiki-viewer_llm_wiki_source_image_diagnostics",
     "llm-wiki-viewer_llm_wiki_source_match_file",
     "llm-wiki-viewer_llm_wiki_source_match_url",
+    "llm-wiki-viewer_llm_wiki_source_page_contract_preview",
     "llm-wiki-viewer_llm_wiki_source_registry",
     "llm-wiki-viewer_llm_wiki_source_signal_eligibility",
     "llm-wiki-viewer_llm_wiki_status",
@@ -1169,6 +1244,10 @@ test("viewer API routes return expected failure status codes", async () => {
   const lint = await routes.post("/api/lint", { wikiRoot: nonWikiRoot });
   assert.equal(lint.status, 422);
   assert.equal(lint.body.error, "not_llm_wiki_root");
+
+  const lintFixPreview = await routes.post("/api/lint-fix-preview", { wikiRoot: nonWikiRoot });
+  assert.equal(lintFixPreview.status, 422);
+  assert.equal(lintFixPreview.body.error, "not_llm_wiki_root");
 
   const diagnostics = await routes.get("/api/diagnostics", { wikiRoot: nonWikiRoot });
   assert.equal(diagnostics.status, 422);
@@ -1209,6 +1288,15 @@ test("viewer API routes return expected failure status codes", async () => {
   const deleteDryRun = await routes.post("/api/delete-dry-run", { wikiRoot: nonWikiRoot, sourceFile: "sample.txt" });
   assert.equal(deleteDryRun.status, 422);
   assert.equal(deleteDryRun.body.error, "not_llm_wiki_root");
+
+  const sourcePagePreview = await routes.post("/api/source-page-contract-preview", {
+    wikiRoot: nonWikiRoot,
+    rawFile: "raw/missing.txt",
+    outputPath: "wiki/sources/missing.md",
+    contentFile: path.join(await tempDir(), "missing.md"),
+  });
+  assert.equal(sourcePagePreview.status, 422);
+  assert.equal(sourcePagePreview.body.error, "not_llm_wiki_root");
 
   const emptyRoot = path.join(await tempDir(), "empty-wiki");
   await fsp.mkdir(emptyRoot);
@@ -1267,6 +1355,24 @@ test("viewer API routes expose safety diagnostics", async () => {
   assert.equal(dryRun.status, 200);
   assert.equal(dryRun.body.ok, true);
   assert.ok(dryRun.body.references.includes("wiki/entities/Transformer.md"));
+
+  const lintFix = await routes.post("/api/lint-fix-preview", { wikiRoot });
+  assert.equal(lintFix.status, 200);
+  assert.equal(lintFix.body.preview, true);
+
+  await fsp.mkdir(path.join(wikiRoot, "raw", "notes"), { recursive: true });
+  await fsp.writeFile(path.join(wikiRoot, "raw", "notes", "route-source.txt"), "raw\n", "utf8");
+  const contentFile = path.join(await tempDir(), "route-source.md");
+  await fsp.writeFile(contentFile, "---\nsource_path: raw/notes/route-source.txt\n---\n# Route Source\n", "utf8");
+  const sourcePage = await routes.post("/api/source-page-contract-preview", {
+    wikiRoot,
+    rawFile: "raw/notes/route-source.txt",
+    outputPath: "wiki/sources/route-source.md",
+    contentFile,
+  });
+  assert.equal(sourcePage.status, 200);
+  assert.equal(sourcePage.body.preview, true);
+  assert.equal(sourcePage.body.summary.wouldWriteSourcePage, true);
 
   const sourceImages = await routes.get("/api/source-image-diagnostics", { wikiRoot });
   assert.equal(sourceImages.status, 200);

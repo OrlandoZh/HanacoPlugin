@@ -1,6 +1,6 @@
 # LLM Wiki Viewer
 
-Hana plugin for an integrated `llm-wiki` skill. This v1.10 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
+Hana plugin for an integrated `llm-wiki` skill. This v1.11 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
 
 ## What It Does
 
@@ -8,12 +8,14 @@ Hana plugin for an integrated `llm-wiki` skill. This v1.10 is a reliable helper 
 - Serves the graph inside Hana and rewrites node source links to open local Markdown through plugin routes.
 - Reports llm-wiki root status.
 - Runs the mechanical lint report.
+- Previews low-risk lint fixes with `lint-fix.sh --dry-run` without modifying files.
 - Initializes a Chinese or English llm-wiki root.
 - Runs source signal coverage and eligibility diagnostics.
 - Reports read-only runtime context status for skill layout and optional adapter roots.
 - Runs read-only diagnostics for wiki counts, source registry, and optional adapter state.
 - Runs safety diagnostics for delete dry-run references, broken/orphan links, and graph `source_path` coverage.
 - Provides source registry lookup/match helpers plus low-risk adapter/cache/Step 1 validation diagnostics for agents.
+- Previews `create-source-page.sh` contract checks without writing source pages or updating cache.
 - Can hand knowledge-base generation, update, query, digest, maintenance, and crystallize tasks to a selected Hana Agent session through Hana's native `session:send` bus capability.
 - Shows `purpose.md` and Mermaid graph status, plus read-only source image and source/cache contract diagnostics.
 - Adds graph contract diagnostics that summarize graph-data, graph HTML, `source_path`, link, long-label, isolated-node, and source overlap signals.
@@ -32,11 +34,14 @@ Adapter diagnostics are visibility-only: the plugin does not install adapters, r
 
 `llm_wiki_cache_status` is intentionally read-only. It mirrors the cache status calculation without invoking cache repair, update, or invalidate behavior.
 
+`llm_wiki_lint_fix_preview` and `llm_wiki_source_page_contract_preview` are preview-only. They do not write wiki pages, update cache, or apply lint fixes.
+
 ## Tools
 
 - `llm_wiki_status({ wikiRoot })`
 - `llm_wiki_init({ wikiRoot, topic, language })`
 - `llm_wiki_lint({ wikiRoot })`
+- `llm_wiki_lint_fix_preview({ wikiRoot })`
 - `llm_wiki_build_graph({ wikiRoot })`
 - `llm_wiki_maintenance_diagnostics({ wikiRoot })`
 - `llm_wiki_source_coverage({ wikiRoot })`
@@ -55,6 +60,7 @@ Adapter diagnostics are visibility-only: the plugin does not install adapters, r
 - `llm_wiki_source_match_file({ filePath })`
 - `llm_wiki_adapter_classify({ sourceId, exitCode, outputPath })`
 - `llm_wiki_cache_status({ wikiRoot, filePath })`
+- `llm_wiki_source_page_contract_preview({ wikiRoot, rawFile, outputPath, contentFile })`
 - `llm_wiki_validate_step1({ jsonFile })`
 
 Each tool returns `content` plus a structured `details` object with `ok`, `wikiRoot`, `stdout`, `stderr`, `code`, `error`, and `status` where relevant.
@@ -94,9 +100,10 @@ This Hana integration does not run upstream `install.sh` or `setup.sh`. Optional
 - Open `/viewer` in Hana with a real `wikiRoot`.
 - Confirm first-use path entry can be saved and later selected from the top location dropdown.
 - Confirm the `open-viewer` dev scenario opens the contributed page.
-- Confirm all 22 `llm-wiki-viewer_llm_wiki_*` tools are discoverable by the Hana agent, including source signal eligibility, runtime context, maintenance diagnostics, source lookup/match, adapter classify, cache status, and Step 1 validation.
+- Confirm all 24 `llm-wiki-viewer_llm_wiki_*` tools are discoverable by the Hana agent, including lint-fix preview, source page contract preview, source signal eligibility, runtime context, maintenance diagnostics, source lookup/match, adapter classify, cache status, and Step 1 validation.
 - Confirm `/api/diagnostics` reports wiki counts, source coverage summary, adapter summary, and graph contract summary.
 - Confirm `/api/source-signal-eligibility` and `/api/runtime-context` report read-only source signal and skill layout diagnostics.
+- Confirm `/api/lint-fix-preview` and `/api/source-page-contract-preview` report preview results without mutating wiki content.
 - Confirm `/api/maintenance-diagnostics` reports orphan sources, source_path/raw issues, duplicate titles, and `purpose.md` hints without mutating wiki content.
 - Confirm `/api/link-diagnostics`, `/api/graph-source-paths`, and `/api/delete-dry-run` return readable safety diagnostics and never mutate wiki content.
 - Confirm `/api/source-image-diagnostics` and `/api/source-contract-diagnostics` report read-only source issues.

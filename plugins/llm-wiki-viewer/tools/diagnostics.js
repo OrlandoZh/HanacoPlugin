@@ -1,4 +1,4 @@
-import { diagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.10";
+import { diagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
 
 export const name = "llm_wiki_diagnostics";
 export const description = "Run a read-only llm-wiki diagnostic summary with status, wiki counts, source coverage, and adapter state.";

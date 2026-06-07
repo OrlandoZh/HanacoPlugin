@@ -1,4 +1,4 @@
-import { cacheStatus, toToolResult } from "../lib/wiki-core.js?v=0.1.10";
+import { cacheStatus, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
 
 export const name = "llm_wiki_cache_status";
 export const description = "Check llm-wiki cache state for one file using cache.sh check. It does not update or invalidate cache entries.";

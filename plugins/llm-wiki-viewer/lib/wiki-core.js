@@ -319,6 +319,28 @@ export async function lintWiki(wikiRoot) {
   return { ...result, wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, status };
 }
 
+export async function lintFixPreview(wikiRoot) {
+  const status = await getStatus(wikiRoot);
+  if (!status.ok) {
+    return { ok: false, error: "not_llm_wiki_root", wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, status };
+  }
+
+  const result = await runSkillScript("lint-fix.sh", [status.wikiRoot, "--dry-run"]);
+  const actions = parseLintFixPreviewActions(result.stdout);
+  return {
+    ...result,
+    wikiRoot: status.wikiRoot,
+    skillRoot: status.skillRoot,
+    status,
+    preview: true,
+    actions,
+    summary: {
+      actions: actions.length,
+      wouldModify: actions.length > 0,
+    },
+  };
+}
+
 export async function sourceCoverage(wikiRoot) {
   const status = await getStatus(wikiRoot);
   if (!status.ok) {
@@ -938,6 +960,65 @@ export async function cacheStatus(input = {}) {
     code: 0,
     cacheState: parseCacheState(state),
     status,
+  };
+}
+
+export async function sourcePageContractPreview(input = {}) {
+  const status = await getStatus(input.wikiRoot);
+  if (!status.ok) {
+    return { ok: false, error: "not_llm_wiki_root", wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, status };
+  }
+
+  const rawFile = resolveWikiScopedPath(status.wikiRoot, input.rawFile || "");
+  const outputPath = normalizeSourceOutputPath(input.outputPath || "");
+  const contentFile = expandHome(input.contentFile || "");
+  if (!rawFile) return { ok: false, error: "rawFile_required", wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, status };
+  if (!outputPath) return { ok: false, error: "outputPath_required", wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, status };
+  if (!contentFile) return { ok: false, error: "contentFile_required", wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, status };
+  if (!isInside(status.wikiRoot, rawFile)) {
+    return { ok: false, error: "rawFile_outside_wiki_root", wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, rawFile, status };
+  }
+
+  const fullOutputPath = path.resolve(status.wikiRoot, outputPath);
+  if (!isInside(path.join(status.wikiRoot, "wiki", "sources"), fullOutputPath)) {
+    return { ok: false, error: "outputPath_outside_sources", wikiRoot: status.wikiRoot, skillRoot: status.skillRoot, outputPath, fullOutputPath, status };
+  }
+
+  const checks = {
+    rawFileExists: fs.existsSync(rawFile) && fs.statSync(rawFile).isFile(),
+    contentFileExists: fs.existsSync(contentFile) && fs.statSync(contentFile).isFile(),
+    outputExists: fs.existsSync(fullOutputPath),
+    outputParentExists: fs.existsSync(path.dirname(fullOutputPath)),
+  };
+  const cacheState = checks.rawFileExists ? parseCacheState(await readOnlyCacheCheck(status.wikiRoot, rawFile)) : null;
+  const issues = [];
+  if (!checks.rawFileExists) issues.push("raw_file_missing");
+  if (!checks.contentFileExists) issues.push("content_file_missing");
+  if (checks.outputExists) issues.push("output_would_overwrite");
+
+  const summary = {
+    issues: issues.length,
+    wouldWriteSourcePage: issues.length === 0,
+    wouldUpdateCache: issues.length === 0,
+    cacheHit: Boolean(cacheState?.hit),
+  };
+  return {
+    ok: issues.length === 0,
+    wikiRoot: status.wikiRoot,
+    skillRoot: status.skillRoot,
+    status,
+    preview: true,
+    rawFile,
+    outputPath,
+    fullOutputPath,
+    contentFile,
+    checks,
+    cacheState,
+    issues,
+    summary,
+    stdout: formatSourcePageContractPreviewSummary(summary, issues, { rawFile, outputPath, contentFile, cacheState }),
+    stderr: "",
+    code: 0,
   };
 }
 
@@ -1930,6 +2011,30 @@ function parseCacheState(stdout) {
   };
 }
 
+function parseLintFixPreviewActions(stdout) {
+  return String(stdout || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("[dry-run]"))
+    .map((line) => {
+      const match = line.match(/Would add \[\[(.+?)\]\] under (.+?) section$/);
+      return {
+        action: "add_index_entry",
+        entry: match?.[1] || "",
+        section: match?.[2] || "",
+        text: line,
+      };
+    });
+}
+
+function normalizeSourceOutputPath(value) {
+  const raw = normalizeSlash(String(value || "").trim()).replace(/^\/+/, "");
+  if (!raw || raw.includes("\0")) return "";
+  const normalized = normalizeSlash(path.posix.normalize(raw));
+  if (normalized.startsWith("../") || normalized === ".." || path.isAbsolute(normalized)) return "";
+  return normalized;
+}
+
 async function readOnlyCacheCheck(wikiRoot, filePath) {
   let stat;
   try {
@@ -2046,5 +2151,18 @@ function formatRuntimeContextStatusSummary(summary, checks) {
     `scripts dir exists: ${checks.scriptsDirExists ? "yes" : "no"}`,
     `runtime-context.sh exists: ${checks.runtimeContextExists ? "yes" : "no"}`,
     `missing checks: ${summary.missing}`,
+  ].join("\n");
+}
+
+function formatSourcePageContractPreviewSummary(summary, issues, paths) {
+  return [
+    "LLM Wiki source page contract preview",
+    `raw file: ${paths.rawFile}`,
+    `output path: ${paths.outputPath}`,
+    `content file: ${paths.contentFile}`,
+    `cache state: ${paths.cacheState?.state || "unknown"}`,
+    `would write source page: ${summary.wouldWriteSourcePage ? "yes" : "no"}`,
+    `would update cache: ${summary.wouldUpdateCache ? "yes" : "no"}`,
+    `issues: ${issues.length ? issues.join(", ") : "none"}`,
   ].join("\n");
 }

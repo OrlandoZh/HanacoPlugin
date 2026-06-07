@@ -1,4 +1,4 @@
-import { runtimeContextStatus, toToolResult } from "../lib/wiki-core.js?v=0.1.10";
+import { runtimeContextStatus, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
 
 export const name = "llm_wiki_runtime_context_status";
 export const description = "Run read-only llm-wiki runtime context diagnostics for the configured skill and wiki root.";

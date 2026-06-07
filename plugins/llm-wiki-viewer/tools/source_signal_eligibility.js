@@ -1,4 +1,4 @@
-import { sourceSignalEligibility, toToolResult } from "../lib/wiki-core.js?v=0.1.10";
+import { sourceSignalEligibility, toToolResult } from "../lib/wiki-core.js?v=0.1.11";
 
 export const name = "llm_wiki_source_signal_eligibility";
 export const description = "Run read-only llm-wiki source signal eligibility diagnostics for wiki pages.";
