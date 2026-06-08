@@ -1292,8 +1292,13 @@ test("applyGraphTheme injects dark graph theme without rewriting source html fil
   assert.match(themed, /<html lang="zh-Hans" data-effective-theme="dark">/);
   assert.match(themed, /id="llm-wiki-viewer-graph-theme"/);
   assert.match(themed, /html\[data-effective-theme="dark"\] \.topbar/);
-  assert.match(themed, /--surface: #1d2328/);
-  assert.match(themed, /--cinnabar: #d45f50/);
+  assert.match(themed, /--bg: #080c12/);
+  assert.match(themed, /--surface: #121820/);
+  assert.match(themed, /--cinnabar: #f06455/);
+  assert.match(themed, /--jade: #31d6a0/);
+  assert.match(themed, /--night: #58a6ff/);
+  assert.match(themed, /html\[data-effective-theme="dark"\] \.edge\.extracted/);
+  assert.match(themed, /html\[data-effective-theme="dark"\] ::-webkit-scrollbar-thumb/);
 });
 
 test("applyGraphPanelControls injects collapsible side panels", () => {

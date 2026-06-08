@@ -237,7 +237,7 @@ async function renderViewer(c, ctx) {
   <title>LLM Wiki 控制台</title>
   <style>
     :root { color-scheme: light; --bg:#f7f5ef; --panel:#fffdf8; --drawer:#fbf8f1; --field:#ffffff; --button:#ffffff; --line:#ddd4c2; --text:#26221d; --muted:#6f665a; --accent:#8b2e24; --accent-text:#ffffff; --ok:#1f7a4d; --bad:#a33a2a; --code:#171410; --code-text:#f6eee1; --graph-bg:#ffffff; --shadow:rgba(38,34,29,.16); }
-    body[data-effective-theme="dark"] { color-scheme: dark; --bg:#15191d; --panel:#20262b; --drawer:#1a2025; --field:#15191d; --button:#242b31; --line:#3a444b; --text:#f2f0eb; --muted:#aeb8bf; --accent:#d45f50; --accent-text:#fff8f4; --ok:#65d99a; --bad:#ff8a78; --code:#0d1114; --code-text:#e8f0f2; --graph-bg:#101417; --shadow:rgba(0,0,0,.38); }
+    body[data-effective-theme="dark"] { color-scheme: dark; --bg:#080c12; --panel:#121820; --drawer:#0f151d; --field:#0b1118; --button:#16202a; --line:#2d3b4d; --text:#e6edf3; --muted:#94a3b8; --accent:#f06455; --accent-text:#fff8f4; --ok:#31d6a0; --bad:#ff7a6f; --code:#070b10; --code-text:#dbe7ef; --graph-bg:#080c12; --shadow:rgba(0,0,0,.42); }
     body[data-effective-theme="light"] { color-scheme: light; }
     * { box-sizing: border-box; }
     html, body { margin:0; width:100%; height:100%; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); background:var(--bg); }
@@ -1294,7 +1294,7 @@ function renderGraphPlaceholder(status, theme = "") {
   <title>图谱未生成</title>
   <style>
     :root { color-scheme: light; --bg:#fffdf8; --panel:#fffaf0; --field:#ffffff; --text:#26221d; --muted:#6f665a; --line:#ddd4c2; --accent:#8b2e24; --shadow:rgba(38,34,29,.08); }
-    body[data-effective-theme="dark"] { color-scheme: dark; --bg:#101417; --panel:#1a2025; --field:#15191d; --text:#f2f0eb; --muted:#aeb8bf; --line:#3a444b; --accent:#d45f50; --shadow:rgba(0,0,0,.32); }
+    body[data-effective-theme="dark"] { color-scheme: dark; --bg:#080c12; --panel:#121820; --field:#0b1118; --text:#e6edf3; --muted:#94a3b8; --line:#2d3b4d; --accent:#f06455; --shadow:rgba(0,0,0,.42); }
     * { box-sizing:border-box; }
     html, body { margin:0; min-height:100%; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); background:var(--bg); }
     body { display:grid; place-items:start center; padding:56px 18px; }

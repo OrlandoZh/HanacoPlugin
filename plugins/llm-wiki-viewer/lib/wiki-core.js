@@ -1401,31 +1401,31 @@ export function applyGraphTheme(html, theme = "") {
   const css = `<style id="llm-wiki-viewer-graph-theme">
     html[data-effective-theme="dark"] {
       color-scheme: dark;
-      --bg: #101417;
-      --surface: #1d2328;
-      --surface-2: #242b31;
-      --vellum: #2b3339;
-      --mist: #20262b;
-      --ink: #f2f0eb;
-      --muted: #aeb8bf;
-      --faint: #7f8c94;
-      --rule: #3a444b;
-      --line: #4a555d;
-      --cinnabar: #d45f50;
-      --cinnabar-2: #ff8a78;
-      --jade: #65a384;
-      --green: #65d99a;
-      --night: #7fb5c7;
-      --amber: #d7a959;
-      --violet: #b69ac7;
-      --shadow: 0 18px 36px rgba(0, 0, 0, .38);
-      --soft-shadow: 0 10px 24px rgba(0, 0, 0, .3);
+      --bg: #080c12;
+      --surface: #121820;
+      --surface-2: #1c2530;
+      --vellum: #252f3d;
+      --mist: rgba(13, 17, 26, .72);
+      --ink: #e6edf3;
+      --muted: #94a3b8;
+      --faint: #64748b;
+      --rule: #2d3b4d;
+      --line: rgba(88, 166, 255, .24);
+      --cinnabar: #f06455;
+      --cinnabar-2: #ff7a6f;
+      --jade: #31d6a0;
+      --green: #2fbf88;
+      --night: #58a6ff;
+      --amber: #f2cc60;
+      --violet: #bc8cf2;
+      --shadow: 0 20px 42px rgba(0, 0, 0, .46);
+      --soft-shadow: 0 12px 26px rgba(0, 0, 0, .34);
     }
     html[data-effective-theme="dark"] body {
       background:
-        radial-gradient(circle at 18% 12%, rgba(42, 50, 56, .72), transparent 28%),
-        radial-gradient(circle at 90% 18%, rgba(101, 163, 132, .12), transparent 28%),
-        linear-gradient(145deg, #101417 0%, #161c20 48%, #1b2024 100%);
+        radial-gradient(circle at 18% 12%, rgba(88, 166, 255, .1), transparent 28%),
+        radial-gradient(circle at 88% 18%, rgba(49, 214, 160, .1), transparent 28%),
+        linear-gradient(145deg, #080c12 0%, #101722 48%, #0c1118 100%);
       color: var(--ink);
     }
     html[data-effective-theme="dark"] body::before {
@@ -1434,7 +1434,7 @@ export function applyGraphTheme(html, theme = "") {
     }
     html[data-effective-theme="dark"] body::after {
       background:
-        linear-gradient(90deg, transparent 0 86px, rgba(212, 95, 80, .18) 86px 87px, transparent 87px),
+        linear-gradient(90deg, transparent 0 86px, rgba(240, 100, 85, .18) 86px 87px, transparent 87px),
         linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 22%);
     }
     html[data-effective-theme="dark"] .topbar,
@@ -1450,9 +1450,30 @@ export function applyGraphTheme(html, theme = "") {
     html[data-effective-theme="dark"] .note-card,
     html[data-effective-theme="dark"] .legend-card,
     html[data-effective-theme="dark"] .mini-map {
-      background: rgba(29, 35, 40, .84);
-      border-color: rgba(74, 85, 93, .9);
+      background: rgba(18, 24, 32, .9);
+      border-color: rgba(45, 59, 77, .96);
       box-shadow: var(--soft-shadow);
+    }
+    html[data-effective-theme="dark"] .canvas-card {
+      background:
+        linear-gradient(180deg, rgba(18, 24, 32, .72), rgba(8, 12, 18, .64)),
+        var(--surface);
+    }
+    html[data-effective-theme="dark"] .canvas-toolbar,
+    html[data-effective-theme="dark"] .canvas-footer,
+    html[data-effective-theme="dark"] .drawer-header,
+    html[data-effective-theme="dark"] .drawer-actions {
+      background: rgba(18, 24, 32, .86);
+      border-color: rgba(45, 59, 77, .92);
+    }
+    html[data-effective-theme="dark"] .summary-card,
+    html[data-effective-theme="dark"] .knowledge-card,
+    html[data-effective-theme="dark"] .metric,
+    html[data-effective-theme="dark"] .legend,
+    html[data-effective-theme="dark"] .insight {
+      background: rgba(37, 47, 61, .72);
+      border-color: rgba(45, 59, 77, .96);
+      color: var(--ink);
     }
     html[data-effective-theme="dark"] .status-pill,
     html[data-effective-theme="dark"] .chip,
@@ -1463,14 +1484,29 @@ export function applyGraphTheme(html, theme = "") {
     html[data-effective-theme="dark"] .nav-item,
     html[data-effective-theme="dark"] .source-card,
     html[data-effective-theme="dark"] .detail-card {
-      background: rgba(36, 43, 49, .88);
-      border-color: rgba(74, 85, 93, .92);
+      background: rgba(28, 37, 48, .88);
+      border-color: rgba(45, 59, 77, .96);
       color: var(--ink);
+    }
+    html[data-effective-theme="dark"] .nav-item[aria-pressed="true"],
+    html[data-effective-theme="dark"] .segmented button[aria-pressed="true"],
+    html[data-effective-theme="dark"] .queue-item[aria-current="true"] {
+      background: rgba(45, 59, 77, .82);
+      border-color: rgba(240, 100, 85, .5);
+      box-shadow: inset 3px 0 0 var(--cinnabar), 0 10px 18px rgba(0, 0, 0, .22);
     }
     html[data-effective-theme="dark"] .primary-button {
       background: var(--cinnabar);
       border-color: var(--cinnabar);
       color: #fff8f4;
+    }
+    html[data-effective-theme="dark"] .ghost-button:hover,
+    html[data-effective-theme="dark"] .state-button:hover,
+    html[data-effective-theme="dark"] .icon-button:hover,
+    html[data-effective-theme="dark"] .nav-item:hover,
+    html[data-effective-theme="dark"] .node:hover {
+      border-color: rgba(88, 166, 255, .5);
+      box-shadow: 0 10px 18px rgba(0, 0, 0, .28);
     }
     html[data-effective-theme="dark"] .brand p,
     html[data-effective-theme="dark"] .section-title,
@@ -1481,11 +1517,37 @@ export function applyGraphTheme(html, theme = "") {
     }
     html[data-effective-theme="dark"] .canvas,
     html[data-effective-theme="dark"] .canvas-stage,
+    html[data-effective-theme="dark"] .atlas,
     html[data-effective-theme="dark"] #graph-canvas {
-      background: rgba(16, 20, 23, .42);
+      background: rgba(8, 12, 18, .34);
     }
+    html[data-effective-theme="dark"] .edge.extracted { stroke: rgba(88, 166, 255, .62); }
+    html[data-effective-theme="dark"] .edge.inferred { stroke: rgba(49, 214, 160, .5); }
+    html[data-effective-theme="dark"] .edge.ambiguous { stroke: rgba(242, 204, 96, .58); }
+    html[data-effective-theme="dark"] .edge.unverified { stroke: rgba(148, 163, 184, .36); }
     html[data-effective-theme="dark"] .node {
-      box-shadow: 0 12px 24px rgba(0, 0, 0, .24);
+      background: rgba(18, 24, 32, .92);
+      border-color: rgba(45, 59, 77, .98);
+      box-shadow: 0 14px 26px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(230, 237, 243, .05);
+    }
+    html[data-effective-theme="dark"] .node::before {
+      opacity: .32;
+      background: radial-gradient(circle, rgba(88, 166, 255, .18), transparent 66%);
+    }
+    html[data-effective-theme="dark"] .node[aria-pressed="true"] {
+      border-color: rgba(242, 204, 96, .78);
+      box-shadow: 0 16px 30px rgba(0, 0, 0, .34), 0 0 0 3px rgba(242, 204, 96, .12);
+    }
+    html[data-effective-theme="dark"] ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    html[data-effective-theme="dark"] ::-webkit-scrollbar-thumb {
+      background: rgba(45, 59, 77, .9);
+      border-radius: 999px;
+    }
+    html[data-effective-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+      background: rgba(100, 116, 139, .9);
     }
   </style>`;
   return themed.replace("</head>", `${css}\n</head>`);
