@@ -1637,6 +1637,15 @@ test("graph route shows a Chinese placeholder before graph generation", async ()
   assert.doesNotMatch(graph.body, /Not found\. Generate the graph first\./);
 });
 
+test("graph placeholder follows the selected viewer theme", async () => {
+  const routes = registerRoutesForTest();
+  const wikiRoot = await createSampleWiki();
+  const graph = await routes.get("/graph", { wikiRoot, theme: "dark" });
+  assert.equal(graph.status, 404);
+  assert.match(graph.body, /body\[data-effective-theme="dark"\]/);
+  assert.match(graph.body, /<body data-effective-theme="dark">/);
+});
+
 test("viewer renders diagnostics as a closable drawer", async () => {
   const routes = registerRoutesForTest();
   const viewer = await routes.get("/viewer", { wikiRoot: await createSampleWiki() });
@@ -1653,6 +1662,18 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /id="removeRoot" class="icon-button" title="删除位置" aria-label="删除位置"/);
   assert.match(viewer.body, /id="saveRoot" class="icon-button" title="保存位置" aria-label="保存位置"/);
   assert.match(viewer.body, /\.icon-button svg/);
+  assert.match(viewer.body, /id="themeMode" aria-label="主题"/);
+  assert.match(viewer.body, /自动主题/);
+  assert.match(viewer.body, /浅色/);
+  assert.match(viewer.body, /深色/);
+  assert.match(viewer.body, /data-hana-theme=/);
+  assert.match(viewer.body, /body\[data-effective-theme="dark"\]/);
+  assert.match(viewer.body, /function normalizeThemeMode\(value\)/);
+  assert.match(viewer.body, /function applyThemeMode\(mode, options = \{\}\)/);
+  assert.match(viewer.body, /localStorage\.setItem\(themeStorageKey, mode\)/);
+  assert.match(viewer.body, /llm-wiki-viewer-theme-mode/);
+  assert.match(viewer.body, /u\.searchParams\.set\("theme"/);
+  assert.match(viewer.body, /themeModeSelect\.addEventListener\("change"/);
   assert.match(viewer.body, /shortRootName\(root\)/);
   assert.match(viewer.body, /请选择或输入知识库位置/);
   assert.match(viewer.body, /先安全初始化再生成图谱/);

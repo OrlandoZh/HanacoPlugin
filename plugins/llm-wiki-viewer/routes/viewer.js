@@ -184,7 +184,7 @@ export default function registerViewerRoutes(app, ctx) {
   app.get("/graph", async (c) => {
     const wikiRoot = await resolveWikiRoot(c, ctx);
     const graphPath = path.join(wikiRoot, "wiki", "knowledge-graph.html");
-    return serveGraphFile(c, wikiRoot, graphPath, { graphPlaceholder: true });
+    return serveGraphFile(c, wikiRoot, graphPath, { graphPlaceholder: true, theme: c.req.query("theme") || "" });
   });
 
   app.get("/graph-assets/:file", async (c) => {
@@ -236,22 +236,26 @@ async function renderViewer(c, ctx) {
   ${hanaCss ? `<link rel="stylesheet" href="${escapeAttr(hanaCss)}">` : ""}
   <title>LLM Wiki 控制台</title>
   <style>
-    :root { color-scheme: light; --bg:#f7f5ef; --panel:#fffdf8; --line:#ddd4c2; --text:#26221d; --muted:#6f665a; --accent:#8b2e24; --ok:#1f7a4d; --bad:#a33a2a; --code:#171410; }
+    :root { color-scheme: light; --bg:#f7f5ef; --panel:#fffdf8; --drawer:#fbf8f1; --field:#ffffff; --button:#ffffff; --line:#ddd4c2; --text:#26221d; --muted:#6f665a; --accent:#8b2e24; --accent-text:#ffffff; --ok:#1f7a4d; --bad:#a33a2a; --code:#171410; --code-text:#f6eee1; --graph-bg:#ffffff; --shadow:rgba(38,34,29,.16); }
+    body[data-effective-theme="dark"] { color-scheme: dark; --bg:#15191d; --panel:#20262b; --drawer:#1a2025; --field:#15191d; --button:#242b31; --line:#3a444b; --text:#f2f0eb; --muted:#aeb8bf; --accent:#d45f50; --accent-text:#fff8f4; --ok:#65d99a; --bad:#ff8a78; --code:#0d1114; --code-text:#e8f0f2; --graph-bg:#101417; --shadow:rgba(0,0,0,.38); }
+    body[data-effective-theme="light"] { color-scheme: light; }
     * { box-sizing: border-box; }
     html, body { margin:0; width:100%; height:100%; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); background:var(--bg); }
     body { display:grid; grid-template-rows:auto 1fr; overflow:hidden; }
-    header { display:grid; grid-template-columns:auto minmax(220px,1fr) minmax(140px,190px) auto auto auto auto auto auto auto; gap:8px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); background:var(--panel); }
-    input, select, textarea { padding:0 10px; border:1px solid var(--line); border-radius:6px; background:white; color:var(--text); min-width:0; }
+    header { display:grid; grid-template-columns:auto minmax(220px,1fr) minmax(140px,190px) auto auto auto auto auto auto auto auto; gap:8px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); background:var(--panel); }
+    input, select, textarea { padding:0 10px; border:1px solid var(--line); border-radius:6px; background:var(--field); color:var(--text); min-width:0; }
     input, select { height:34px; }
     textarea { width:100%; min-height:76px; padding:8px 10px; resize:vertical; font:13px/1.45 inherit; }
-    button, a { min-height:34px; border:1px solid var(--line); border-radius:6px; background:white; color:var(--text); padding:0 10px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; white-space:nowrap; }
-    button.primary { background:var(--accent); color:white; border-color:var(--accent); }
+    button, a { min-height:34px; border:1px solid var(--line); border-radius:6px; background:var(--button); color:var(--text); padding:0 10px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; white-space:nowrap; }
+    button.primary { background:var(--accent); color:var(--accent-text); border-color:var(--accent); }
     button:disabled { opacity:.55; cursor:default; }
+    button:hover:not(:disabled), a:hover, select:hover, input:hover, textarea:hover { border-color:var(--accent); }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     .icon-button { width:34px; min-width:34px; padding:0; }
     .icon-button svg { width:18px; height:18px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
     main { min-height:0; position:relative; display:grid; grid-template-columns:minmax(0,1fr); overflow:hidden; }
-    iframe { width:100%; height:100%; border:0; background:white; }
-    aside { position:absolute; top:0; right:0; z-index:5; width:min(440px,100%); height:100%; min-height:0; display:grid; grid-template-rows:auto auto auto auto minmax(0,1fr); gap:10px; padding:10px; border-left:1px solid var(--line); background:#fbf8f1; box-shadow:-18px 0 36px rgba(38,34,29,.16); overflow:hidden; transform:translateX(100%); transition:transform .18s ease; }
+    iframe { width:100%; height:100%; border:0; background:var(--graph-bg); }
+    aside { position:absolute; top:0; right:0; z-index:5; width:min(440px,100%); height:100%; min-height:0; display:grid; grid-template-rows:auto auto auto auto minmax(0,1fr); gap:10px; padding:10px; border-left:1px solid var(--line); background:var(--drawer); box-shadow:-18px 0 36px var(--shadow); overflow:hidden; transform:translateX(100%); transition:transform .18s ease; }
     body.drawer-open aside { transform:translateX(0); }
     .drawer-head { display:flex; align-items:center; justify-content:space-between; gap:8px; border:0; background:transparent; padding:0; }
     .drawer-head h2 { margin:0; font-size:14px; }
@@ -268,7 +272,7 @@ async function renderViewer(c, ctx) {
     .agent-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px; }
     .agent-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
     .diag-actions { display:grid; grid-template-columns:1fr auto; gap:6px; margin-top:8px; }
-    pre { margin:0; width:100%; height:100%; min-height:180px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; color:#f6eee1; background:var(--code); border-radius:6px; padding:10px; font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    pre { margin:0; width:100%; height:100%; min-height:180px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--code-text); background:var(--code); border-radius:6px; padding:10px; font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
     @media (max-width: 860px) {
       body { overflow:auto; }
       header { grid-template-columns:1fr 1fr; }
@@ -289,6 +293,7 @@ async function renderViewer(c, ctx) {
     <button id="build" class="primary">生成/刷新</button>
     <button id="diagnostics">诊断</button>
     <a id="openGraph" href="${escapeAttr(graphUrl)}" target="_blank">单独打开</a>
+    <select id="themeMode" aria-label="主题"><option value="auto">自动主题</option><option value="light">浅色</option><option value="dark">深色</option></select>
     <span id="status" class="status">检查中...</span>
   </header>
   <main>
@@ -377,6 +382,7 @@ async function renderViewer(c, ctx) {
     const drawer = document.getElementById("drawer");
     const closeDrawerButton = document.getElementById("closeDrawer");
     const savedRootsSelect = document.getElementById("savedRoots");
+    const themeModeSelect = document.getElementById("themeMode");
     const agentSelect = document.getElementById("agentSelect");
     const sessionSelect = document.getElementById("sessionSelect");
     const agentAction = document.getElementById("agentAction");
@@ -386,6 +392,56 @@ async function renderViewer(c, ctx) {
     const copyAgentPromptButton = document.getElementById("copyAgentPrompt");
     const clearAgentInputButton = document.getElementById("clearAgentInput");
     let lastAgentPrompt = "";
+    const hanaTheme = document.body.dataset.hanaTheme || "inherit";
+    const systemThemeQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+    const themeStorageKey = "llm-wiki-viewer-theme-mode";
+
+    function normalizeThemeMode(value) {
+      return ["auto", "light", "dark"].includes(value) ? value : "auto";
+    }
+
+    function systemTheme() {
+      return systemThemeQuery?.matches ? "dark" : "light";
+    }
+
+    function effectiveTheme(mode) {
+      const normalized = normalizeThemeMode(mode);
+      if (normalized === "light" || normalized === "dark") return normalized;
+      const hostTheme = String(hanaTheme || "").toLowerCase();
+      if (hostTheme === "light" || hostTheme === "dark") return hostTheme;
+      return systemTheme();
+    }
+
+    function readStoredThemeMode() {
+      try { return localStorage.getItem(themeStorageKey) || "auto"; } catch { return "auto"; }
+    }
+
+    function writeStoredThemeMode(mode) {
+      try { localStorage.setItem(themeStorageKey, mode); } catch {}
+    }
+
+    function currentGraphUrl(cacheBust = false) {
+      const u = new URL(${JSON.stringify(graphUrl)}, location.origin);
+      u.searchParams.set("wikiRoot", rootInput.value);
+      u.searchParams.set("theme", document.body.dataset.effectiveTheme || effectiveTheme(themeModeSelect.value));
+      if (cacheBust) u.searchParams.set("_", Date.now());
+      return u.pathname + u.search;
+    }
+
+    function syncGraphFrame(cacheBust = false) {
+      const url = currentGraphUrl(cacheBust);
+      frame.src = url;
+      openGraph.href = url;
+    }
+
+    function applyThemeMode(mode, options = {}) {
+      const normalized = normalizeThemeMode(mode);
+      themeModeSelect.value = normalized;
+      document.body.dataset.themeMode = normalized;
+      document.body.dataset.effectiveTheme = effectiveTheme(normalized);
+      writeStoredThemeMode(normalized);
+      if (options.syncGraph !== false) syncGraphFrame();
+    }
 
     function openDrawer() {
       document.body.classList.add("drawer-open");
@@ -903,9 +959,7 @@ async function renderViewer(c, ctx) {
       if (!data.ok) showLog(data);
       if (rootInput.value === root) {
         rootInput.value = data.defaultWikiRoot || "";
-        const url = withRoot(${JSON.stringify(graphUrl)});
-        frame.src = url;
-        openGraph.href = url;
+        syncGraphFrame();
         await refreshStatus();
       }
       await refreshWikiRoots();
@@ -1104,9 +1158,7 @@ async function renderViewer(c, ctx) {
       if (data.ok) await saveCurrentRoot();
       await refreshStatus({ openHelp: false });
       if (data.ok) {
-        const url = withRoot(${JSON.stringify(graphUrl)}) + "&_=" + Date.now();
-        frame.src = url;
-        openGraph.href = url;
+        syncGraphFrame(true);
       }
       setBusy(buildButton, false);
     }
@@ -1145,9 +1197,7 @@ async function renderViewer(c, ctx) {
     });
 
     rootInput.addEventListener("change", () => {
-      const url = withRoot(${JSON.stringify(graphUrl)});
-      frame.src = url;
-      openGraph.href = url;
+      syncGraphFrame();
       refreshStatus();
       rememberCurrentRoot();
       refreshWikiRoots();
@@ -1156,15 +1206,23 @@ async function renderViewer(c, ctx) {
     savedRootsSelect.addEventListener("change", () => {
       if (!savedRootsSelect.value) return;
       rootInput.value = savedRootsSelect.value;
-      const url = withRoot(${JSON.stringify(graphUrl)});
-      frame.src = url;
-      openGraph.href = url;
+      syncGraphFrame();
       refreshStatus();
       rememberCurrentRoot();
       refreshWikiRoots();
     });
 
     closeDrawerButton.addEventListener("click", closeDrawer);
+    themeModeSelect.addEventListener("change", () => applyThemeMode(themeModeSelect.value));
+    if (systemThemeQuery?.addEventListener) {
+      systemThemeQuery.addEventListener("change", () => {
+        if (themeModeSelect.value === "auto") applyThemeMode("auto");
+      });
+    } else if (systemThemeQuery?.addListener) {
+      systemThemeQuery.addListener(() => {
+        if (themeModeSelect.value === "auto") applyThemeMode("auto");
+      });
+    }
     saveRootButton.addEventListener("click", saveCurrentRoot);
     removeRootButton.addEventListener("click", removeSelectedRoot);
     openFolderButton.addEventListener("click", openCurrentFolder);
@@ -1199,6 +1257,7 @@ async function renderViewer(c, ctx) {
       return text.length > maxLength ? text.slice(0, maxLength - 1) + "…" : text;
     }
 
+    applyThemeMode(readStoredThemeMode(), { syncGraph: true });
     refreshWikiRoots().finally(refreshStatus);
     updateAgentInputPlaceholder();
     refreshAgents();
@@ -1214,7 +1273,7 @@ async function serveGraphFile(c, wikiRoot, filePath, options = {}) {
   const suffix = `?${new URLSearchParams({ token, wikiRoot: wikiRootParam }).toString()}`;
   if (options.graphPlaceholder) {
     const status = await getStatus(wikiRoot);
-    if (!status.graphExists) return c.html(renderGraphPlaceholder(status), 404);
+    if (!status.graphExists) return c.html(renderGraphPlaceholder(status, options.theme), 404);
   }
   return serveWikiFile(c, wikiRoot, filePath, {
     assetBase: "/api/plugins/llm-wiki-viewer/graph-assets/",
@@ -1223,8 +1282,9 @@ async function serveGraphFile(c, wikiRoot, filePath, options = {}) {
   });
 }
 
-function renderGraphPlaceholder(status) {
+function renderGraphPlaceholder(status, theme = "") {
   const root = escapeAttr(status.wikiRoot || "");
+  const effectiveTheme = theme === "dark" ? "dark" : "light";
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -1232,18 +1292,19 @@ function renderGraphPlaceholder(status) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>图谱未生成</title>
   <style>
-    :root { color-scheme: light; --bg:#fffdf8; --text:#26221d; --muted:#6f665a; --line:#ddd4c2; --accent:#8b2e24; }
+    :root { color-scheme: light; --bg:#fffdf8; --panel:#fffaf0; --field:#ffffff; --text:#26221d; --muted:#6f665a; --line:#ddd4c2; --accent:#8b2e24; --shadow:rgba(38,34,29,.08); }
+    body[data-effective-theme="dark"] { color-scheme: dark; --bg:#101417; --panel:#1a2025; --field:#15191d; --text:#f2f0eb; --muted:#aeb8bf; --line:#3a444b; --accent:#d45f50; --shadow:rgba(0,0,0,.32); }
     * { box-sizing:border-box; }
     html, body { margin:0; min-height:100%; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); background:var(--bg); }
     body { display:grid; place-items:start center; padding:56px 18px; }
-    .empty { width:min(560px,100%); border:1px solid var(--line); border-radius:8px; padding:20px; background:#fffaf0; box-shadow:0 10px 30px rgba(38,34,29,.08); }
+    .empty { width:min(560px,100%); border:1px solid var(--line); border-radius:8px; padding:20px; background:var(--panel); box-shadow:0 10px 30px var(--shadow); }
     h1 { margin:0 0 10px; font-size:20px; line-height:1.3; }
     p { margin:8px 0; color:var(--muted); font-size:14px; line-height:1.7; }
     .action { color:var(--accent); font-weight:700; }
-    .path { margin-top:12px; padding:8px 10px; border-radius:6px; background:white; border:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    .path { margin-top:12px; padding:8px 10px; border-radius:6px; background:var(--field); border:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
   </style>
 </head>
-<body>
+<body data-effective-theme="${effectiveTheme}">
   <main class="empty">
     <h1>图谱还没有生成</h1>
     <p>请点击页面顶部右侧的 <span class="action">生成/刷新</span> 按钮。首次使用时插件会先安全初始化，再生成知识图谱。</p>
