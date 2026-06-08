@@ -1628,11 +1628,12 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.doesNotMatch(viewer.body, /<datalist id="wikiRoots">/);
   assert.match(viewer.body, /<select id="savedRoots"/);
   assert.match(viewer.body, /已保存位置/);
-  assert.match(viewer.body, /id="openFolder">访问文件夹/);
+  assert.match(viewer.body, /id="openFolder" class="icon-button" title="访问文件夹" aria-label="访问文件夹"/);
   assert.match(viewer.body, /function openCurrentFolder\(\)/);
   assert.match(viewer.body, /api\/open-folder/);
-  assert.match(viewer.body, /id="removeRoot">删除位置/);
-  assert.match(viewer.body, /id="saveRoot">保存位置/);
+  assert.match(viewer.body, /id="removeRoot" class="icon-button" title="删除位置" aria-label="删除位置"/);
+  assert.match(viewer.body, /id="saveRoot" class="icon-button" title="保存位置" aria-label="保存位置"/);
+  assert.match(viewer.body, /\.icon-button svg/);
   assert.match(viewer.body, /shortRootName\(root\)/);
   assert.match(viewer.body, /请选择或输入知识库位置/);
   assert.match(viewer.body, /先安全初始化再生成图谱/);

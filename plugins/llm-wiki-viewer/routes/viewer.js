@@ -239,6 +239,8 @@ async function renderViewer(c, ctx) {
     button, a { min-height:34px; border:1px solid var(--line); border-radius:6px; background:white; color:var(--text); padding:0 10px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; white-space:nowrap; }
     button.primary { background:var(--accent); color:white; border-color:var(--accent); }
     button:disabled { opacity:.55; cursor:default; }
+    .icon-button { width:34px; min-width:34px; padding:0; }
+    .icon-button svg { width:18px; height:18px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
     main { min-height:0; position:relative; display:grid; grid-template-columns:minmax(0,1fr); overflow:hidden; }
     iframe { width:100%; height:100%; border:0; background:white; }
     aside { position:absolute; top:0; right:0; z-index:5; width:min(440px,100%); height:100%; min-height:0; display:grid; grid-template-rows:auto auto auto auto minmax(0,1fr); gap:10px; padding:10px; border-left:1px solid var(--line); background:#fbf8f1; box-shadow:-18px 0 36px rgba(38,34,29,.16); overflow:hidden; transform:translateX(100%); transition:transform .18s ease; }
@@ -273,9 +275,9 @@ async function renderViewer(c, ctx) {
     <strong>LLM Wiki 控制台</strong>
     <input id="wikiRoot" value="${escapeAttr(wikiRoot)}" spellcheck="false" aria-label="Wiki root">
     <select id="savedRoots" aria-label="已保存位置"><option value="">已保存位置</option></select>
-    <button id="saveRoot">保存位置</button>
-    <button id="removeRoot">删除位置</button>
-    <button id="openFolder">访问文件夹</button>
+    <button id="saveRoot" class="icon-button" title="保存位置" aria-label="保存位置">${iconSvg("save")}</button>
+    <button id="removeRoot" class="icon-button" title="删除位置" aria-label="删除位置">${iconSvg("trash")}</button>
+    <button id="openFolder" class="icon-button" title="访问文件夹" aria-label="访问文件夹">${iconSvg("folder")}</button>
     <button id="build" class="primary">生成/刷新</button>
     <button id="diagnostics">诊断</button>
     <a id="openGraph" href="${escapeAttr(graphUrl)}" target="_blank">单独打开</a>
@@ -1232,6 +1234,15 @@ function addQuery(url, params) {
     if (value) search.set(key, value);
   }
   return `${url}?${search.toString()}`;
+}
+
+function iconSvg(name) {
+  const icons = {
+    save: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v6h8V4"/><path d="M8 20v-6h8v6"/></svg>',
+    trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M7 7l1 13h8l1-13"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>',
+    folder: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 3h9v10H3z"/><path d="M3 9h18"/></svg>',
+  };
+  return icons[name] || "";
 }
 
 function escapeAttr(value) {
