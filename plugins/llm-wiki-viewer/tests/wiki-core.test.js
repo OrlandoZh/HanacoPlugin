@@ -31,6 +31,7 @@ const {
   linkDiagnostics,
   lintFixPreview,
   maintenanceDiagnostics,
+  normalizeAgentDeliveryMode,
   sourceRegistry,
   sourceRegistryLookup,
   lintWiki,
@@ -1535,6 +1536,8 @@ test("Hana Agent workflow helpers use native bus session APIs", async () => {
         calls.push([type, payload]);
         if (type === "agent:list") return { agents: [{ id: "agent-1", name: "知识库 Agent", isPrimary: true }] };
         if (type === "session:list") return { sessions: [{ path: "/agents/agent-1/sessions/a.jsonl", title: "Wiki 会话", agentId: payload.agentId }] };
+        if (type === "session:create") return { ok: true, sessionPath: "/agents/agent-1/sessions/new.jsonl", agentId: payload.agentId };
+        if (type === "session:update") return { ok: true, session: { path: payload.sessionPath, title: payload.title } };
         if (type === "session:send") return { accepted: true, sessionPath: payload.sessionPath };
         throw new Error(`unexpected ${type}`);
       },
@@ -1551,20 +1554,24 @@ test("Hana Agent workflow helpers use native bus session APIs", async () => {
   const wikiRoot = path.join(await tempDir(), "agent-wiki");
   const sent = await sendHanaAgentWorkflow(ctx, {
     wikiRoot,
-    sessionPath: "/agents/agent-1/sessions/a.jsonl",
+    agentId: "agent-1",
     action: "digest",
     input: "AI Agent 记忆机制",
   });
   assert.equal(sent.ok, true);
+  assert.equal(sent.deliveryMode, "new");
+  assert.equal(sent.sessionPath, "/agents/agent-1/sessions/new.jsonl");
+  assert.equal(sent.createdSession.sessionPath, "/agents/agent-1/sessions/new.jsonl");
+  assert.equal(sent.createdSession.updateResult.ok, true);
   assert.match(sent.prompt, /请使用 llm-wiki skill/);
   assert.match(sent.prompt, /知识库根目录：/);
   assert.match(sent.prompt, /任务类型：深度整理/);
   assert.match(sent.prompt, /优先读取 knowledge root 下的 purpose\.md/);
   assert.match(sent.prompt, /生成\/刷新/);
   assert.match(sent.prompt, /AI Agent 记忆机制/);
-  assert.deepEqual(calls.map(([type]) => type), ["agent:list", "session:list", "session:send"]);
+  assert.deepEqual(calls.map(([type]) => type), ["agent:list", "session:list", "session:create", "session:update", "session:send"]);
 
-  const missingSession = await sendHanaAgentWorkflow(ctx, { wikiRoot, action: "query" });
+  const missingSession = await sendHanaAgentWorkflow(ctx, { wikiRoot, action: "query", deliveryMode: "existing" });
   assert.equal(missingSession.ok, false);
   assert.equal(missingSession.error, "sessionPath_required");
 
@@ -1575,6 +1582,8 @@ test("Hana Agent workflow helpers use native bus session APIs", async () => {
   assert.equal(normalizeAgentWorkflowAction("context"), "context");
   assert.equal(normalizeAgentWorkflowAction("session-start"), "context");
   assert.equal(normalizeAgentWorkflowAction("启动上下文"), "context");
+  assert.equal(normalizeAgentDeliveryMode("new-session"), "new");
+  assert.equal(normalizeAgentDeliveryMode("已有会话"), "existing");
 
   const contextPrompt = buildAgentWorkflowPrompt({ wikiRoot, action: "context" });
   assert.match(contextPrompt, /任务类型：启动知识库上下文/);
@@ -1589,10 +1598,13 @@ test("Hana Agent workflow helpers use native bus session APIs", async () => {
   const contextSent = await sendHanaAgentWorkflow(ctx, {
     wikiRoot,
     sessionPath: "/agents/agent-1/sessions/a.jsonl",
+    deliveryMode: "existing",
     action: "context",
   });
   assert.equal(contextSent.ok, true);
   assert.equal(contextSent.action, "context");
+  assert.equal(contextSent.deliveryMode, "existing");
+  assert.equal(contextSent.sessionPath, "/agents/agent-1/sessions/a.jsonl");
   assert.match(contextSent.prompt, /启动当前知识库上下文/);
 });
 
@@ -1604,8 +1616,20 @@ test("viewer API routes bridge to Hana Agent bus", async () => {
       calls.push([type, payload]);
       if (type === "agent:list") return { agents: [{ id: "a1", name: "主 Agent", isCurrent: true }] };
       if (type === "session:list") return { sessions: [{ path: "/agents/a1/sessions/s1.jsonl", title: "知识库维护", agentId: "a1" }] };
+      if (type === "session:create") {
+        assert.equal(payload.agentId, "a1");
+        assert.equal(payload.ownerPluginId, "llm-wiki-viewer");
+        assert.equal(payload.kind, "llm-wiki-workflow");
+        assert.equal(payload.visibility, "public");
+        return { ok: true, sessionPath: "/agents/a1/sessions/new.jsonl", agentId: "a1", agentName: "主 Agent" };
+      }
+      if (type === "session:update") {
+        assert.equal(payload.sessionPath, "/agents/a1/sessions/new.jsonl");
+        assert.match(payload.title, /LLM Wiki/);
+        return { ok: true, session: { path: payload.sessionPath, title: payload.title } };
+      }
       if (type === "session:send") {
-        assert.equal(payload.sessionPath, "/agents/a1/sessions/s1.jsonl");
+        assert.equal(payload.sessionPath, "/agents/a1/sessions/new.jsonl");
         assert.match(payload.text, /任务类型：维护检查/);
         assert.match(payload.text, new RegExp(escapeRegExp(wikiRoot)));
         return { accepted: true, sessionPath: payload.sessionPath };
@@ -1623,23 +1647,24 @@ test("viewer API routes bridge to Hana Agent bus", async () => {
   assert.equal(sessions.status, 200);
   assert.equal(sessions.body.sessions[0].title, "知识库维护");
 
-  const missing = await routes.post("/api/agent-send", { wikiRoot, action: "query" });
+  const missing = await routes.post("/api/agent-send", { wikiRoot, action: "query", deliveryMode: "existing" });
   assert.equal(missing.status, 422);
   assert.equal(missing.body.error, "sessionPath_required");
 
   const sent = await routes.post("/api/agent-send", {
     wikiRoot,
-    sessionPath: "/agents/a1/sessions/s1.jsonl",
+    agentId: "a1",
     action: "maintenance",
     input: "检查断链和来源覆盖",
   });
   assert.equal(sent.status, 200);
   assert.equal(sent.body.ok, true);
   assert.equal(sent.body.action, "maintenance");
-  assert.equal(sent.body.sessionPath, "/agents/a1/sessions/s1.jsonl");
+  assert.equal(sent.body.deliveryMode, "new");
+  assert.equal(sent.body.sessionPath, "/agents/a1/sessions/new.jsonl");
   assert.match(sent.body.prompt, /任务类型：维护检查/);
   assert.equal(sent.body.result.accepted, true);
-  assert.deepEqual(calls.map(([type]) => type), ["agent:list", "session:list", "session:send"]);
+  assert.deepEqual(calls.map(([type]) => type), ["agent:list", "session:list", "session:create", "session:update", "session:send"]);
 });
 
 test("viewer API routes report busy Hana Agent sessions", async () => {
@@ -1654,6 +1679,7 @@ test("viewer API routes report busy Hana Agent sessions", async () => {
   const result = await routes.post("/api/agent-send", {
     wikiRoot: path.join(await tempDir(), "busy-wiki"),
     sessionPath: "/agents/a/sessions/busy.jsonl",
+    deliveryMode: "existing",
     action: "ingest",
     input: "https://example.com",
   });
@@ -1661,8 +1687,30 @@ test("viewer API routes report busy Hana Agent sessions", async () => {
   assert.equal(result.body.ok, false);
   assert.equal(result.body.error, "session_busy");
   assert.equal(result.body.action, "ingest");
+  assert.equal(result.body.deliveryMode, "existing");
   assert.equal(result.body.sessionPath, "/agents/a/sessions/busy.jsonl");
   assert.match(result.body.prompt, /任务类型：添加素材/);
+});
+
+test("viewer API routes report Hana session creation failures", async () => {
+  const routes = registerRoutesForTest({
+    bus: {
+      async request(type) {
+        if (type === "session:create") throw new Error("session_create_failed");
+        throw new Error(`unexpected ${type}`);
+      },
+    },
+  });
+  const result = await routes.post("/api/agent-send", {
+    wikiRoot: path.join(await tempDir(), "new-session-fail-wiki"),
+    agentId: "a1",
+    action: "context",
+  });
+  assert.equal(result.status, 503);
+  assert.equal(result.body.ok, false);
+  assert.equal(result.body.error, "session_create_failed");
+  assert.equal(result.body.deliveryMode, "new");
+  assert.match(result.body.prompt, /启动当前知识库上下文/);
 });
 
 test("graph route shows a Chinese placeholder before graph generation", async () => {
@@ -1760,15 +1808,20 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /source frontmatter 问题/);
   assert.match(viewer.body, /缺来源信号页面/);
   assert.match(viewer.body, /query\/digest 索引缺口/);
-  assert.match(viewer.body, /任务已交给 Agent。Agent 完成内容写入后/);
+  assert.match(viewer.body, /任务已发送到/);
   assert.match(viewer.body, /Agent 工作流/);
   assert.match(viewer.body, /id="agentSelect"/);
+  assert.match(viewer.body, /id="deliveryMode"/);
+  assert.match(viewer.body, /新建会话/);
+  assert.match(viewer.body, /发送到已有会话/);
+  assert.match(viewer.body, /默认新建一个独立 Hana 会话，避免污染当前上下文。/);
   assert.match(viewer.body, /id="sessionSelect"/);
   assert.match(viewer.body, /id="agentAction"/);
   assert.match(viewer.body, /启动知识库上下文/);
   assert.match(viewer.body, /可留空；插件会发送当前知识库上下文/);
   assert.match(viewer.body, /function updateAgentInputPlaceholder\(\)/);
-  assert.match(viewer.body, /已把当前知识库上下文发送给 Agent/);
+  assert.match(viewer.body, /已把当前知识库上下文发送到/);
+  assert.match(viewer.body, /function updateAgentDeliveryMode\(\)/);
   assert.match(viewer.body, /复制 Prompt/);
   assert.match(viewer.body, /function copyAgentPrompt\(\)/);
   assert.match(viewer.body, /function writeClipboardText\(text\)/);

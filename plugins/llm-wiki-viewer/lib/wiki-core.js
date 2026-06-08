@@ -1116,12 +1116,13 @@ export async function listHanaSessions(ctx, input = {}) {
 }
 
 export async function sendHanaAgentWorkflow(ctx, input = {}) {
-  const sessionPath = String(input.sessionPath || "").trim();
-  if (!sessionPath) return { ok: false, error: "sessionPath_required" };
-  if (!ctx?.bus?.request) return { ok: false, error: "hana_bus_unavailable", sessionPath };
+  const deliveryMode = normalizeAgentDeliveryMode(input.deliveryMode || input.mode || input.sessionMode);
+  let sessionPath = String(input.sessionPath || "").trim();
+  if (deliveryMode === "existing" && !sessionPath) return { ok: false, error: "sessionPath_required", deliveryMode };
+  if (!ctx?.bus?.request) return { ok: false, error: "hana_bus_unavailable", sessionPath, deliveryMode };
 
   const wikiRoot = normalizeWikiRootEntry(input.wikiRoot || "");
-  if (!wikiRoot) return { ok: false, error: "wikiRoot_required", sessionPath };
+  if (!wikiRoot) return { ok: false, error: "wikiRoot_required", sessionPath, deliveryMode };
 
   const action = normalizeAgentWorkflowAction(input.action);
   const prompt = buildAgentWorkflowPrompt({
@@ -1130,8 +1131,29 @@ export async function sendHanaAgentWorkflow(ctx, input = {}) {
     input: input.input,
     notes: input.notes,
   });
+  let createdSession = null;
 
   try {
+    if (!sessionPath) {
+      const createResult = await createHanaWorkflowSession(ctx, {
+        wikiRoot,
+        action,
+        agentId: input.agentId,
+        cwd: input.cwd || wikiRoot,
+        title: input.title,
+      });
+      if (!createResult.ok) {
+        return {
+          ...createResult,
+          wikiRoot,
+          action,
+          prompt,
+          deliveryMode,
+        };
+      }
+      createdSession = createResult;
+      sessionPath = createResult.sessionPath;
+    }
     const result = await ctx.bus.request("session:send", {
       sessionPath,
       text: prompt,
@@ -1143,6 +1165,8 @@ export async function sendHanaAgentWorkflow(ctx, input = {}) {
       action,
       prompt,
       result,
+      deliveryMode,
+      createdSession,
     };
   } catch (error) {
     return {
@@ -1152,9 +1176,87 @@ export async function sendHanaAgentWorkflow(ctx, input = {}) {
       sessionPath,
       action,
       prompt,
+      deliveryMode,
+      createdSession,
       stderr: error.stack || error.message,
     };
   }
+}
+
+export async function createHanaWorkflowSession(ctx, input = {}) {
+  if (!ctx?.bus?.request) return { ok: false, error: "hana_bus_unavailable" };
+  const wikiRoot = normalizeWikiRootEntry(input.wikiRoot || "");
+  const action = normalizeAgentWorkflowAction(input.action);
+  const title = String(input.title || "").trim() || defaultWorkflowSessionTitle(wikiRoot, action);
+  const payload = {
+    agentId: String(input.agentId || "").trim() || undefined,
+    cwd: String(input.cwd || wikiRoot || "").trim() || undefined,
+    memoryEnabled: true,
+    ownerPluginId: ctx.pluginId || "llm-wiki-viewer",
+    kind: "llm-wiki-workflow",
+    visibility: "public",
+  };
+  Object.keys(payload).forEach((key) => payload[key] === undefined && delete payload[key]);
+
+  try {
+    const created = await ctx.bus.request("session:create", payload);
+    const sessionPath = String(created?.sessionPath || created?.path || "").trim();
+    if (!sessionPath) {
+      return { ok: false, error: "session_create_missing_path", result: created };
+    }
+    let updateResult = null;
+    try {
+      updateResult = await ctx.bus.request("session:update", {
+        sessionPath,
+        title,
+        ownerPluginId: payload.ownerPluginId,
+        kind: payload.kind,
+        visibility: payload.visibility,
+      });
+    } catch (error) {
+      updateResult = { ok: false, error: error.message || "session_update_failed" };
+    }
+    return {
+      ok: true,
+      sessionPath,
+      title,
+      agentId: created?.agentId || payload.agentId,
+      agentName: created?.agentName,
+      cwd: created?.cwd || payload.cwd,
+      session: created,
+      updateResult,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error.message || "session_create_failed",
+      stderr: error.stack || error.message,
+    };
+  }
+}
+
+export function normalizeAgentDeliveryMode(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  const aliases = {
+    new: "new",
+    create: "new",
+    "new-session": "new",
+    new_session: "new",
+    "新建会话": "new",
+    existing: "existing",
+    current: "existing",
+    session: "existing",
+    "existing-session": "existing",
+    existing_session: "existing",
+    "已有会话": "existing",
+  };
+  return aliases[raw] || "new";
+}
+
+function defaultWorkflowSessionTitle(wikiRoot, action) {
+  const rootName = path.basename(String(wikiRoot || "").replace(/[\\/]+$/, "")) || "知识库";
+  const spec = AGENT_WORKFLOW_SPECS[normalizeAgentWorkflowAction(action)] || AGENT_WORKFLOW_SPECS.ingest;
+  return `LLM Wiki · ${rootName} · ${spec.label}`;
 }
 
 export function normalizeAgentWorkflowAction(action) {

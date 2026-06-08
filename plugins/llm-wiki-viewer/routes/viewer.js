@@ -26,7 +26,7 @@ import {
   sourceImageDiagnostics,
   sourcePageContractPreview,
   sourceSignalEligibility,
-} from "../lib/wiki-core.js?v=0.1.14";
+} from "../lib/wiki-core.js?v=0.1.15";
 
 export default function registerViewerRoutes(app, ctx) {
   app.get("/viewer", async (c) => c.html(await renderViewer(c, ctx)));
@@ -271,6 +271,7 @@ async function renderViewer(c, ctx) {
     .init-row { display:grid; grid-template-columns:1fr 88px 72px; gap:6px; }
     .agent-row { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px; }
     .agent-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:6px; }
+    .agent-mode-note { margin:-2px 0 8px; color:var(--muted); font-size:12px; line-height:1.45; }
     .diag-actions { display:grid; grid-template-columns:1fr auto; gap:6px; margin-top:8px; }
     pre { margin:0; width:100%; height:100%; min-height:180px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; color:var(--code-text); background:var(--code); border-radius:6px; padding:10px; font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
     @media (max-width: 860px) {
@@ -331,8 +332,13 @@ async function renderViewer(c, ctx) {
         <h2>Agent 工作流</h2>
         <div class="agent-row">
           <select id="agentSelect" aria-label="选择 Agent"><option value="">选择 Agent</option></select>
-          <select id="sessionSelect" aria-label="选择会话"><option value="">选择会话</option></select>
+          <select id="deliveryMode" aria-label="投递方式"><option value="new">新建会话</option><option value="existing">发送到已有会话</option></select>
         </div>
+        <div class="agent-row" id="existingSessionRow" hidden>
+          <select id="sessionSelect" aria-label="选择会话"><option value="">选择会话</option></select>
+          <span class="agent-mode-note">只在需要续聊时选择已有会话。</span>
+        </div>
+        <p id="agentModeNote" class="agent-mode-note">默认新建一个独立 Hana 会话，避免污染当前上下文。</p>
         <div class="agent-row">
           <select id="agentAction" aria-label="知识库任务">
             <option value="context">启动知识库上下文</option>
@@ -384,6 +390,9 @@ async function renderViewer(c, ctx) {
     const savedRootsSelect = document.getElementById("savedRoots");
     const themeModeSelect = document.getElementById("themeMode");
     const agentSelect = document.getElementById("agentSelect");
+    const deliveryModeSelect = document.getElementById("deliveryMode");
+    const existingSessionRow = document.getElementById("existingSessionRow");
+    const agentModeNote = document.getElementById("agentModeNote");
     const sessionSelect = document.getElementById("sessionSelect");
     const agentAction = document.getElementById("agentAction");
     const agentInput = document.getElementById("agentInput");
@@ -501,6 +510,8 @@ async function renderViewer(c, ctx) {
         hana_bus_unavailable: "Hana Agent 通道不可用，请重载 Hana 插件后重试",
         agent_list_failed: "Agent 列表读取失败",
         session_list_failed: "会话列表读取失败",
+        session_create_failed: "新建会话失败",
+        session_create_missing_path: "新建会话未返回路径",
         sessionPath_required: "请先选择会话",
         session_busy: "目标会话正在运行",
       };
@@ -513,7 +524,9 @@ async function renderViewer(c, ctx) {
         target_not_empty: "为避免覆盖资料，插件不会初始化非空普通目录。请选择空文件夹或不存在的新文件夹路径。",
         not_llm_wiki_root: "请点击顶部“生成/刷新”让插件先安全初始化，或选择一个已有 LLM Wiki 根目录。",
         hana_bus_unavailable: "当前页面拿不到 Hana 原生 Agent 通道。请重载插件或重启 HanaAgent，再回到本页重试。",
-        sessionPath_required: "请选择一个已有 Hana 会话；插件不会自动创建新会话。",
+        session_create_failed: "Hana 原生 session:create 没有成功。请重载 HanaAgent 后重试，或切换为“发送到已有会话”。",
+        session_create_missing_path: "Hana 已响应创建请求，但没有返回 sessionPath。请更新/重启 HanaAgent 后重试。",
+        sessionPath_required: "已选择“发送到已有会话”，请先选择目标会话；或切回“新建会话”。",
         session_busy: "目标会话正在生成。请稍后重试、换一个会话，或复制 Prompt 手动发送。",
       };
       return hints[error] || "";
@@ -522,6 +535,8 @@ async function renderViewer(c, ctx) {
     function formatAgentResult(data) {
       const lines = ["Agent 投递摘要:"];
       if (data.action) lines.push("任务类型: " + formatAgentAction(data.action));
+      lines.push("投递方式: " + (data.deliveryMode === "existing" ? "发送到已有会话" : "新建会话"));
+      if (data.createdSession?.title) lines.push("新会话标题: " + data.createdSession.title);
       if (data.sessionPath) lines.push("目标会话: " + data.sessionPath);
       if (data.result) lines.push("已接收: " + (data.result.accepted ? "是" : "否"));
       if (data.error) lines.push("状态: " + formatError(data.error));
@@ -819,14 +834,15 @@ async function renderViewer(c, ctx) {
         const meta = session.agentName ? " · " + session.agentName : "";
         return '<option value="' + escapeHtml(session.path || "") + '"' + selected + ' title="' + escapeHtml(session.path || "") + '">' + escapeHtml(shortText(label, 28) + meta) + '</option>';
       }).join("");
-      lockButton(sendAgentButton, !sessionSelect.value);
+      updateAgentDeliveryMode();
       return data;
     }
 
     async function sendAgentWorkflow() {
       openDrawer();
-      const sessionPath = sessionSelect.value;
-      if (!sessionPath) {
+      const deliveryMode = deliveryModeSelect.value === "existing" ? "existing" : "new";
+      const sessionPath = deliveryMode === "existing" ? sessionSelect.value : "";
+      if (deliveryMode === "existing" && !sessionPath) {
         statusEl.textContent = "请先选择会话";
         showLog({ ok: false, error: "sessionPath_required" });
         return;
@@ -834,6 +850,8 @@ async function renderViewer(c, ctx) {
       setBusy(sendAgentButton, true);
       const body = {
         wikiRoot: rootInput.value,
+        agentId: agentSelect.value,
+        deliveryMode,
         sessionPath,
         action: agentAction.value,
         input: agentInput.value,
@@ -848,9 +866,10 @@ async function renderViewer(c, ctx) {
       if (data.prompt) lastAgentPrompt = data.prompt;
       statusEl.textContent = data.ok ? "已交给 Agent" : "Agent 调用失败";
       if (data.ok) {
+        const target = data.deliveryMode === "existing" ? "所选会话" : "新建会话";
         data.stdout = agentAction.value === "context"
-          ? "已把当前知识库上下文发送给 Agent。后续写入完成后，请点击顶部“生成/刷新”。"
-          : "任务已交给 Agent。Agent 完成内容写入后，请点击顶部“生成/刷新”更新图谱。";
+          ? "已把当前知识库上下文发送到" + target + "。后续写入完成后，请点击顶部“生成/刷新”。"
+          : "任务已发送到" + target + "。Agent 完成内容写入后，请点击顶部“生成/刷新”更新图谱。";
       }
       showLog(data);
       setBusy(sendAgentButton, false);
@@ -917,6 +936,15 @@ async function renderViewer(c, ctx) {
       agentInput.placeholder = agentAction.value === "context"
         ? "可留空；插件会发送当前知识库上下文"
         : "粘贴链接、文件路径、问题或维护目标";
+    }
+
+    function updateAgentDeliveryMode() {
+      const existing = deliveryModeSelect.value === "existing";
+      existingSessionRow.hidden = !existing;
+      agentModeNote.textContent = existing
+        ? "将任务追加到所选会话，适合接着已有上下文继续处理。"
+        : "默认新建一个独立 Hana 会话，避免污染当前上下文。";
+      lockButton(sendAgentButton, existing && !sessionSelect.value);
     }
 
     async function saveCurrentRoot() {
@@ -1236,8 +1264,9 @@ async function renderViewer(c, ctx) {
     maintenanceDiagnosticsButton.addEventListener("click", runMaintenanceDiagnostics);
     refreshAgentsButton.addEventListener("click", refreshAgents);
     agentSelect.addEventListener("change", refreshSessions);
+    deliveryModeSelect.addEventListener("change", updateAgentDeliveryMode);
     agentAction.addEventListener("change", updateAgentInputPlaceholder);
-    sessionSelect.addEventListener("change", () => lockButton(sendAgentButton, !sessionSelect.value));
+    sessionSelect.addEventListener("change", updateAgentDeliveryMode);
     sendAgentButton.addEventListener("click", sendAgentWorkflow);
     copyAgentPromptButton.addEventListener("click", copyAgentPrompt);
     clearAgentInputButton.addEventListener("click", () => { agentInput.value = ""; agentInput.focus(); });
