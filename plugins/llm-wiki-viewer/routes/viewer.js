@@ -26,7 +26,7 @@ import {
   sourceImageDiagnostics,
   sourcePageContractPreview,
   sourceSignalEligibility,
-} from "../lib/wiki-core.js?v=0.1.15";
+} from "../lib/wiki-core.js?v=0.1.16";
 
 export default function registerViewerRoutes(app, ctx) {
   app.get("/viewer", async (c) => c.html(await renderViewer(c, ctx)));
@@ -241,8 +241,8 @@ async function renderViewer(c, ctx) {
     body[data-effective-theme="light"] { color-scheme: light; }
     * { box-sizing: border-box; }
     html, body { margin:0; width:100%; height:100%; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); background:var(--bg); }
-    body { display:grid; grid-template-rows:auto 1fr; overflow:hidden; }
-    header { display:grid; grid-template-columns:auto minmax(220px,1fr) minmax(140px,190px) auto auto auto auto auto auto auto auto; gap:8px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); background:var(--panel); }
+    body { display:grid; grid-template-rows:auto 1fr; overflow:hidden; position:relative; }
+    header { display:grid; grid-template-columns:auto minmax(220px,1fr) minmax(140px,190px) repeat(8,auto) minmax(120px,auto); gap:8px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--line); background:var(--panel); }
     input, select, textarea { padding:0 10px; border:1px solid var(--line); border-radius:6px; background:var(--field); color:var(--text); min-width:0; }
     input, select { height:34px; }
     textarea { width:100%; min-height:76px; padding:8px 10px; resize:vertical; font:13px/1.45 inherit; }
@@ -253,9 +253,26 @@ async function renderViewer(c, ctx) {
     button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     .icon-button { width:34px; min-width:34px; padding:0; }
     .icon-button svg { width:18px; height:18px; stroke:currentColor; stroke-width:1.8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+    .icon-button[aria-expanded="true"] { background:var(--accent); color:var(--accent-text); border-color:var(--accent); }
+    .agent-panel { position:absolute; z-index:8; top:54px; left:12px; right:12px; display:grid; grid-template-columns:minmax(150px,190px) minmax(230px,.85fr) minmax(320px,1.3fr) minmax(128px,190px); gap:12px; align-items:start; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:color-mix(in srgb, var(--panel) 92%, var(--accent) 8%); box-shadow:0 18px 34px var(--shadow), inset 0 1px 0 color-mix(in srgb, var(--field) 70%, transparent); }
+    .agent-panel[hidden] { display:none; }
+    .agent-panel h2 { margin:0; font-size:13px; line-height:1.2; white-space:nowrap; }
+    .agent-panel-kicker { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px; line-height:1.35; }
+    .agent-dot { width:7px; height:7px; border-radius:999px; background:var(--ok); box-shadow:0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent); }
+    .agent-group { display:grid; gap:8px; min-width:0; }
+    .agent-group + .agent-group { border-left:1px solid color-mix(in srgb, var(--line) 80%, transparent); padding-left:12px; }
+    .agent-target-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; min-width:0; }
+    .agent-task-grid { display:grid; grid-template-columns:minmax(180px,.9fr) minmax(220px,1.1fr); gap:8px; min-width:0; }
+    .agent-field { display:grid; gap:4px; min-width:0; }
+    .agent-field span { color:var(--muted); font-size:11px; line-height:1; }
+    .agent-field textarea { height:34px; min-height:34px; resize:none; }
+    .agent-command-group { display:grid; grid-template-columns:1fr; gap:6px; min-width:128px; }
+    .agent-command-row { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+    .agent-session-row { display:grid; grid-template-columns:1fr; gap:8px; }
+    .agent-mode-note { margin:0; color:var(--muted); font-size:12px; line-height:1.35; }
     main { min-height:0; position:relative; display:grid; grid-template-columns:minmax(0,1fr); overflow:hidden; }
     iframe { width:100%; height:100%; border:0; background:var(--graph-bg); }
-    aside { position:absolute; top:0; right:0; z-index:5; width:min(440px,100%); height:100%; min-height:0; display:grid; grid-template-rows:auto auto auto auto minmax(0,1fr); gap:10px; padding:10px; border-left:1px solid var(--line); background:var(--drawer); box-shadow:-18px 0 36px var(--shadow); overflow:hidden; transform:translateX(100%); transition:transform .18s ease; }
+    aside { position:absolute; top:0; right:0; z-index:5; width:min(440px,100%); height:100%; min-height:0; display:grid; grid-template-rows:auto auto auto minmax(0,1fr); gap:10px; padding:10px; border-left:1px solid var(--line); background:var(--drawer); box-shadow:-18px 0 36px var(--shadow); overflow:hidden; transform:translateX(100%); transition:transform .18s ease; }
     body.drawer-open aside { transform:translateX(0); }
     .drawer-head { display:flex; align-items:center; justify-content:space-between; gap:8px; border:0; background:transparent; padding:0; }
     .drawer-head h2 { margin:0; font-size:14px; }
@@ -278,6 +295,11 @@ async function renderViewer(c, ctx) {
       body { overflow:auto; }
       header { grid-template-columns:1fr 1fr; }
       header strong, header input, header select { grid-column:1 / -1; }
+      .agent-panel { top:auto; left:8px; right:8px; grid-template-columns:1fr; max-height:calc(100dvh - 86px); overflow:auto; }
+      .agent-group + .agent-group { border-left:0; border-top:1px solid var(--line); padding-left:0; padding-top:8px; }
+      .agent-target-grid, .agent-task-grid { grid-template-columns:1fr; }
+      .agent-command-group { grid-template-columns:1fr; }
+      .agent-session-row { grid-template-columns:1fr; }
       main { min-height:70vh; }
       aside { width:100%; border-left:0; border-top:1px solid var(--line); }
     }
@@ -292,11 +314,51 @@ async function renderViewer(c, ctx) {
     <button id="removeRoot" class="icon-button" title="删除位置" aria-label="删除位置">${iconSvg("trash")}</button>
     <button id="openFolder" class="icon-button" title="访问文件夹" aria-label="访问文件夹">${iconSvg("folder")}</button>
     <button id="build" class="primary">生成/刷新</button>
+    <button id="agentToggle" class="icon-button" title="Agent 工作流" aria-label="Agent 工作流" aria-controls="agentPanel" aria-expanded="false">${iconSvg("bot")}</button>
     <button id="diagnostics">诊断</button>
     <a id="openGraph" href="${escapeAttr(graphUrl)}" target="_blank">单独打开</a>
     <select id="themeMode" aria-label="主题"><option value="auto">自动主题</option><option value="light">浅色</option><option value="dark">深色</option></select>
     <span id="status" class="status">检查中...</span>
   </header>
+  <section id="agentPanel" class="agent-panel" aria-label="Agent 工作流" hidden>
+    <div>
+      <h2>Agent 工作流</h2>
+      <div class="agent-panel-kicker"><span class="agent-dot"></span><span id="agentModeLabel">新会话优先</span></div>
+    </div>
+    <div class="agent-group">
+      <div class="agent-target-grid">
+        <label class="agent-field"><span>Agent</span><select id="agentSelect" aria-label="选择 Agent"><option value="">选择 Agent</option></select></label>
+        <label class="agent-field"><span>投递方式</span><select id="deliveryMode" aria-label="投递方式"><option value="new">新建会话</option><option value="existing">发送到已有会话</option></select></label>
+      </div>
+      <div class="agent-session-row" id="existingSessionRow" hidden>
+        <label class="agent-field"><span>会话</span><select id="sessionSelect" aria-label="选择会话"><option value="">选择会话</option></select></label>
+      </div>
+    </div>
+    <div class="agent-group">
+      <div class="agent-task-grid">
+        <label class="agent-field"><span>任务</span><select id="agentAction" aria-label="知识库任务">
+        <option value="context">启动知识库上下文</option>
+        <option value="ingest">添加素材</option>
+        <option value="batch-ingest">批量消化</option>
+        <option value="query">查询知识库</option>
+        <option value="digest">深度整理</option>
+        <option value="update">更新页面</option>
+        <option value="maintenance">维护检查</option>
+        <option value="crystallize">结晶化对话</option>
+        </select></label>
+        <label class="agent-field"><span>内容</span><textarea id="agentInput" aria-label="Agent 任务内容" placeholder="可留空；插件会发送当前知识库上下文"></textarea></label>
+      </div>
+    </div>
+    <div class="agent-command-group">
+      <button id="sendAgent" class="primary">交给 Agent</button>
+      <div class="agent-command-row">
+        <button id="refreshAgents" class="icon-button" title="刷新 Agent" aria-label="刷新 Agent">${iconSvg("refresh")}</button>
+        <button id="copyAgentPrompt" class="icon-button" title="复制 Prompt" aria-label="复制 Prompt">${iconSvg("copy")}</button>
+        <button id="clearAgentInput" class="icon-button" title="清空内容" aria-label="清空内容">${iconSvg("eraser")}</button>
+      </div>
+      <p id="agentModeNote" class="agent-mode-note">新会话</p>
+    </div>
+  </section>
   <main>
     <iframe id="graph" src="${escapeAttr(graphUrl)}"></iframe>
     <aside id="drawer" aria-label="诊断面板" aria-hidden="true">
@@ -328,37 +390,6 @@ async function renderViewer(c, ctx) {
           <button id="init">初始化</button>
         </div>
       </section>
-      <section>
-        <h2>Agent 工作流</h2>
-        <div class="agent-row">
-          <select id="agentSelect" aria-label="选择 Agent"><option value="">选择 Agent</option></select>
-          <select id="deliveryMode" aria-label="投递方式"><option value="new">新建会话</option><option value="existing">发送到已有会话</option></select>
-        </div>
-        <div class="agent-row" id="existingSessionRow" hidden>
-          <select id="sessionSelect" aria-label="选择会话"><option value="">选择会话</option></select>
-          <span class="agent-mode-note">只在需要续聊时选择已有会话。</span>
-        </div>
-        <p id="agentModeNote" class="agent-mode-note">默认新建一个独立 Hana 会话，避免污染当前上下文。</p>
-        <div class="agent-row">
-          <select id="agentAction" aria-label="知识库任务">
-            <option value="context">启动知识库上下文</option>
-            <option value="ingest">添加素材</option>
-            <option value="batch-ingest">批量消化</option>
-            <option value="query">查询知识库</option>
-            <option value="digest">深度整理</option>
-            <option value="update">更新页面</option>
-            <option value="maintenance">维护检查</option>
-            <option value="crystallize">结晶化对话</option>
-          </select>
-          <button id="refreshAgents">刷新 Agent</button>
-        </div>
-        <textarea id="agentInput" aria-label="Agent 任务内容" placeholder="可留空；插件会发送当前知识库上下文"></textarea>
-        <div class="agent-actions">
-          <button id="sendAgent" class="primary">交给 Agent</button>
-          <button id="copyAgentPrompt">复制 Prompt</button>
-          <button id="clearAgentInput">清空内容</button>
-        </div>
-      </section>
       <section style="min-height:0; display:grid; grid-template-rows:auto 1fr;">
         <h2>运行输出</h2>
         <pre id="log">等待操作...</pre>
@@ -377,6 +408,7 @@ async function renderViewer(c, ctx) {
     const removeRootButton = document.getElementById("removeRoot");
     const openFolderButton = document.getElementById("openFolder");
     const diagnosticsButton = document.getElementById("diagnostics");
+    const agentToggleButton = document.getElementById("agentToggle");
     const runDiagnosticsButton = document.getElementById("runDiagnostics");
     const safetyButton = document.getElementById("safety");
     const lintButton = document.getElementById("lint");
@@ -389,9 +421,11 @@ async function renderViewer(c, ctx) {
     const closeDrawerButton = document.getElementById("closeDrawer");
     const savedRootsSelect = document.getElementById("savedRoots");
     const themeModeSelect = document.getElementById("themeMode");
+    const agentPanel = document.getElementById("agentPanel");
     const agentSelect = document.getElementById("agentSelect");
     const deliveryModeSelect = document.getElementById("deliveryMode");
     const existingSessionRow = document.getElementById("existingSessionRow");
+    const agentModeLabel = document.getElementById("agentModeLabel");
     const agentModeNote = document.getElementById("agentModeNote");
     const sessionSelect = document.getElementById("sessionSelect");
     const agentAction = document.getElementById("agentAction");
@@ -401,6 +435,7 @@ async function renderViewer(c, ctx) {
     const copyAgentPromptButton = document.getElementById("copyAgentPrompt");
     const clearAgentInputButton = document.getElementById("clearAgentInput");
     let lastAgentPrompt = "";
+    let savedWikiRoots = [];
     const hanaTheme = document.body.dataset.hanaTheme || "inherit";
     const systemThemeQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
     const themeStorageKey = "llm-wiki-viewer-theme-mode";
@@ -443,6 +478,12 @@ async function renderViewer(c, ctx) {
       openGraph.href = url;
     }
 
+    function notifyGraphResize() {
+      try {
+        frame.contentWindow?.dispatchEvent(new Event("resize"));
+      } catch {}
+    }
+
     function applyThemeMode(mode, options = {}) {
       const normalized = normalizeThemeMode(mode);
       themeModeSelect.value = normalized;
@@ -453,6 +494,7 @@ async function renderViewer(c, ctx) {
     }
 
     function openDrawer() {
+      setAgentPanelOpen(false, { refresh: false });
       document.body.classList.add("drawer-open");
       drawer.setAttribute("aria-hidden", "false");
     }
@@ -460,6 +502,20 @@ async function renderViewer(c, ctx) {
     function closeDrawer() {
       document.body.classList.remove("drawer-open");
       drawer.setAttribute("aria-hidden", "true");
+    }
+
+    function setAgentPanelOpen(open, options = {}) {
+      agentPanel.hidden = !open;
+      agentToggleButton.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open && options.refresh !== false) refreshAgents();
+      requestAnimationFrame(() => {
+        notifyGraphResize();
+        setTimeout(notifyGraphResize, 120);
+      });
+    }
+
+    function toggleAgentPanel() {
+      setAgentPanelOpen(agentPanel.hidden);
     }
 
     function withRoot(url) {
@@ -767,12 +823,24 @@ async function renderViewer(c, ctx) {
       const r = await fetch(withRoot(${JSON.stringify(wikiRootsUrl)}), { credentials: "include" });
       const data = await r.json();
       const roots = Array.isArray(data.wikiRoots) ? data.wikiRoots : [];
+      savedWikiRoots = roots;
       savedRootsSelect.innerHTML = '<option value="">已保存位置</option>' + roots.map((root) => {
         const selected = root === rootInput.value ? " selected" : "";
         return '<option value="' + escapeHtml(root) + '"' + selected + ' title="' + escapeHtml(root) + '">' + escapeHtml(shortRootName(root)) + '</option>';
       }).join("");
-      lockButton(removeRootButton, !savedRootsSelect.value);
+      updateRemoveRootButton();
       return data;
+    }
+
+    function selectedRootForRemoval() {
+      const selected = savedRootsSelect.value.trim();
+      if (selected) return selected;
+      const current = rootInput.value.trim();
+      return savedWikiRoots.includes(current) ? current : "";
+    }
+
+    function updateRemoveRootButton() {
+      lockButton(removeRootButton, !selectedRootForRemoval());
     }
 
     async function rememberCurrentRoot() {
@@ -941,9 +1009,8 @@ async function renderViewer(c, ctx) {
     function updateAgentDeliveryMode() {
       const existing = deliveryModeSelect.value === "existing";
       existingSessionRow.hidden = !existing;
-      agentModeNote.textContent = existing
-        ? "将任务追加到所选会话，适合接着已有上下文继续处理。"
-        : "默认新建一个独立 Hana 会话，避免污染当前上下文。";
+      agentModeLabel.textContent = existing ? "续聊模式" : "新会话优先";
+      agentModeNote.textContent = existing ? "已有会话" : "新会话";
       lockButton(sendAgentButton, existing && !sessionSelect.value);
     }
 
@@ -970,9 +1037,9 @@ async function renderViewer(c, ctx) {
     }
 
     async function removeSelectedRoot() {
-      const root = savedRootsSelect.value;
+      const root = selectedRootForRemoval();
       if (!root) {
-        statusEl.textContent = "请先选择位置";
+        statusEl.textContent = "没有可删除的位置";
         return;
       }
       setBusy(removeRootButton, true);
@@ -991,6 +1058,7 @@ async function renderViewer(c, ctx) {
         await refreshStatus();
       }
       await refreshWikiRoots();
+      updateRemoveRootButton();
       setBusy(removeRootButton, false);
     }
 
@@ -1230,14 +1298,15 @@ async function renderViewer(c, ctx) {
       rememberCurrentRoot();
       refreshWikiRoots();
     });
+    rootInput.addEventListener("input", updateRemoveRootButton);
 
     savedRootsSelect.addEventListener("change", () => {
       if (!savedRootsSelect.value) return;
       rootInput.value = savedRootsSelect.value;
       syncGraphFrame();
       refreshStatus();
-      rememberCurrentRoot();
-      refreshWikiRoots();
+      updateRemoveRootButton();
+      rememberCurrentRoot().finally(refreshWikiRoots);
     });
 
     closeDrawerButton.addEventListener("click", closeDrawer);
@@ -1254,6 +1323,7 @@ async function renderViewer(c, ctx) {
     saveRootButton.addEventListener("click", saveCurrentRoot);
     removeRootButton.addEventListener("click", removeSelectedRoot);
     openFolderButton.addEventListener("click", openCurrentFolder);
+    agentToggleButton.addEventListener("click", toggleAgentPanel);
     diagnosticsButton.addEventListener("click", runDiagnostics);
     runDiagnosticsButton.addEventListener("click", runDiagnostics);
     safetyButton.addEventListener("click", runSafetyDiagnostics);
@@ -1289,7 +1359,6 @@ async function renderViewer(c, ctx) {
     applyThemeMode(readStoredThemeMode(), { syncGraph: true });
     refreshWikiRoots().finally(refreshStatus);
     updateAgentInputPlaceholder();
-    refreshAgents();
     window.parent?.postMessage?.({ source: "hana-plugin", type: "ready" }, "*");
   </script>
 </body>
@@ -1362,6 +1431,10 @@ function iconSvg(name) {
     save: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v6h8V4"/><path d="M8 20v-6h8v6"/></svg>',
     trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M7 7l1 13h8l1-13"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>',
     folder: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 3h9v10H3z"/><path d="M3 9h18"/></svg>',
+    bot: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4"/><path d="M8 4h8"/><rect x="5" y="8" width="14" height="12" rx="3"/><path d="M9 13h.01"/><path d="M15 13h.01"/><path d="M9 17h6"/> </svg>',
+    refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.3 6.4"/><path d="M3 12a9 9 0 0 1 15.3-6.4"/><path d="M18 2v4h-4"/><path d="M6 22v-4h4"/></svg>',
+    copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+    eraser: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l7-7 7 7-4 4H7z"/><path d="M10 10l4-4a2 2 0 0 1 3 0l1 1a2 2 0 0 1 0 3l-4 4"/><path d="M14 21h7"/></svg>',
   };
   return icons[name] || "";
 }

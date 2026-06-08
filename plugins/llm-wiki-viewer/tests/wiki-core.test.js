@@ -145,7 +145,14 @@ test("saved wiki roots fall back to plugin data when config schema rejects new f
   assert.equal(saved.ok, true, saved.stderr || saved.error);
   assert.equal(await config.get("defaultWikiRoot"), wikiRoot);
   assert.deepEqual(await getSavedWikiRoots(ctx), [wikiRoot]);
-  assert.equal(fs.existsSync(path.join(dataDir, "wiki-roots.json")), true);
+  const rootsFile = path.join(dataDir, "wiki-roots.json");
+  assert.equal(fs.existsSync(rootsFile), true);
+
+  const removed = await removeSavedWikiRoot(ctx, wikiRoot);
+  assert.equal(removed.ok, true, removed.stderr || removed.error);
+  assert.deepEqual(removed.savedWikiRoots, []);
+  assert.deepEqual(await getSavedWikiRoots(ctx), []);
+  assert.doesNotMatch(await fsp.readFile(rootsFile, "utf8"), new RegExp(escapeRegExp(wikiRoot)));
 });
 
 test("init creates Chinese and English wiki roots", async () => {
@@ -1312,8 +1319,14 @@ test("applyGraphPanelControls injects collapsible side panels", () => {
   assert.match(enhanced, /data-left-panel-collapsed/);
   assert.match(enhanced, /data-right-panel-collapsed/);
   assert.match(enhanced, /llm-wiki-viewer-graph-panels/);
+  assert.match(enhanced, /\.drawer-body/);
+  assert.match(enhanced, /overflow-y: auto/);
+  assert.match(enhanced, /overscroll-behavior: contain/);
   assert.match(enhanced, /折叠左侧栏/);
   assert.match(enhanced, /折叠右侧栏/);
+  assert.match(enhanced, /leftPanel\.append\(leftButton\)/);
+  assert.match(enhanced, /rightPanel\.append\(rightButton\)/);
+  assert.doesNotMatch(enhanced, /document\.body\.append\(leftButton, rightButton\)/);
 });
 
 test("viewer API routes return expected failure status codes", async () => {
@@ -1762,6 +1775,9 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /u\.searchParams\.set\("theme"/);
   assert.match(viewer.body, /themeModeSelect\.addEventListener\("change"/);
   assert.match(viewer.body, /shortRootName\(root\)/);
+  assert.match(viewer.body, /function selectedRootForRemoval\(\)/);
+  assert.match(viewer.body, /function updateRemoveRootButton\(\)/);
+  assert.match(viewer.body, /rootInput\.addEventListener\("input", updateRemoveRootButton\)/);
   assert.match(viewer.body, /请选择或输入知识库位置/);
   assert.match(viewer.body, /先安全初始化再生成图谱/);
   assert.match(viewer.body, /function generateOrRefresh\(\)/);
@@ -1810,11 +1826,26 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /query\/digest 索引缺口/);
   assert.match(viewer.body, /任务已发送到/);
   assert.match(viewer.body, /Agent 工作流/);
+  assert.match(viewer.body, /body \{ display:grid; grid-template-rows:auto 1fr; overflow:hidden; position:relative; \}/);
+  assert.match(viewer.body, /\.agent-panel \{ position:absolute; z-index:8;/);
+  assert.match(viewer.body, /id="agentToggle" class="icon-button" title="Agent 工作流" aria-label="Agent 工作流" aria-controls="agentPanel" aria-expanded="false"/);
+  assert.match(viewer.body, /id="agentPanel" class="agent-panel" aria-label="Agent 工作流" hidden/);
+  assert.match(viewer.body, /agent-target-grid/);
+  assert.match(viewer.body, /agent-task-grid/);
+  assert.match(viewer.body, /agent-command-group/);
+  assert.match(viewer.body, /id="agentModeLabel">新会话优先/);
+  assert.match(viewer.body, /续聊模式/);
+  assert.match(viewer.body, /function toggleAgentPanel\(\)/);
+  assert.match(viewer.body, /function setAgentPanelOpen\(open, options = \{\}\)/);
+  assert.match(viewer.body, /function notifyGraphResize\(\)/);
+  assert.match(viewer.body, /contentWindow\?\.dispatchEvent\(new Event\("resize"\)\)/);
   assert.match(viewer.body, /id="agentSelect"/);
   assert.match(viewer.body, /id="deliveryMode"/);
   assert.match(viewer.body, /新建会话/);
   assert.match(viewer.body, /发送到已有会话/);
-  assert.match(viewer.body, /默认新建一个独立 Hana 会话，避免污染当前上下文。/);
+  assert.match(viewer.body, /id="agentModeNote" class="agent-mode-note">新会话/);
+  assert.doesNotMatch(viewer.body, /避免污染当前上下文/);
+  assert.doesNotMatch(viewer.body, /只在需要续聊时选择已有会话/);
   assert.match(viewer.body, /id="sessionSelect"/);
   assert.match(viewer.body, /id="agentAction"/);
   assert.match(viewer.body, /启动知识库上下文/);
@@ -1822,7 +1853,9 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /function updateAgentInputPlaceholder\(\)/);
   assert.match(viewer.body, /已把当前知识库上下文发送到/);
   assert.match(viewer.body, /function updateAgentDeliveryMode\(\)/);
-  assert.match(viewer.body, /复制 Prompt/);
+  assert.match(viewer.body, /aria-label="刷新 Agent"/);
+  assert.match(viewer.body, /aria-label="复制 Prompt"/);
+  assert.match(viewer.body, /aria-label="清空内容"/);
   assert.match(viewer.body, /function copyAgentPrompt\(\)/);
   assert.match(viewer.body, /function writeClipboardText\(text\)/);
   assert.match(viewer.body, /clipboard\.writeText/);
@@ -1841,7 +1874,14 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /function refreshAgents\(\)/);
   assert.match(viewer.body, /function sendAgentWorkflow\(\)/);
   assert.match(viewer.body, /api\/agent-send/);
+  const agentToggleIndex = viewer.body.indexOf('id="agentToggle"');
+  const agentPanelIndex = viewer.body.indexOf('id="agentPanel"');
+  const mainIndex = viewer.body.indexOf("<main>");
+  const aside = viewer.body.match(/<aside[\s\S]*?<\/aside>/)?.[0] || "";
+  assert.ok(agentToggleIndex > 0 && agentPanelIndex > agentToggleIndex && mainIndex > agentPanelIndex);
+  assert.doesNotMatch(aside, /id="agentSelect"/);
   const header = viewer.body.match(/<header>[\s\S]*?<\/header>/)?.[0] || "";
+  assert.match(header, /id="agentToggle"/);
   assert.match(header, /id="diagnostics">诊断/);
   assert.doesNotMatch(header, /id="safety"/);
   assert.doesNotMatch(header, /id="lint"/);

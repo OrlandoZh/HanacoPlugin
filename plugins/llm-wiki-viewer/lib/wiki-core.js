@@ -109,6 +109,7 @@ export async function saveWikiRoot(ctx, wikiRoot) {
       };
     }
   }
+  await writeSavedWikiRootsFileIfAvailable(ctx, savedWikiRoots);
 
   return {
     ok: true,
@@ -123,6 +124,8 @@ export async function rememberWikiRoot(ctx, wikiRoot) {
   if (!root) return { ok: false, error: "wikiRoot_required", wikiRoot: root };
   try {
     await ctx?.config?.set?.("defaultWikiRoot", root);
+    const savedWikiRoots = uniqueWikiRoots([root, ...(await getSavedWikiRoots(ctx))]).slice(0, 20);
+    await writeSavedWikiRootsFileIfAvailable(ctx, savedWikiRoots);
   } catch (error) {
     return {
       ok: false,
@@ -165,6 +168,7 @@ export async function removeSavedWikiRoot(ctx, wikiRoot) {
       };
     }
   }
+  await writeSavedWikiRootsFileIfAvailable(ctx, savedWikiRoots);
 
   return {
     ok: true,
@@ -273,6 +277,15 @@ async function writeSavedWikiRootsFile(ctx, wikiRoots) {
   if (!filePath) throw new Error("plugin_data_dir_unavailable");
   await fsp.mkdir(path.dirname(filePath), { recursive: true });
   await fsp.writeFile(filePath, `${JSON.stringify({ wikiRoots }, null, 2)}\n`, "utf8");
+}
+
+async function writeSavedWikiRootsFileIfAvailable(ctx, wikiRoots) {
+  if (!ctx?.dataDir) return;
+  try {
+    await writeSavedWikiRootsFile(ctx, wikiRoots);
+  } catch {
+    // Config persistence is authoritative when available; the file is a compatibility fallback.
+  }
 }
 
 function savedWikiRootsFile(ctx) {
@@ -1659,8 +1672,22 @@ export function applyGraphPanelControls(html) {
   let enhanced = String(html || "");
   if (!enhanced.includes("llm-wiki-viewer-panel-controls")) {
     const css = `<style id="llm-wiki-viewer-panel-controls">
+    .sidebar,
+    .drawer {
+      position: relative;
+      min-width: 0;
+    }
+    .drawer {
+      min-height: 0;
+    }
+    .drawer-body {
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
     .llm-wiki-viewer-panel-toggle {
-      position: fixed;
+      position: absolute;
       z-index: 20;
       top: 50%;
       width: 34px;
@@ -1691,36 +1718,41 @@ export function applyGraphPanelControls(html) {
       stroke-linejoin: round;
     }
     #llm-wiki-viewer-toggle-left {
-      left: 10px;
+      right: -17px;
     }
     #llm-wiki-viewer-toggle-right {
-      right: 10px;
+      left: -17px;
     }
     .app[data-left-panel-collapsed="1"] {
-      grid-template-columns: 0 minmax(520px, 1fr) minmax(300px, 370px);
-      padding-left: 54px;
+      grid-template-columns: 42px minmax(520px, 1fr) minmax(300px, 370px);
     }
     .app[data-right-panel-collapsed="1"] {
-      grid-template-columns: minmax(236px, 276px) minmax(520px, 1fr) 0;
-      padding-right: 54px;
+      grid-template-columns: minmax(236px, 276px) minmax(520px, 1fr) 42px;
     }
     .app[data-left-panel-collapsed="1"][data-right-panel-collapsed="1"] {
-      grid-template-columns: 0 minmax(520px, 1fr) 0;
-      padding-left: 54px;
-      padding-right: 54px;
+      grid-template-columns: 42px minmax(520px, 1fr) 42px;
     }
     .app[data-reading="1"][data-left-panel-collapsed="1"] {
-      grid-template-columns: 0 minmax(500px, 1fr) minmax(340px, 430px);
+      grid-template-columns: 42px minmax(500px, 1fr) minmax(340px, 430px);
     }
     .app[data-reading="1"][data-right-panel-collapsed="1"] {
-      grid-template-columns: minmax(226px, 260px) minmax(500px, 1fr) 0;
+      grid-template-columns: minmax(226px, 260px) minmax(500px, 1fr) 42px;
     }
     .app[data-reading="1"][data-left-panel-collapsed="1"][data-right-panel-collapsed="1"] {
-      grid-template-columns: 0 minmax(500px, 1fr) 0;
+      grid-template-columns: 42px minmax(500px, 1fr) 42px;
     }
     .app[data-left-panel-collapsed="1"] .sidebar,
     .app[data-right-panel-collapsed="1"] .drawer {
-      display: none;
+      overflow: visible;
+      padding-left: 0;
+      padding-right: 0;
+      min-width: 0;
+    }
+    .app[data-left-panel-collapsed="1"] .sidebar > :not(.llm-wiki-viewer-panel-toggle),
+    .app[data-right-panel-collapsed="1"] .drawer > :not(.llm-wiki-viewer-panel-toggle) {
+      opacity: 0;
+      pointer-events: none;
+      visibility: hidden;
     }
     .app[data-left-panel-collapsed="1"] #llm-wiki-viewer-toggle-left svg {
       transform: rotate(180deg);
@@ -1753,7 +1785,9 @@ export function applyGraphPanelControls(html) {
     const script = `<script id="llm-wiki-viewer-panel-script">
     (() => {
       const app = document.getElementById("app");
-      if (!app || document.getElementById("llm-wiki-viewer-toggle-left")) return;
+      const leftPanel = app?.querySelector(".sidebar");
+      const rightPanel = app?.querySelector(".drawer");
+      if (!app || !leftPanel || !rightPanel || document.getElementById("llm-wiki-viewer-toggle-left")) return;
       const storageKey = "llm-wiki-viewer-graph-panels";
       const chevronLeft = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
       const chevronRight = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
@@ -1802,7 +1836,8 @@ export function applyGraphPanelControls(html) {
       rightButton.innerHTML = chevronRight;
       rightButton.addEventListener("click", () => toggle("right"));
 
-      document.body.append(leftButton, rightButton);
+      leftPanel.append(leftButton);
+      rightPanel.append(rightButton);
       applyState(readState());
     })();
   </script>`;

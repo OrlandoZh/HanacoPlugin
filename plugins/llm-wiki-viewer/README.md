@@ -1,6 +1,6 @@
 # LLM Wiki Viewer
 
-Hana plugin for an integrated `llm-wiki` skill. This v1.15 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
+Hana plugin for an integrated `llm-wiki` skill. This v1.16 is a reliable helper and diagnostics console, not a full llm-wiki GUI.
 
 ## What It Does
 
@@ -24,7 +24,7 @@ Hana plugin for an integrated `llm-wiki` skill. This v1.15 is a reliable helper 
 
 Content-heavy workflows such as ingest, query, digest, delete, and crystallize remain agent/skill-led. The plugin provides script-backed or read-only tools and a lightweight console for those workflows to lean on.
 
-The viewer's `Agent 工作流` panel does not call model providers directly. It reads Hana agents via `agent:list`, can create a detached public workflow session via `session:create`, and sends a structured llm-wiki task prompt via `session:send`. The default delivery mode is `新建会话`, which avoids polluting an existing chat context. Users can still switch to `发送到已有会话` when they intentionally want to continue a selected session from `session:list`.
+The viewer's collapsible `Agent 工作流` panel is opened from the top robot icon button and does not call model providers directly. It reads Hana agents via `agent:list`, can create a detached public workflow session via `session:create`, and sends a structured llm-wiki task prompt via `session:send`. The default delivery mode is `新建会话`, which avoids polluting an existing chat context. Users can still switch to `发送到已有会话` when they intentionally want to continue a selected session from `session:list`.
 
 The `启动知识库上下文` action is the Hana-native replacement for the reference project's Claude `SessionStart` hook: it sends the current `wikiRoot`, `purpose.md`, `.wiki-schema.md`, and `index.md` context to a new or explicitly selected Hana session. It is not a background agent and does not call a model provider directly from the plugin.
 
@@ -88,7 +88,7 @@ The contributed page is `/viewer`. It keeps the graph as the main view and adds:
 - source image and source/cache contract diagnostics
 - maintenance diagnostics for orphan sources/raw files, duplicate titles, raw/cache/frontmatter/source signal issues, query/digest index gaps, and `purpose.md` hints
 - init controls
-- Agent workflow handoff controls with default new-session delivery, optional existing-session delivery, Chinese templates, delivery summary, and `复制 Prompt` fallback
+- Collapsible top robot-button Agent workflow controls with default new-session delivery, optional existing-session delivery, Chinese templates, delivery summary, and `复制 Prompt` fallback
 - latest stdout/stderr log
 
 ## Configuration
@@ -112,6 +112,7 @@ This Hana integration does not run upstream `install.sh` or `setup.sh`. Optional
 - Confirm `/api/link-diagnostics`, `/api/graph-source-paths`, and `/api/delete-dry-run` return readable safety diagnostics and never mutate wiki content.
 - Confirm `/api/source-image-diagnostics` and `/api/source-contract-diagnostics` report read-only source issues.
 - Confirm `/api/agents`, `/api/sessions`, and `/api/agent-send` can list Hana agents/sessions and hand a llm-wiki task to a new or selected session.
+- Confirm the top robot icon expands/collapses the Agent workflow panel without sending anything by itself.
 - Confirm selecting `启动知识库上下文` with `新建会话` creates a separate Hana session and sends the current wiki context without requiring task input.
 - Confirm switching to `发送到已有会话` appends the task only to the explicitly selected Hana session.
 - Confirm Agent output shows action, target session, accepted state, next step, and full prompt; `复制 Prompt` copies the latest prompt for manual fallback.
