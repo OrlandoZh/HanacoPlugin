@@ -35,6 +35,7 @@ const {
   normalizeAgentWorkflowAction,
   parseTsv,
   removeSavedWikiRoot,
+  rememberWikiRoot,
   resolveOpenFolderTarget,
   runtimeContextStatus,
   runSkillScript,
@@ -96,10 +97,17 @@ test("saved wiki roots persist through plugin config", async () => {
   assert.deepEqual(saved.savedWikiRoots.slice(0, 3), [third, first, second]);
   assert.equal(await config.get("defaultWikiRoot"), third);
 
+  const lastOnly = path.join(await tempDir(), "last-only");
+  const remembered = await rememberWikiRoot(ctx, lastOnly);
+  assert.equal(remembered.ok, true, remembered.stderr || remembered.error);
+  assert.equal(remembered.defaultWikiRoot, lastOnly);
+  assert.equal(await config.get("defaultWikiRoot"), lastOnly);
+  assert.deepEqual(await getSavedWikiRoots(ctx), [lastOnly, third, first, second]);
+
   const removed = await removeSavedWikiRoot(ctx, third);
   assert.equal(removed.ok, true, removed.stderr || removed.error);
-  assert.deepEqual(removed.savedWikiRoots, [first, second]);
-  assert.equal(removed.defaultWikiRoot, first);
+  assert.deepEqual(removed.savedWikiRoots, [lastOnly, first, second]);
+  assert.equal(removed.defaultWikiRoot, lastOnly);
 });
 
 test("open folder target resolves directories, files, and missing children", async () => {
@@ -1465,10 +1473,19 @@ test("viewer API routes save and list wiki roots", async () => {
   assert.equal(listed.body.defaultWikiRoot, second);
   assert.deepEqual(listed.body.wikiRoots, [second, first]);
 
+  const currentOnly = path.join(await tempDir(), "current-only");
+  const remembered = await routes.post("/api/current-root", { wikiRoot: currentOnly });
+  assert.equal(remembered.status, 200);
+  assert.equal(remembered.body.defaultWikiRoot, currentOnly);
+
+  const listedAfterRemember = await routes.get("/api/wiki-roots");
+  assert.equal(listedAfterRemember.body.defaultWikiRoot, currentOnly);
+  assert.deepEqual(listedAfterRemember.body.wikiRoots, [currentOnly, second, first]);
+
   const removed = await routes.delete("/api/wiki-roots", { wikiRoot: first });
   assert.equal(removed.status, 200);
   assert.equal(removed.body.ok, true);
-  assert.deepEqual(removed.body.savedWikiRoots, [second]);
+  assert.deepEqual(removed.body.savedWikiRoots, [currentOnly, second]);
 });
 
 test("Hana Agent workflow helpers use native bus session APIs", async () => {
@@ -1631,6 +1648,8 @@ test("viewer renders diagnostics as a closable drawer", async () => {
   assert.match(viewer.body, /id="openFolder" class="icon-button" title="访问文件夹" aria-label="访问文件夹"/);
   assert.match(viewer.body, /function openCurrentFolder\(\)/);
   assert.match(viewer.body, /api\/open-folder/);
+  assert.match(viewer.body, /api\/current-root/);
+  assert.match(viewer.body, /function rememberCurrentRoot\(\)/);
   assert.match(viewer.body, /id="removeRoot" class="icon-button" title="删除位置" aria-label="删除位置"/);
   assert.match(viewer.body, /id="saveRoot" class="icon-button" title="保存位置" aria-label="保存位置"/);
   assert.match(viewer.body, /\.icon-button svg/);

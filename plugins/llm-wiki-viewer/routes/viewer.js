@@ -13,6 +13,7 @@ import {
   lintWiki,
   lintFixPreview,
   maintenanceDiagnostics,
+  rememberWikiRoot,
   removeSavedWikiRoot,
   openWikiFolder,
   runtimeContextStatus,
@@ -53,6 +54,12 @@ export default function registerViewerRoutes(app, ctx) {
   app.delete("/api/wiki-roots", async (c) => {
     const body = await readJson(c);
     const result = await removeSavedWikiRoot(ctx, typeof body.wikiRoot === "string" ? body.wikiRoot : "");
+    return c.json(result, result.ok ? 200 : 422);
+  });
+
+  app.post("/api/current-root", async (c) => {
+    const body = await readJson(c);
+    const result = await rememberWikiRoot(ctx, typeof body.wikiRoot === "string" ? body.wikiRoot : "");
     return c.json(result, result.ok ? 200 : 422);
   });
 
@@ -204,6 +211,7 @@ async function renderViewer(c, ctx) {
   const graphUrl = addQuery(`${base}/graph`, { token, wikiRoot });
   const statusUrl = addQuery(`${base}/api/status`, { token, wikiRoot });
   const wikiRootsUrl = addQuery(`${base}/api/wiki-roots`, { token, wikiRoot });
+  const currentRootUrl = addQuery(`${base}/api/current-root`, { token, wikiRoot });
   const openFolderUrl = addQuery(`${base}/api/open-folder`, { token, wikiRoot });
   const diagnosticsUrl = addQuery(`${base}/api/diagnostics`, { token, wikiRoot });
   const linkDiagnosticsUrl = addQuery(`${base}/api/link-diagnostics`, { token, wikiRoot });
@@ -696,6 +704,24 @@ async function renderViewer(c, ctx) {
       return data;
     }
 
+    async function rememberCurrentRoot() {
+      const root = rootInput.value.trim();
+      if (!root) return { ok: false, error: "wikiRoot_required" };
+      try {
+        const r = await fetch(withRoot(${JSON.stringify(currentRootUrl)}), {
+          method: "POST",
+          credentials: "include",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ wikiRoot: root }),
+        });
+        const data = await r.json();
+        if (data.ok) await refreshWikiRoots();
+        return data;
+      } catch (error) {
+        return { ok: false, error: "remember_root_failed", stderr: error.message || String(error) };
+      }
+    }
+
     async function refreshAgents() {
       setBusy(refreshAgentsButton, true);
       const previousAgent = agentSelect.value;
@@ -893,6 +919,7 @@ async function renderViewer(c, ctx) {
         return;
       }
       setBusy(openFolderButton, true);
+      await rememberCurrentRoot();
       const r = await fetch(withRoot(${JSON.stringify(openFolderUrl)}), {
         method: "POST",
         credentials: "include",
@@ -1047,6 +1074,7 @@ async function renderViewer(c, ctx) {
       }
 
       setBusy(buildButton, true);
+      await rememberCurrentRoot();
       let status = await refreshStatus({ openHelp: false });
       let data;
       const runLogs = [];
@@ -1121,6 +1149,7 @@ async function renderViewer(c, ctx) {
       frame.src = url;
       openGraph.href = url;
       refreshStatus();
+      rememberCurrentRoot();
       refreshWikiRoots();
     });
 
@@ -1131,6 +1160,7 @@ async function renderViewer(c, ctx) {
       frame.src = url;
       openGraph.href = url;
       refreshStatus();
+      rememberCurrentRoot();
       refreshWikiRoots();
     });
 

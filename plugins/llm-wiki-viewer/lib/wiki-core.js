@@ -118,6 +118,26 @@ export async function saveWikiRoot(ctx, wikiRoot) {
   };
 }
 
+export async function rememberWikiRoot(ctx, wikiRoot) {
+  const root = normalizeWikiRootEntry(wikiRoot);
+  if (!root) return { ok: false, error: "wikiRoot_required", wikiRoot: root };
+  try {
+    await ctx?.config?.set?.("defaultWikiRoot", root);
+  } catch (error) {
+    return {
+      ok: false,
+      error: "config_write_failed",
+      wikiRoot: root,
+      stderr: error.message,
+    };
+  }
+  return {
+    ok: true,
+    wikiRoot: root,
+    defaultWikiRoot: root,
+  };
+}
+
 export async function removeSavedWikiRoot(ctx, wikiRoot) {
   const root = normalizeWikiRootEntry(wikiRoot);
   if (!root) return { ok: false, error: "wikiRoot_required", wikiRoot: root };
