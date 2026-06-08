@@ -1374,7 +1374,7 @@ export async function serveWikiFile(c, wikiRoot, filePath, options = {}) {
       const base = options.assetBase || "/api/plugins/llm-wiki-viewer/graph-assets/";
       const fileBase = options.fileBase || "/api/plugins/llm-wiki-viewer/wiki-file/";
       const suffix = options.suffix || "";
-      body = Buffer.from(applyGraphTheme(rewriteGraphSourcePaths(String(body), wikiRoot, wikiDir, fileBase, suffix), options.theme)
+      body = Buffer.from(applyGraphPanelControls(applyGraphTheme(rewriteGraphSourcePaths(String(body), wikiRoot, wikiDir, fileBase, suffix), options.theme))
         .replaceAll('src="d3.min.js"', `src="${base}d3.min.js${suffix}"`)
         .replaceAll('src="rough.min.js"', `src="${base}rough.min.js${suffix}"`)
         .replaceAll('src="marked.min.js"', `src="${base}marked.min.js${suffix}"`)
@@ -1489,6 +1489,162 @@ export function applyGraphTheme(html, theme = "") {
     }
   </style>`;
   return themed.replace("</head>", `${css}\n</head>`);
+}
+
+export function applyGraphPanelControls(html) {
+  let enhanced = String(html || "");
+  if (!enhanced.includes("llm-wiki-viewer-panel-controls")) {
+    const css = `<style id="llm-wiki-viewer-panel-controls">
+    .llm-wiki-viewer-panel-toggle {
+      position: fixed;
+      z-index: 20;
+      top: 50%;
+      width: 34px;
+      min-width: 34px;
+      height: 76px;
+      min-height: 76px;
+      padding: 0;
+      border-radius: 12px;
+      border: 1px solid rgba(216, 205, 187, .92);
+      background: rgba(255, 253, 247, .9);
+      color: var(--ink);
+      box-shadow: var(--soft-shadow);
+      transform: translateY(-50%);
+      display: grid;
+      place-items: center;
+    }
+    .llm-wiki-viewer-panel-toggle:hover {
+      border-color: rgba(139, 46, 36, .42);
+      transform: translateY(-50%) translateY(-1px);
+    }
+    .llm-wiki-viewer-panel-toggle svg {
+      width: 18px;
+      height: 18px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    #llm-wiki-viewer-toggle-left {
+      left: 10px;
+    }
+    #llm-wiki-viewer-toggle-right {
+      right: 10px;
+    }
+    .app[data-left-panel-collapsed="1"] {
+      grid-template-columns: 0 minmax(520px, 1fr) minmax(300px, 370px);
+      padding-left: 54px;
+    }
+    .app[data-right-panel-collapsed="1"] {
+      grid-template-columns: minmax(236px, 276px) minmax(520px, 1fr) 0;
+      padding-right: 54px;
+    }
+    .app[data-left-panel-collapsed="1"][data-right-panel-collapsed="1"] {
+      grid-template-columns: 0 minmax(520px, 1fr) 0;
+      padding-left: 54px;
+      padding-right: 54px;
+    }
+    .app[data-reading="1"][data-left-panel-collapsed="1"] {
+      grid-template-columns: 0 minmax(500px, 1fr) minmax(340px, 430px);
+    }
+    .app[data-reading="1"][data-right-panel-collapsed="1"] {
+      grid-template-columns: minmax(226px, 260px) minmax(500px, 1fr) 0;
+    }
+    .app[data-reading="1"][data-left-panel-collapsed="1"][data-right-panel-collapsed="1"] {
+      grid-template-columns: 0 minmax(500px, 1fr) 0;
+    }
+    .app[data-left-panel-collapsed="1"] .sidebar,
+    .app[data-right-panel-collapsed="1"] .drawer {
+      display: none;
+    }
+    .app[data-left-panel-collapsed="1"] #llm-wiki-viewer-toggle-left svg {
+      transform: rotate(180deg);
+    }
+    .app[data-right-panel-collapsed="1"] #llm-wiki-viewer-toggle-right svg {
+      transform: rotate(180deg);
+    }
+    html[data-effective-theme="dark"] .llm-wiki-viewer-panel-toggle {
+      background: rgba(36, 43, 49, .92);
+      border-color: rgba(74, 85, 93, .92);
+      color: var(--ink);
+      box-shadow: var(--soft-shadow);
+    }
+    @media (max-width: 1100px) {
+      .llm-wiki-viewer-panel-toggle {
+        display: none;
+      }
+      .app[data-left-panel-collapsed="1"],
+      .app[data-right-panel-collapsed="1"],
+      .app[data-left-panel-collapsed="1"][data-right-panel-collapsed="1"] {
+        grid-template-columns: 1fr;
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+    }
+  </style>`;
+    enhanced = enhanced.replace("</head>", `${css}\n</head>`);
+  }
+  if (!enhanced.includes("llm-wiki-viewer-panel-script")) {
+    const script = `<script id="llm-wiki-viewer-panel-script">
+    (() => {
+      const app = document.getElementById("app");
+      if (!app || document.getElementById("llm-wiki-viewer-toggle-left")) return;
+      const storageKey = "llm-wiki-viewer-graph-panels";
+      const chevronLeft = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+      const chevronRight = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+
+      function readState() {
+        try {
+          return JSON.parse(localStorage.getItem(storageKey) || "{}") || {};
+        } catch {
+          return {};
+        }
+      }
+
+      function writeState(state) {
+        try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch {}
+      }
+
+      function applyState(state) {
+        app.dataset.leftPanelCollapsed = state.left ? "1" : "0";
+        app.dataset.rightPanelCollapsed = state.right ? "1" : "0";
+        leftButton.setAttribute("aria-pressed", state.left ? "true" : "false");
+        rightButton.setAttribute("aria-pressed", state.right ? "true" : "false");
+        leftButton.setAttribute("aria-label", state.left ? "展开左侧栏" : "折叠左侧栏");
+        rightButton.setAttribute("aria-label", state.right ? "展开右侧栏" : "折叠右侧栏");
+        leftButton.title = state.left ? "展开左侧栏" : "折叠左侧栏";
+        rightButton.title = state.right ? "展开右侧栏" : "折叠右侧栏";
+      }
+
+      function toggle(side) {
+        const state = readState();
+        state[side] = !state[side];
+        writeState(state);
+        applyState(state);
+      }
+
+      const leftButton = document.createElement("button");
+      leftButton.id = "llm-wiki-viewer-toggle-left";
+      leftButton.className = "llm-wiki-viewer-panel-toggle";
+      leftButton.type = "button";
+      leftButton.innerHTML = chevronLeft;
+      leftButton.addEventListener("click", () => toggle("left"));
+
+      const rightButton = document.createElement("button");
+      rightButton.id = "llm-wiki-viewer-toggle-right";
+      rightButton.className = "llm-wiki-viewer-panel-toggle";
+      rightButton.type = "button";
+      rightButton.innerHTML = chevronRight;
+      rightButton.addEventListener("click", () => toggle("right"));
+
+      document.body.append(leftButton, rightButton);
+      applyState(readState());
+    })();
+  </script>`;
+    enhanced = enhanced.replace("</body>", `${script}\n</body>`);
+  }
+  return enhanced;
 }
 
 export function rewriteGraphSourcePaths(html, wikiRoot, wikiDir, fileBase, suffix) {

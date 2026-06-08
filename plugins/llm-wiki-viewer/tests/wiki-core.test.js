@@ -14,6 +14,7 @@ process.env.HOME = await fsp.mkdtemp(path.join(os.tmpdir(), "llm-wiki-viewer-hom
 
 const {
   adapterClassify,
+  applyGraphPanelControls,
   applyGraphTheme,
   adapterStatus,
   buildGraph,
@@ -1295,6 +1296,20 @@ test("applyGraphTheme injects dark graph theme without rewriting source html fil
   assert.match(themed, /--cinnabar: #d45f50/);
 });
 
+test("applyGraphPanelControls injects collapsible side panels", () => {
+  const html = '<!doctype html><html><head></head><body><main class="app" id="app"><aside class="sidebar"></aside><section class="canvas-card"></section><aside class="drawer"></aside></main></body></html>';
+  const enhanced = applyGraphPanelControls(html);
+  assert.match(enhanced, /id="llm-wiki-viewer-panel-controls"/);
+  assert.match(enhanced, /id="llm-wiki-viewer-panel-script"/);
+  assert.match(enhanced, /llm-wiki-viewer-toggle-left/);
+  assert.match(enhanced, /llm-wiki-viewer-toggle-right/);
+  assert.match(enhanced, /data-left-panel-collapsed/);
+  assert.match(enhanced, /data-right-panel-collapsed/);
+  assert.match(enhanced, /llm-wiki-viewer-graph-panels/);
+  assert.match(enhanced, /折叠左侧栏/);
+  assert.match(enhanced, /折叠右侧栏/);
+});
+
 test("viewer API routes return expected failure status codes", async () => {
   const routes = registerRoutesForTest();
 
@@ -1375,6 +1390,9 @@ test("viewer API routes return expected failure status codes", async () => {
   const darkGraphHtml = await darkGraph.text();
   assert.match(darkGraphHtml, /data-effective-theme="dark"/);
   assert.match(darkGraphHtml, /llm-wiki-viewer-graph-theme/);
+  assert.match(darkGraphHtml, /llm-wiki-viewer-panel-controls/);
+  assert.match(darkGraphHtml, /llm-wiki-viewer-toggle-left/);
+  assert.match(darkGraphHtml, /llm-wiki-viewer-toggle-right/);
 
   const initializedRoot = path.join(await tempDir(), "initialized");
   const init = await initWiki({ wikiRoot: initializedRoot, topic: "Existing", language: "zh" });
