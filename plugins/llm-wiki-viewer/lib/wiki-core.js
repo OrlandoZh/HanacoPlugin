@@ -1374,7 +1374,7 @@ export async function serveWikiFile(c, wikiRoot, filePath, options = {}) {
       const base = options.assetBase || "/api/plugins/llm-wiki-viewer/graph-assets/";
       const fileBase = options.fileBase || "/api/plugins/llm-wiki-viewer/wiki-file/";
       const suffix = options.suffix || "";
-      body = Buffer.from(rewriteGraphSourcePaths(String(body), wikiRoot, wikiDir, fileBase, suffix)
+      body = Buffer.from(applyGraphTheme(rewriteGraphSourcePaths(String(body), wikiRoot, wikiDir, fileBase, suffix), options.theme)
         .replaceAll('src="d3.min.js"', `src="${base}d3.min.js${suffix}"`)
         .replaceAll('src="rough.min.js"', `src="${base}rough.min.js${suffix}"`)
         .replaceAll('src="marked.min.js"', `src="${base}marked.min.js${suffix}"`)
@@ -1386,6 +1386,109 @@ export async function serveWikiFile(c, wikiRoot, filePath, options = {}) {
   } catch {
     return c.text("Not found. Generate the graph first.", 404);
   }
+}
+
+export function applyGraphTheme(html, theme = "") {
+  const mode = theme === "dark" ? "dark" : "light";
+  let themed = String(html || "");
+  if (/<html\b/i.test(themed)) {
+    themed = themed.replace(/<html\b([^>]*)>/i, (match, attrs) => {
+      if (/\bdata-effective-theme=/.test(attrs)) return match;
+      return `<html${attrs} data-effective-theme="${mode}">`;
+    });
+  }
+  if (themed.includes("llm-wiki-viewer-graph-theme")) return themed;
+  const css = `<style id="llm-wiki-viewer-graph-theme">
+    html[data-effective-theme="dark"] {
+      color-scheme: dark;
+      --bg: #101417;
+      --surface: #1d2328;
+      --surface-2: #242b31;
+      --vellum: #2b3339;
+      --mist: #20262b;
+      --ink: #f2f0eb;
+      --muted: #aeb8bf;
+      --faint: #7f8c94;
+      --rule: #3a444b;
+      --line: #4a555d;
+      --cinnabar: #d45f50;
+      --cinnabar-2: #ff8a78;
+      --jade: #65a384;
+      --green: #65d99a;
+      --night: #7fb5c7;
+      --amber: #d7a959;
+      --violet: #b69ac7;
+      --shadow: 0 18px 36px rgba(0, 0, 0, .38);
+      --soft-shadow: 0 10px 24px rgba(0, 0, 0, .3);
+    }
+    html[data-effective-theme="dark"] body {
+      background:
+        radial-gradient(circle at 18% 12%, rgba(42, 50, 56, .72), transparent 28%),
+        radial-gradient(circle at 90% 18%, rgba(101, 163, 132, .12), transparent 28%),
+        linear-gradient(145deg, #101417 0%, #161c20 48%, #1b2024 100%);
+      color: var(--ink);
+    }
+    html[data-effective-theme="dark"] body::before {
+      opacity: .18;
+      mix-blend-mode: screen;
+    }
+    html[data-effective-theme="dark"] body::after {
+      background:
+        linear-gradient(90deg, transparent 0 86px, rgba(212, 95, 80, .18) 86px 87px, transparent 87px),
+        linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 22%);
+    }
+    html[data-effective-theme="dark"] .topbar,
+    html[data-effective-theme="dark"] .mobile-atlas-preview,
+    html[data-effective-theme="dark"] .sidebar,
+    html[data-effective-theme="dark"] .drawer,
+    html[data-effective-theme="dark"] .canvas-card,
+    html[data-effective-theme="dark"] .empty-state,
+    html[data-effective-theme="dark"] .state-panel,
+    html[data-effective-theme="dark"] .queue-card,
+    html[data-effective-theme="dark"] .start-card,
+    html[data-effective-theme="dark"] .neighbor-card,
+    html[data-effective-theme="dark"] .note-card,
+    html[data-effective-theme="dark"] .legend-card,
+    html[data-effective-theme="dark"] .mini-map {
+      background: rgba(29, 35, 40, .84);
+      border-color: rgba(74, 85, 93, .9);
+      box-shadow: var(--soft-shadow);
+    }
+    html[data-effective-theme="dark"] .status-pill,
+    html[data-effective-theme="dark"] .chip,
+    html[data-effective-theme="dark"] .icon-button,
+    html[data-effective-theme="dark"] .ghost-button,
+    html[data-effective-theme="dark"] .state-button,
+    html[data-effective-theme="dark"] .search-box input,
+    html[data-effective-theme="dark"] .nav-item,
+    html[data-effective-theme="dark"] .source-card,
+    html[data-effective-theme="dark"] .detail-card {
+      background: rgba(36, 43, 49, .88);
+      border-color: rgba(74, 85, 93, .92);
+      color: var(--ink);
+    }
+    html[data-effective-theme="dark"] .primary-button {
+      background: var(--cinnabar);
+      border-color: var(--cinnabar);
+      color: #fff8f4;
+    }
+    html[data-effective-theme="dark"] .brand p,
+    html[data-effective-theme="dark"] .section-title,
+    html[data-effective-theme="dark"] .status-pill,
+    html[data-effective-theme="dark"] .chip,
+    html[data-effective-theme="dark"] .muted {
+      color: var(--muted);
+    }
+    html[data-effective-theme="dark"] .canvas,
+    html[data-effective-theme="dark"] .canvas-stage,
+    html[data-effective-theme="dark"] #graph-canvas {
+      background: rgba(16, 20, 23, .42);
+    }
+    html[data-effective-theme="dark"] .node {
+      box-shadow: 0 12px 24px rgba(0, 0, 0, .24);
+    }
+  </style>`;
+  return themed.replace("</head>", `${css}\n</head>`);
 }
 
 export function rewriteGraphSourcePaths(html, wikiRoot, wikiDir, fileBase, suffix) {

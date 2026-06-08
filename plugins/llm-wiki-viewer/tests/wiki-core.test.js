@@ -14,6 +14,7 @@ process.env.HOME = await fsp.mkdtemp(path.join(os.tmpdir(), "llm-wiki-viewer-hom
 
 const {
   adapterClassify,
+  applyGraphTheme,
   adapterStatus,
   buildGraph,
   buildAgentWorkflowPrompt,
@@ -1284,6 +1285,16 @@ test("rewriteGraphSourcePaths rewrites wiki-local markdown links only", () => {
   assert.ok(rewritten.includes('"source_path": "/tmp/outside.md"'));
 });
 
+test("applyGraphTheme injects dark graph theme without rewriting source html files", () => {
+  const html = '<!doctype html><html lang="zh-Hans"><head><style>:root { --bg: #fff; }</style></head><body><section class="topbar"></section><main class="canvas-card"></main></body></html>';
+  const themed = applyGraphTheme(html, "dark");
+  assert.match(themed, /<html lang="zh-Hans" data-effective-theme="dark">/);
+  assert.match(themed, /id="llm-wiki-viewer-graph-theme"/);
+  assert.match(themed, /html\[data-effective-theme="dark"\] \.topbar/);
+  assert.match(themed, /--surface: #1d2328/);
+  assert.match(themed, /--cinnabar: #d45f50/);
+});
+
 test("viewer API routes return expected failure status codes", async () => {
   const routes = registerRoutesForTest();
 
@@ -1359,6 +1370,11 @@ test("viewer API routes return expected failure status codes", async () => {
   assert.equal(buildEmpty.body.ok, true);
   assert.ok(fs.existsSync(path.join(emptyRoot, "wiki", "graph-data.json")));
   assert.ok(fs.existsSync(path.join(emptyRoot, "wiki", "knowledge-graph.html")));
+  const darkGraph = await routes.get("/graph", { wikiRoot: emptyRoot, theme: "dark" });
+  assert.equal(darkGraph.status, 200);
+  const darkGraphHtml = await darkGraph.text();
+  assert.match(darkGraphHtml, /data-effective-theme="dark"/);
+  assert.match(darkGraphHtml, /llm-wiki-viewer-graph-theme/);
 
   const initializedRoot = path.join(await tempDir(), "initialized");
   const init = await initWiki({ wikiRoot: initializedRoot, topic: "Existing", language: "zh" });

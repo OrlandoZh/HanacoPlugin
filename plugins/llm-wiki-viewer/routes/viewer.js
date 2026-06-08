@@ -1278,6 +1278,7 @@ async function serveGraphFile(c, wikiRoot, filePath, options = {}) {
   return serveWikiFile(c, wikiRoot, filePath, {
     assetBase: "/api/plugins/llm-wiki-viewer/graph-assets/",
     fileBase: "/api/plugins/llm-wiki-viewer/wiki-file/",
+    theme: options.theme,
     suffix,
   });
 }
