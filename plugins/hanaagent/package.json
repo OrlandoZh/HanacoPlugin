@@ -1,0 +1,10 @@
+{
+  "name": "hanaagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pack:plugin": "node scripts/pack-plugin.js",
+    "test": "node --test tests/*.test.js"
+  }
+}

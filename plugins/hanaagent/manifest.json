@@ -1,0 +1,214 @@
+{
+  "manifestVersion": 1,
+  "id": "hanaagent",
+  "name": "HanaAgent Workbench",
+  "version": "0.1.0",
+  "description": "Hanaco intelligent agent workbench inspired by Hermes Workspace: agent/session probe, mission dispatch, task board, and workflow templates.",
+  "minAppVersion": "0.171.3",
+  "trust": "full-access",
+  "capabilities": ["agent", "session"],
+  "ui": {
+    "hostCapabilities": ["clipboard.writeText"]
+  },
+  "activationEvents": ["onStartup"],
+  "contributes": {
+    "page": {
+      "title": { "zh": "智能体工作台", "en": "Agent Workbench" },
+      "route": "/workbench",
+      "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><path d=\"M4 6.5h16\"/><path d=\"M4 12h16\"/><path d=\"M4 17.5h10\"/><circle cx=\"18\" cy=\"17.5\" r=\"2.5\"/><path d=\"M12 3v3.5M8 3v3.5M16 3v3.5\"/></svg>"
+    },
+    "configuration": {
+      "properties": {
+        "defaultAgentId": {
+          "type": "string",
+          "title": "Default Agent ID",
+          "description": "Optional agent id to preselect in HanaAgent Workbench.",
+          "default": "",
+          "ui": { "control": "text" }
+        },
+        "defaultSessionPath": {
+          "type": "string",
+          "title": "Default Session Path",
+          "description": "Optional existing session path used as the default dispatch target.",
+          "default": "",
+          "ui": { "control": "text" }
+        },
+        "workspaceRoots": {
+          "type": "array",
+          "title": "Workspace Roots",
+          "description": "Optional directories exposed to HanaAgent Files. Entries may be strings or objects with path, label, and writable.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "knowledgeSource": {
+          "type": "string",
+          "title": "Knowledge Source",
+          "description": "Hermes knowledge API compatibility source label. HanaAgent maps knowledge pages to OpenHanako memory and local plugin memory.",
+          "default": "hanaagent-memory",
+          "ui": { "control": "text" }
+        },
+        "autopilotSchedule": {
+          "type": "object",
+          "title": "Autopilot Schedule",
+          "description": "Background autopilot tick settings. Example: { enabled, mode, intervalMinutes, runOnStartup, maxMissionsPerTick }.",
+          "default": {
+            "enabled": false,
+            "mode": "preview",
+            "intervalMinutes": 15,
+            "runOnStartup": false,
+            "maxMissionsPerTick": 5
+          },
+          "ui": { "control": "json" }
+        },
+        "workerLifecyclePolicy": {
+          "type": "object",
+          "title": "Worker Lifecycle Policy",
+          "description": "Swarm2-style worker context lifecycle thresholds for watch, handoff, renewal, and stale checkpoints.",
+          "default": {
+            "softLimit": 250000,
+            "handoffLimit": 400000,
+            "hardLimit": 500000,
+            "staleMinutes": 90
+          },
+          "ui": { "control": "json" }
+        },
+        "savedMissions": {
+          "type": "array",
+          "title": "Saved Mission Drafts",
+          "description": "Local mission drafts shown in the workbench.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "pinnedSessions": {
+          "type": "array",
+          "title": "Pinned Sessions",
+          "description": "Frequently used sessions shown as quick targets in HanaAgent Workbench.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "pinnedModels": {
+          "type": "array",
+          "title": "Pinned Models",
+          "description": "Preferred models shown as quick selections in HanaAgent Workbench.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "modelMetadata": {
+          "type": "array",
+          "title": "Model Metadata",
+          "description": "Optional model context and price metadata for HanaAgent recommendations. Entries may include model, provider, contextWindow, inputCostPer1M, outputCostPer1M.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "savedBoardViews": {
+          "type": "array",
+          "title": "Saved Board Views",
+          "description": "Saved HanaAgent TaskBoard filters for quick board view switching.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "boardWipLimits": {
+          "type": "object",
+          "title": "Board WIP Limits",
+          "description": "Optional per-lane Kanban WIP limits. Use 0 or omit a lane for unlimited.",
+          "default": {},
+          "ui": { "control": "json" }
+        },
+        "sessionAliases": {
+          "type": "array",
+          "title": "Session Aliases",
+          "description": "Workbench-local session title aliases used for Hermes-style rename display.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "sessionTombstones": {
+          "type": "array",
+          "title": "Session Tombstones",
+          "description": "Workbench-local hidden session markers used for Hermes-style delete cleanup without deleting host files.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "workbenchModes": {
+          "type": "array",
+          "title": "Workbench Modes",
+          "description": "Hermes-style saved workbench mode presets with model, session, board, and suggestion preferences.",
+          "default": [],
+          "ui": { "control": "json" }
+        },
+        "activeWorkbenchModeId": {
+          "type": "string",
+          "title": "Active Workbench Mode ID",
+          "description": "Currently applied HanaAgent workbench mode preset id for drift detection.",
+          "default": "",
+          "ui": { "control": "text" }
+        },
+        "workbenchNotifications": {
+          "type": "object",
+          "title": "Workbench Notifications",
+          "description": "Hermes-style local notification settings for HanaAgent sounds, browser notifications, and mobile haptics.",
+          "default": {
+            "enabled": true,
+            "volume": 0.28,
+            "browser": false,
+            "haptics": true
+          },
+          "ui": { "control": "json" }
+        },
+        "workbenchSettings": {
+          "type": "object",
+          "title": "Workbench Settings",
+          "description": "Hermes-style local workbench settings: theme, accent, editor preferences, context threshold, metrics footer, and mobile navigation mode.",
+          "default": {
+            "theme": "system",
+            "themePreset": "hermes",
+            "accentColor": "blue",
+            "editorFontSize": 13,
+            "editorWordWrap": true,
+            "editorMinimap": false,
+            "usageThreshold": 80,
+            "showSystemMetricsFooter": false,
+            "mobileChatNavMode": "dock",
+            "calendarTimezone": "local"
+          },
+          "ui": { "control": "json" }
+        },
+        "workbenchOnboarding": {
+          "type": "object",
+          "title": "Workbench Onboarding",
+          "description": "Hermes-style onboarding tour state for HanaAgent Workbench.",
+          "default": {
+            "completed": false,
+            "dismissed": false,
+            "lastStep": 0
+          },
+          "ui": { "control": "json" }
+        },
+        "hermesGatewayUrl": {
+          "type": "string",
+          "title": "Hermes Gateway URL",
+          "description": "Hermes compatibility connection override. OpenHanako-safe default uses the host runtime.",
+          "default": "",
+          "ui": { "control": "text" }
+        },
+        "hermesDashboardUrl": {
+          "type": "string",
+          "title": "Hermes Dashboard URL",
+          "description": "Hermes compatibility dashboard override. OpenHanako-safe default points at the HanaAgent workbench.",
+          "default": "",
+          "ui": { "control": "text" }
+        }
+      }
+    }
+  },
+  "dev": {
+    "scenarios": [
+      {
+        "id": "open-workbench",
+        "title": "Open HanaAgent Workbench",
+        "steps": [
+          { "openSurface": "/workbench" }
+        ]
+      }
+    ]
+  }
+}
