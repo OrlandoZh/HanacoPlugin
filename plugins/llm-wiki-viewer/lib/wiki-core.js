@@ -7,6 +7,16 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_TIMEOUT_MS = 60000;
+const WINDOWS_BASH_CANDIDATES = [
+  process.env.LLM_WIKI_BASH_PATH,
+  process.env.GIT_BASH,
+  "C:\\Program Files\\Git\\bin\\bash.exe",
+  "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+  "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+  "C:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe",
+  "D:\\Program Files\\Git\\bin\\bash.exe",
+  "D:\\Program Files\\Git\\usr\\bin\\bash.exe",
+].filter(Boolean);
 const AGENT_WORKFLOW_SPECS = {
   context: {
     label: "启动知识库上下文",
@@ -53,6 +63,20 @@ export function getSkillRoot() {
 
 export function getDefaultWikiRoot() {
   return process.env.LLM_WIKI_DEFAULT_ROOT || path.join(getHome(), "Documents", "llm-wiki");
+}
+
+export function getBashCommand() {
+  if (process.platform !== "win32") return "bash";
+  const candidate = WINDOWS_BASH_CANDIDATES.find((file) => fs.existsSync(file));
+  return candidate || "bash";
+}
+
+export function toBashPathArg(value) {
+  if (process.platform !== "win32" || typeof value !== "string") return value;
+  if (!/^[A-Za-z]:[\\/]/.test(value)) return value;
+  const drive = value[0].toLowerCase();
+  const rest = value.slice(2).replace(/\\/g, "/").replace(/^\/+/, "");
+  return `/${drive}/${rest}`;
 }
 
 export async function resolveWikiRoot(c, ctx, body = {}) {
@@ -1406,12 +1430,18 @@ export async function initWiki(input = {}) {
 }
 
 export async function runSkillScript(scriptName, args = [], options = {}) {
-  const scriptPath = path.join(getSkillRoot(), "scripts", scriptName);
-  const command = scriptName.endsWith(".js") ? "node" : "bash";
+  const scriptsDir = path.join(getSkillRoot(), "scripts");
+  const scriptPath = path.join(scriptsDir, scriptName);
+  const isNodeScript = scriptName.endsWith(".js");
+  const command = isNodeScript ? "node" : getBashCommand();
+  const commandArgs = isNodeScript ? [scriptPath, ...args] : [`./${scriptName}`, ...args.map(toBashPathArg)];
+  const pathKey = Object.keys(process.env).find((key) => key.toLowerCase() === "path") || "PATH";
+  const scriptPathEnv = [scriptsDir, process.env[pathKey]].filter(Boolean).join(path.delimiter);
   try {
-    const result = await execFileAsync(command, [scriptPath, ...args], {
+    const result = await execFileAsync(command, commandArgs, {
+      cwd: scriptsDir,
       timeout: options.timeout ?? SCRIPT_TIMEOUT_MS,
-      env: { ...process.env, ...(options.env || {}) },
+      env: { ...process.env, [pathKey]: scriptPathEnv, ...(options.env || {}) },
     });
     return {
       ok: true,
