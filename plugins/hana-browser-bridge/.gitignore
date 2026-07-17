@@ -1,0 +1,5 @@
+node_modules/
+vendor/browser-bridge/
+dist/
+*.log
+browser-bridge.source.json

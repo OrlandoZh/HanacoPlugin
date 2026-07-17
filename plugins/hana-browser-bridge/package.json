@@ -1,0 +1,23 @@
+{
+  "name": "hana-browser-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync:bridge": "node scripts/sync-bridge.mjs",
+    "generate:tools": "node scripts/generate-tools.mjs",
+    "prepare:dev": "npm run sync:bridge && npm run generate:tools",
+    "test": "node --test test/*.test.js",
+    "test:integration": "node --test test/*.integration.test.js",
+    "package": "node scripts/package-plugin.mjs",
+    "pack:plugin": "node scripts/package-plugin.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ws": "^8.21.0",
+    "zod": "^3.22.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
