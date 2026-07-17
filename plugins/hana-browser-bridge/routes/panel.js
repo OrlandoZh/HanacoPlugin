@@ -1,4 +1,4 @@
-import { getBridgeStatus, restartBridgeRuntime, shutdownMcpRuntime, startBridgeRuntime } from "../lib/mcp-client.js";
+import { emergencyDetachRuntime, getBridgeStatus, restartBridgeRuntime, shutdownMcpRuntime, startBridgeRuntime } from "../lib/mcp-client.js";
 
 export default function registerBrowserBridgeRoutes(app, ctx) {
   app.get("/page", (c) => c.html(renderShell(c, ctx)));
@@ -6,6 +6,7 @@ export default function registerBrowserBridgeRoutes(app, ctx) {
   app.post("/api/start", async (c) => c.json(await startBridgeRuntime(ctx)));
   app.post("/api/restart", async (c) => c.json(await restartBridgeRuntime(ctx)));
   app.post("/api/stop", async (c) => c.json(await shutdownMcpRuntime({ stopChrome: true })));
+  app.post("/api/emergency-detach", async (c) => c.json(await emergencyDetachRuntime()));
 }
 
 function renderShell(c, ctx) {

@@ -52,14 +52,14 @@ const hana = {
 const root = document.querySelector("#root");
 root.innerHTML = `
 <main class="shell">
-  <header class="hero"><div><p class="eyebrow">HanaAgent Plugin</p><h1>Browser Bridge</h1><p>内部 MCP stdio · 专用 Chrome · workflow 15 工具</p></div><span id="badge" class="badge">检查中</span></header>
+  <header class="hero"><div><p class="eyebrow">HanaAgent Plugin</p><h1>Browser Bridge</h1><p>内部 MCP stdio · 双连接模式 · workflow 15 工具</p></div><span id="badge" class="badge">检查中</span></header>
   <section class="grid">
     <article class="card"><h2>MCP</h2><dl id="mcp"></dl></article>
     <article class="card"><h2>Chrome</h2><dl id="chrome"></dl></article>
     <article class="card"><h2>安全</h2><dl id="security"></dl></article>
   </section>
   <section class="actions">
-    <button id="refresh" class="ghost">刷新</button><button id="start">启动</button><button id="restart" class="warn">重启 MCP</button><button id="stop" class="danger">停止</button>
+    <button id="refresh" class="ghost">刷新</button><button id="start">启动</button><button id="restart" class="warn">重启 MCP</button><button id="emergency" class="danger">紧急断开</button><button id="stop" class="danger">停止</button>
   </section>
   <pre id="error" hidden></pre>
 </main>`;
@@ -77,8 +77,26 @@ async function refresh() {
   badge.textContent = status.mcp.connected && status.chrome.cdpOnline ? "运行中" : "未就绪";
   badge.className = `badge ${status.mcp.connected && status.chrome.cdpOnline ? "ok" : "idle"}`;
   rows(document.querySelector("#mcp"), [["已连接", yesNo(status.mcp.connected)], ["工具数", status.mcp.toolCount], ["传输", "stdio"], ["Bridge", status.mcp.bridgeAvailable ? "已内置" : "缺失"]]);
-  rows(document.querySelector("#chrome"), [["CDP 在线", yesNo(status.chrome.cdpOnline)], ["端点", status.chrome.endpoint], ["插件拥有", yesNo(status.chrome.owned)], ["PID", status.chrome.pid]]);
-  rows(document.querySelector("#security"), [["工具集", status.security.toolProfile], ["REST", "关闭"], ["仅回环", yesNo(status.security.loopbackOnly)], ["专用 Profile", yesNo(status.security.dedicatedProfile)]]);
+  const existing = status.connection?.mode === "existing-chrome";
+  rows(document.querySelector("#chrome"), [
+    ["连接模式", status.connection?.mode],
+    ["CDP 在线", yesNo(status.chrome.cdpOnline)],
+    ["端点", status.chrome.endpoint],
+    ["浏览器", status.chrome.browser],
+    [existing ? "User Data" : "Profile", existing ? status.chrome.userDataDir : status.chrome.profileDir],
+    ["插件拥有", yesNo(status.connection?.ownsBrowser)],
+    ["显式启动", status.connection?.explicitStartRequired ? yesNo(status.connection?.explicitStartGranted) : "不需要"],
+    ["PID", status.chrome.pid],
+  ]);
+  rows(document.querySelector("#security"), [
+    ["工具集", status.security.toolProfile],
+    ["REST", "关闭"],
+    ["仅回环", yesNo(status.security.loopbackOnly)],
+    ["专用 Profile", yesNo(status.security.dedicatedProfile)],
+    ["用户 Chrome 需审核", yesNo(status.security.userChromeRequiresReviewedStart)],
+    ["Raw CDP 暴露", yesNo(status.security.rawCdpExposed)],
+  ]);
+  document.querySelector("#start").textContent = existing ? "授权并连接" : "启动";
   document.querySelector("#error").hidden = true;
 }
 async function action(name) {
@@ -97,6 +115,7 @@ function setBusy(busy) { document.querySelectorAll("button").forEach((button) =>
 document.querySelector("#refresh").onclick = () => { setBusy(true); refresh().finally(() => setBusy(false)); };
 document.querySelector("#start").onclick = () => action("start");
 document.querySelector("#restart").onclick = () => action("restart");
+document.querySelector("#emergency").onclick = () => action("emergency-detach");
 document.querySelector("#stop").onclick = () => action("stop");
 refresh().catch((error) => { document.querySelector("#error").hidden = false; document.querySelector("#error").textContent = error.message; });
 hana.ready(); hana.ui.resize({ height: 620 });

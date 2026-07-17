@@ -2,30 +2,57 @@ import fs from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { resolveConfig } from "./config.js";
-import { probeCdp, startDedicatedChrome, stopDedicatedChrome, getOwnedChromeStatus } from "./chrome-manager.js";
+import {
+  probeCdp,
+  inspectExistingChrome,
+  startDedicatedChrome,
+  stopDedicatedChrome,
+  getOwnedChromeStatus,
+} from "./chrome-manager.js";
 
 let runtime = null;
 let connectPromise = null;
 let lastError = null;
 let generation = 0;
+let explicitStartKey = null;
 
 function runtimeKey(config) {
   return JSON.stringify({
     bridgeEntrypoint: config.bridgeEntrypoint,
+    connectionMode: config.connectionMode,
     cdpHost: config.cdpHost,
     cdpPort: config.cdpPort,
+    existingChromeChannel: config.existingChromeChannel,
+    existingChromeUserDataDir: config.existingChromeUserDataDir,
+    existingChromeRequireExplicitStart: config.existingChromeRequireExplicitStart,
     toolProfile: config.toolProfile,
   });
 }
 
-function sanitizeError(error) {
+export function sanitizeError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  return message.replace(/[A-Fa-f0-9]{32,}/g, "[redacted]").slice(0, 1000);
+  return message
+    .replace(/wss?:\/\/[^\s"']+\/devtools\/browser\/[^\s"']+/gi, "[redacted-browser-endpoint]")
+    .replace(/\/devtools\/browser\/[A-Za-z0-9._-]+/g, "/devtools/browser/[redacted]")
+    .replace(/\b(authorization|cookie|set-cookie)\s*[:=]\s*.*?(?=\s+\b(?:authorization|cookie|set-cookie)\b\s*[:=]|$)/gi, "$1=[redacted]")
+    .replace(/[A-Fa-f0-9]{32,}/g, "[redacted]")
+    .slice(0, 1000);
 }
 
-async function openRuntime(ctx, config) {
-  if (!fs.existsSync(config.bridgeEntrypoint)) {
-    throw new Error(`Bundled browser-bridge entrypoint not found: ${config.bridgeEntrypoint}. Run npm run prepare:dev or reinstall the release bundle.`);
+function requiresExplicitStart(config) {
+  return config.connectionMode === "existing-chrome" && config.existingChromeRequireExplicitStart;
+}
+
+async function prepareChrome(config) {
+  if (config.connectionMode === "existing-chrome") {
+    const existing = await inspectExistingChrome(config);
+    if (!existing.ok) {
+      const error = existing.activePortPresent
+        ? "Existing Chrome remote debugging endpoint is unavailable. Re-enable remote debugging in chrome://inspect/#remote-debugging."
+        : "Existing Chrome is not ready. Start Chrome and enable remote debugging in chrome://inspect/#remote-debugging.";
+      throw new Error(error);
+    }
+    return existing;
   }
 
   let cdp = await probeCdp(config);
@@ -34,22 +61,40 @@ async function openRuntime(ctx, config) {
     if (!started.ok) throw new Error(started.error || "Failed to start dedicated Chrome");
     cdp = await probeCdp(config);
   }
+  if (!cdp.ok) throw new Error(cdp.error || "Dedicated Chrome CDP endpoint is unavailable");
+  return cdp;
+}
+
+async function openRuntime(ctx, config) {
+  if (!fs.existsSync(config.bridgeEntrypoint)) {
+    throw new Error(`Bundled browser-bridge entrypoint not found: ${config.bridgeEntrypoint}. Run npm run prepare:dev or reinstall the release bundle.`);
+  }
+
+  await prepareChrome(config);
+
+  const env = {
+    ...getDefaultEnvironment(),
+    BB_CONNECTION_MODE: config.connectionMode,
+    BB_TOOL_PROFILE: config.toolProfile,
+    BB_ENABLE_REST: "0",
+    BB_ENABLE_HTTP_MCP: "0",
+  };
+  if (config.connectionMode === "existing-chrome") {
+    env.BB_CHROME_CHANNEL = config.existingChromeChannel;
+    env.BB_CHROME_USER_DATA_DIR = config.existingChromeUserDataDir;
+  } else {
+    env.BB_CDP_HOST = config.cdpHost;
+    env.BB_CDP_PORT = String(config.cdpPort);
+  }
 
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [config.bridgeEntrypoint],
     cwd: config.bridgeDirectory,
-    env: {
-      ...getDefaultEnvironment(),
-      BB_CDP_HOST: config.cdpHost,
-      BB_CDP_PORT: String(config.cdpPort),
-      BB_TOOL_PROFILE: config.toolProfile,
-      BB_ENABLE_REST: "0",
-      BB_ENABLE_HTTP_MCP: "0",
-    },
+    env,
     stderr: "pipe",
   });
-  const client = new Client({ name: "hana-browser-bridge-plugin", version: "0.1.1" });
+  const client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.0" });
   transport.stderr?.on?.("data", (chunk) => {
     const line = sanitizeError(String(chunk || "").trim());
     if (line) ctx?.log?.debug?.(`browser-bridge MCP: ${line}`);
@@ -75,15 +120,23 @@ async function openRuntime(ctx, config) {
   return created;
 }
 
-export async function ensureMcpRuntime(ctx = {}) {
+export async function ensureMcpRuntime(ctx = {}, { explicit = false } = {}) {
   const config = await resolveConfig(ctx);
   const key = runtimeKey(config);
-  if (runtime?.key === key) return runtime;
   if (runtime && runtime.key !== key) await shutdownMcpRuntime({ stopChrome: false });
+  if (requiresExplicitStart(config) && !explicit && explicitStartKey !== key) {
+    throw new Error("EXPLICIT_CONNECT_REQUIRED: use the reviewed browser_bridge_start action before accessing the user's Chrome browser");
+  }
+  if (runtime?.key === key) {
+    if (explicit) explicitStartKey = key;
+    return runtime;
+  }
   if (!connectPromise) {
     connectPromise = openRuntime(ctx, config).finally(() => { connectPromise = null; });
   }
-  return await connectPromise;
+  const active = await connectPromise;
+  if (explicit) explicitStartKey = key;
+  return active;
 }
 
 export async function callBridgeTool(name, args = {}, ctx = {}) {
@@ -93,6 +146,7 @@ export async function callBridgeTool(name, args = {}, ctx = {}) {
     return await active.client.callTool({ name, arguments: args || {} });
   } catch (error) {
     lastError = sanitizeError(error);
+    if (active.config.connectionMode === "existing-chrome") throw error;
     await shutdownMcpRuntime({ stopChrome: false });
     active = await ensureMcpRuntime(ctx);
     return await active.client.callTool({ name, arguments: args || {} });
@@ -101,13 +155,23 @@ export async function callBridgeTool(name, args = {}, ctx = {}) {
 
 export async function getBridgeStatus(ctx = {}) {
   const config = await resolveConfig(ctx);
-  const cdp = await probeCdp(config);
+  const key = runtimeKey(config);
+  const browserProbe = config.connectionMode === "existing-chrome"
+    ? await inspectExistingChrome(config)
+    : await probeCdp(config);
+  const owned = getOwnedChromeStatus();
   return {
-    ok: cdp.ok && !!runtime,
+    ok: browserProbe.ok && !!runtime && runtime.key === key,
     name: "Browser Bridge for HanaAgent",
-    pluginVersion: "0.1.1",
+    pluginVersion: "0.2.0",
+    connection: {
+      mode: config.connectionMode,
+      ownsBrowser: config.ownsBrowser,
+      explicitStartRequired: requiresExplicitStart(config),
+      explicitStartGranted: !requiresExplicitStart(config) || explicitStartKey === key,
+    },
     mcp: {
-      connected: !!runtime,
+      connected: !!runtime && runtime.key === key,
       generation: runtime?.generation || generation,
       connectedAt: runtime?.connectedAt || null,
       toolCount: runtime?.toolNames?.length || 0,
@@ -116,25 +180,46 @@ export async function getBridgeStatus(ctx = {}) {
       bridgeDirectory: config.bridgeDirectory,
       bridgeAvailable: config.bridgeAvailable,
     },
-    chrome: {
-      cdpOnline: cdp.ok,
-      endpoint: `${config.cdpHost}:${config.cdpPort}`,
-      browser: cdp.version?.Browser || null,
-      profileDir: config.chromeProfileDir,
-      ...getOwnedChromeStatus(),
-    },
+    chrome: config.connectionMode === "existing-chrome"
+      ? {
+          cdpOnline: browserProbe.ok,
+          endpoint: browserProbe.port ? `auto-connect:${browserProbe.port}` : "auto-connect:unavailable",
+          browser: null,
+          channel: config.existingChromeChannel,
+          userDataDir: config.existingChromeUserDataDir,
+          activePortPresent: browserProbe.activePortPresent,
+          owned: false,
+          pid: null,
+          error: browserProbe.error || null,
+        }
+      : {
+          cdpOnline: browserProbe.ok,
+          endpoint: `${config.cdpHost}:${config.cdpPort}`,
+          browser: browserProbe.version?.Browser || null,
+          profileDir: config.chromeProfileDir,
+          ...owned,
+        },
     security: {
       toolProfile: config.toolProfile,
       restEnabled: false,
       loopbackOnly: true,
-      dedicatedProfile: true,
+      dedicatedProfile: config.connectionMode === "dedicated",
+      userChromeRequiresReviewedStart: requiresExplicitStart(config),
+      rawCdpExposed: false,
     },
   };
 }
 
 export async function startBridgeRuntime(ctx = {}) {
-  const active = await ensureMcpRuntime(ctx);
-  return { ok: true, connected: true, toolCount: active.toolNames.length, tools: active.toolNames };
+  const active = await ensureMcpRuntime(ctx, { explicit: true });
+  return {
+    ok: true,
+    connected: true,
+    connectionMode: active.config.connectionMode,
+    ownsBrowser: active.config.ownsBrowser,
+    toolCount: active.toolNames.length,
+    tools: active.toolNames,
+  };
 }
 
 function delay(ms) {
@@ -156,6 +241,7 @@ function processAlive(pid) {
 export async function shutdownMcpRuntime({ stopChrome = false } = {}) {
   const active = runtime;
   runtime = null;
+  explicitStartKey = null;
   if (active) {
     const pid = active.transport.pid;
     const gracefulClose = active.client.close();
@@ -169,8 +255,20 @@ export async function shutdownMcpRuntime({ stopChrome = false } = {}) {
       try { process.kill(pid, "SIGKILL"); } catch {}
     }
   }
+  // stopDedicatedChrome only ever targets a process spawned and owned by this plugin.
   const chrome = stopChrome ? await stopDedicatedChrome() : null;
   return { ok: true, mcpStopped: !!active, chrome };
+}
+
+export async function emergencyDetachRuntime() {
+  const mode = runtime?.config?.connectionMode || null;
+  const result = await shutdownMcpRuntime({ stopChrome: false });
+  return {
+    ...result,
+    emergency: true,
+    previousConnectionMode: mode,
+    browserStopped: false,
+  };
 }
 
 export async function restartBridgeRuntime(ctx = {}) {

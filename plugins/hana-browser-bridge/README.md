@@ -1,6 +1,6 @@
 # Browser Bridge for HanaAgent
 
-将 `browser-bridge` MCP 服务封装为 HanaAgent 原生插件。插件不是 Chrome Extension；它在 HanaAgent 的 full-access 插件进程中启动一个仅使用 stdio 的内部 MCP 客户端/服务端链路，并通过 CDP 控制专用 Chrome。
+将 `browser-bridge` MCP 服务封装为 HanaAgent 原生插件。插件不是 Chrome Extension；它在 HanaAgent 的 full-access 插件进程中启动一个仅使用 stdio 的内部 MCP 客户端/服务端链路，并支持专用 Chrome 与用户已打开 Chrome 两种 CDP 连接模式。
 
 ## 架构
 
@@ -9,8 +9,12 @@ HanaAgent Agent
   -> Hana plugin static tools
   -> internal MCP client (stdio)
   -> bundled browser-bridge MCP server
-  -> Chrome CDP 127.0.0.1:19282
-  -> dedicated Chrome profile
+  -> connectionMode=dedicated
+       -> Chrome CDP 127.0.0.1:19282
+       -> dedicated Chrome profile
+  -> connectionMode=existing-chrome
+       -> DevToolsActivePort
+       -> user-approved browser WebSocket
 ```
 
 ## 提供能力
@@ -18,11 +22,36 @@ HanaAgent Agent
 - 原样代理经过 P0 验收的 15 个 `workflow` 工具。
 - `browser_bridge_status/start/restart/stop` 四个维护工具。
 - Browser Bridge 状态面板。
-- 首次调用时按配置懒启动专用 Chrome。
+- `dedicated` 模式首次调用时可按配置懒启动专用 Chrome。
+- `existing-chrome` 模式必须先通过 reviewed `browser_bridge_start` 显式连接，业务只读工具不能隐式触发用户 Chrome 授权。
+- `browser_emergency_detach` 可立即清空 MCP/CDP 会话和 target claim，且绝不关闭用户 Chrome。
 - 内部 MCP 固定 stdio；REST 和 HTTP MCP 均关闭。
 - CDP host 仅允许 `127.0.0.1`、`localhost` 或 `::1`。
-- 拒绝使用日常 Google Chrome/Chromium profile 目录。
+- `dedicated` 模式拒绝使用日常 Google Chrome/Chromium profile 目录；`existing-chrome` 仅发现用户 Chrome，绝不负责启动或关闭它。
 - 非只读工具声明为 `external_side_effect`，HanaAgent Auto 模式应进入 reviewer。
+
+
+## 连接用户已打开的 Chrome
+
+要求：
+
+1. Chrome M144+；
+2. 打开 `chrome://inspect/#remote-debugging` 并启用远程调试；
+3. 在插件设置中选择 `connectionMode=existing-chrome`；
+4. 根据需要选择 channel 或填写 User Data 目录；
+5. 通过 Hana Reviewer 调用 `browser_bridge_start`；
+6. 在 Chrome 原生对话框中点击 Allow；
+7. 使用 `browser_list_tabs -> browser_attach_tab` 后再执行工作流工具。
+
+安全语义：
+
+- `browser_bridge_status` 只检查本地 `DevToolsActivePort` 和端口状态，不建立 Browser WebSocket；
+- existing 模式没有 reviewed start 时返回 `EXPLICIT_CONNECT_REQUIRED`；
+- stop/unload 只断开 MCP/CDP，不关闭用户 Chrome；
+- 标签页列表不返回 `webSocketDebuggerUrl` 或 sessionId；
+- 精确窗口/标签页授权将在后续 Hana 自有 Chrome 扩展中实现。
+
+完整设计和事实核验见 `EXISTING_CHROME_REFACTOR_PLAN.md`。
 
 ## 开发
 
@@ -72,14 +101,14 @@ npm test
 ## 打包
 
 ```bash
-npm run pack:plugin
+npm run pack:plugin -- --bridge-dir /absolute/path/to/browser-bridge
 ```
 
 输出：
 
 ```text
-dist/hana-browser-bridge-0.1.1.zip
-dist/hana-browser-bridge-0.1.1.zip.sha256
+dist/hana-browser-bridge-0.2.0.zip
+dist/hana-browser-bridge-0.2.0.zip.sha256
 ```
 
 发布包包含：
@@ -104,14 +133,23 @@ dist/hana-browser-bridge-0.1.1.zip.sha256
 
 1. 更新独立的 browser-bridge 主代码并完成原有单元/集成/Phase 7 验收。
 2. 修改插件与 manifest 的版本号。
-3. 执行 `npm run pack:plugin`。
+3. 执行 `npm run pack:plugin -- --bridge-dir /absolute/path/to/browser-bridge`。
 4. 核对发布包 sha256 和 `vendor/browser-bridge/BUNDLED_VERSION.json`。
 5. 在 HanaAgent 中安装新 zip；失败时使用上一版本 zip 回滚。
 
 ## 安全边界
 
-- 不得把 `chromeProfileDir` 指向日常 Chrome profile。
+- `dedicated` 模式不得把 `chromeProfileDir` 指向日常 Chrome profile。
 - 不启用 REST/HTTP MCP。
 - 不把 CDP 监听到 LAN 或公网地址。
 - 不移除 browser-bridge 的点击安全护栏、危险 modal 取消逻辑或审计脱敏。
+- existing Chrome 必须通过 reviewed explicit start，禁止只读业务工具隐式连接。
+- 不记录 DevTools browser path、sessionId、Cookie、Authorization、输入明文或 CDP result。
 - 真实业务页上线前仍需单独完成只读准入和人工确认。
+
+## 当前改造验证状态（2026-07-17）
+
+- Hana 插件：`npm test` 16/16，existing/dedicated 集成 2/2。
+- Browser Bridge 核心：单元测试 242/242，集成 8/8 spec 文件（25/25 tests），Phase 7 1030 条仿真通过。
+- Auto Connect 集成使用临时 Headless Chrome，不连接用户真实 Chrome。
+- 核心 working tree 未提交时，`BUNDLED_VERSION.json` 会记录 `dirty: true`，发布脚本默认拒绝打包；正式发布必须先提交核心改造。

@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import http from "node:http";
+import net from "node:net";
+import path from "node:path";
 import { spawn } from "node:child_process";
 
 let ownedChrome = null;
@@ -32,6 +34,58 @@ export async function probeCdp(config, timeoutMs = 1000) {
     req.on("timeout", () => req.destroy(new Error("CDP probe timed out")));
     req.on("error", (error) => resolve({ ok: false, error: error.message }));
   });
+}
+
+
+export function devToolsActivePortPath(config) {
+  return path.join(config.existingChromeUserDataDir, "DevToolsActivePort");
+}
+
+export function parseDevToolsActivePort(content) {
+  const lines = String(content || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const port = Number(lines[0]);
+  const wsPath = lines[1] || "";
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid DevToolsActivePort port");
+  if (!/^\/devtools\/browser\/[A-Za-z0-9._-]+$/.test(wsPath)) throw new Error("Invalid DevToolsActivePort browser path");
+  return { port, wsPath };
+}
+
+async function probeTcpPort(port, timeoutMs = 500) {
+  return await new Promise((resolve) => {
+    const socket = net.createConnection({ host: "127.0.0.1", port });
+    const done = (ok, error) => {
+      socket.destroy();
+      resolve({ ok, error });
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false, "timeout"));
+    socket.once("error", (error) => done(false, error.message));
+  });
+}
+
+export async function inspectExistingChrome(config) {
+  const activePortPath = devToolsActivePortPath(config);
+  try {
+    const content = fs.readFileSync(activePortPath, "utf8");
+    const parsed = parseDevToolsActivePort(content);
+    const tcp = await probeTcpPort(parsed.port);
+    return {
+      ok: tcp.ok,
+      activePortPresent: true,
+      port: parsed.port,
+      userDataDir: config.existingChromeUserDataDir,
+      error: tcp.ok ? null : "Chrome remote debugging endpoint is not reachable",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      activePortPresent: fs.existsSync(activePortPath),
+      port: null,
+      userDataDir: config.existingChromeUserDataDir,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export async function startDedicatedChrome(config, { waitMs = 12000 } = {}) {

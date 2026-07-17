@@ -51,10 +51,31 @@ async function waitForCdp(port, timeoutMs = 30000) {
   throw new Error(`Chrome CDP did not start: ${lastError?.message || "unknown error"}`);
 }
 
-export async function launchChrome() {
+async function waitForDevToolsActivePort(userDataDir, timeoutMs = 30000) {
+  const activePortPath = path.join(userDataDir, "DevToolsActivePort");
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const lines = fs.readFileSync(activePortPath, "utf8").trim().split(/\r?\n/);
+      const port = Number(lines[0]);
+      const browserPath = lines[1] || "";
+      if (Number.isInteger(port) && port > 0 && port <= 65535 && /^\/devtools\/browser\/[A-Za-z0-9._-]+$/.test(browserPath)) {
+        return { port, browserPath, activePortPath };
+      }
+      lastError = new Error("DevToolsActivePort content is invalid");
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`DevToolsActivePort did not appear: ${lastError?.message || "unknown error"}`);
+}
+
+export async function launchChrome({ autoConnect = false } = {}) {
   const executable = CHROME_CANDIDATES.find((candidate) => fs.existsSync(candidate));
   if (!executable) throw new Error("Chrome not found; set BB_CHROME_BIN");
-  const port = await getFreePort();
+  let port = autoConnect ? 0 : await getFreePort();
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-bb-plugin-it-"));
   const child = spawn(executable, [
     `--remote-debugging-address=${HOST}`,
@@ -67,11 +88,25 @@ export async function launchChrome() {
     "--disable-background-networking",
     "about:blank",
   ], { detached: true, stdio: "ignore" });
+  let browserPath = null;
+  let activePortPath = null;
+  if (autoConnect) {
+    const active = await waitForDevToolsActivePort(userDataDir);
+    port = active.port;
+    browserPath = active.browserPath;
+    activePortPath = active.activePortPath;
+  }
   await waitForCdp(port);
   return {
     host: HOST,
     port,
     userDataDir,
+    browserPath,
+    activePortPath,
+    pid: child.pid,
+    isAlive() {
+      try { process.kill(child.pid, 0); return true; } catch { return false; }
+    },
     async teardown() {
       try { process.kill(-child.pid, "SIGKILL"); } catch {}
       try { process.kill(child.pid, "SIGKILL"); } catch {}

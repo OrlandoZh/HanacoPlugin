@@ -21,6 +21,16 @@ function run(command, args, options = {}) {
 
 run(process.execPath, [path.join(here, "sync-bridge.mjs"), "--bridge-dir", bridgeDir]);
 run(process.execPath, [path.join(here, "generate-tools.mjs"), "--bridge-dir", bridgeDir]);
+const bundledMetadata = JSON.parse(fs.readFileSync(
+  path.join(pluginDir, "vendor", "browser-bridge", "BUNDLED_VERSION.json"),
+  "utf8",
+));
+if (bundledMetadata.dirty && process.env.ALLOW_DIRTY_BRIDGE_PACKAGE !== "1") {
+  throw new Error(
+    "Refusing to package a dirty browser-bridge runtime. Commit the core runtime changes first, "
+    + "or set ALLOW_DIRTY_BRIDGE_PACKAGE=1 only for a non-release development bundle.",
+  );
+}
 fs.mkdirSync(stage, { recursive: true });
 for (const entry of fs.readdirSync(pluginDir)) {
   if (["node_modules", "dist", "test"].includes(entry)) continue;

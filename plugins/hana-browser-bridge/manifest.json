@@ -2,71 +2,144 @@
   "manifestVersion": 1,
   "id": "hana-browser-bridge",
   "name": "Browser Bridge for HanaAgent",
-  "version": "0.1.1",
-  "description": "将 browser-bridge MCP 封装为 HanaAgent 原生插件，提供 15 个受控浏览器工作流工具、专用 Chrome 生命周期管理和维护面板。",
+  "version": "0.2.0",
+  "description": "将 browser-bridge MCP 封装为 HanaAgent 原生插件，提供 15 个受控浏览器工作流工具、专用 Chrome 与用户现有 Chrome 双连接模式及维护面板。",
   "minAppVersion": "0.397.15",
   "trust": "full-access",
-  "activationEvents": ["onStartup"],
+  "activationEvents": [
+    "onStartup"
+  ],
   "ui": {
-    "hostCapabilities": ["clipboard.writeText", "toast.show"]
+    "hostCapabilities": [
+      "clipboard.writeText",
+      "toast.show"
+    ]
   },
   "contributes": {
     "page": {
-      "title": { "zh": "Browser Bridge", "en": "Browser Bridge" },
+      "title": {
+        "zh": "Browser Bridge",
+        "en": "Browser Bridge"
+      },
       "route": "/page",
       "icon": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'><circle cx='12' cy='12' r='9'/><path d='M3 10h18M8 3.8 12 10l4-6.2M8 20.2 12 14l4 6.2'/></svg>"
     },
     "configuration": {
       "properties": {
+        "connectionMode": {
+          "type": "string",
+          "title": "Browser connection mode",
+          "description": "dedicated 使用插件专用 Chrome；existing-chrome 连接用户已打开且已启用远程调试的 Chrome。",
+          "default": "dedicated",
+          "enum": [
+            "dedicated",
+            "existing-chrome"
+          ],
+          "ui": {
+            "control": "select"
+          }
+        },
+        "existingChromeChannel": {
+          "type": "string",
+          "title": "Existing Chrome channel",
+          "description": "existing-chrome 模式用于定位 Chrome User Data 目录的通道。",
+          "default": "stable",
+          "enum": [
+            "stable",
+            "beta",
+            "dev",
+            "canary"
+          ],
+          "ui": {
+            "control": "select"
+          }
+        },
+        "existingChromeUserDataDir": {
+          "type": "string",
+          "title": "Existing Chrome user data directory",
+          "description": "可选。留空时按操作系统和 Chrome channel 自动定位；连接前须在 chrome://inspect/#remote-debugging 启用远程调试。",
+          "default": "",
+          "ui": {
+            "control": "text"
+          }
+        },
+        "existingChromeRequireExplicitStart": {
+          "type": "boolean",
+          "title": "Require explicit reviewed start",
+          "description": "安全硬门禁。existing-chrome 必须先通过审核的启动操作连接，不能关闭。",
+          "default": true,
+          "enum": [
+            true
+          ],
+          "ui": {
+            "control": "switch"
+          }
+        },
         "cdpHost": {
           "type": "string",
           "title": "CDP host",
           "description": "专用 Chrome DevTools Protocol 地址。安全起见只允许本机回环地址。",
           "default": "127.0.0.1",
-          "ui": { "control": "text" }
+          "ui": {
+            "control": "text"
+          }
         },
         "cdpPort": {
           "type": "integer",
           "title": "CDP port",
           "description": "专用 Chrome 的远程调试端口。",
           "default": 19282,
-          "ui": { "control": "number" }
+          "ui": {
+            "control": "number"
+          }
         },
         "chromeExecutable": {
           "type": "string",
           "title": "Chrome executable",
           "description": "Chrome 可执行文件；留空时自动查找系统 Chrome。",
           "default": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-          "ui": { "control": "text" }
+          "ui": {
+            "control": "text"
+          }
         },
         "chromeProfileDir": {
           "type": "string",
           "title": "Dedicated Chrome profile",
           "description": "必须使用专用目录，不能指向日常 Chrome profile。支持 ~。",
           "default": "~/.hanako/browser-bridge/chrome-profile",
-          "ui": { "control": "text" }
+          "ui": {
+            "control": "text"
+          }
         },
         "autoStartChrome": {
           "type": "boolean",
           "title": "Auto-start dedicated Chrome",
           "description": "首次调用浏览器工具时，若 CDP 不在线则自动启动专用 Chrome。",
           "default": true,
-          "ui": { "control": "switch" }
+          "ui": {
+            "control": "switch"
+          }
         },
         "bridgeDirectory": {
           "type": "string",
           "title": "External browser-bridge directory",
           "description": "可选。留空使用插件内置版本；开发维护时可指向外部 browser-bridge 仓库。",
           "default": "",
-          "ui": { "control": "text" }
+          "ui": {
+            "control": "text"
+          }
         },
         "toolProfile": {
           "type": "string",
           "title": "Tool profile",
           "description": "正式使用固定为 workflow，仅暴露验收过的 15 个工具。",
           "default": "workflow",
-          "enum": ["workflow"],
-          "ui": { "control": "select" }
+          "enum": [
+            "workflow"
+          ],
+          "ui": {
+            "control": "select"
+          }
         }
       }
     }
@@ -76,13 +149,24 @@
       {
         "id": "plugin-status",
         "steps": [
-          { "invokeTool": { "name": "browser_bridge_status", "input": {} } },
-          { "expectToolText": "Browser Bridge" }
+          {
+            "invokeTool": {
+              "name": "browser_bridge_status",
+              "input": {}
+            }
+          },
+          {
+            "expectToolText": "Browser Bridge"
+          }
         ]
       },
       {
         "id": "open-page",
-        "steps": [{ "openSurface": "/page" }]
+        "steps": [
+          {
+            "openSurface": "/page"
+          }
+        ]
       }
     ]
   }

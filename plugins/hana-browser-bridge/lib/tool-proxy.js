@@ -28,5 +28,5 @@ export const SIDE_EFFECT_PERMISSION = Object.freeze({
   readOnly: false,
   kind: "external_side_effect",
   auto: "review",
-  description: "Controls a dedicated Chrome browser through the bundled browser-bridge MCP service.",
+  description: "Controls the configured local Chrome connection through the bundled browser-bridge MCP service; user Chrome access requires reviewed explicit start.",
 });

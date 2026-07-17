@@ -31,6 +31,9 @@ test("manifest is full-access, workflow-only, and has maintenance UI", () => {
   assert.equal(manifest.id, "hana-browser-bridge");
   assert.equal(manifest.trust, "full-access");
   assert.deepEqual(manifest.contributes.configuration.properties.toolProfile.enum, ["workflow"]);
+  assert.deepEqual(manifest.contributes.configuration.properties.connectionMode.enum, ["dedicated", "existing-chrome"]);
+  assert.deepEqual(manifest.contributes.configuration.properties.existingChromeChannel.enum, ["stable", "beta", "dev", "canary"]);
+  assert.deepEqual(manifest.contributes.configuration.properties.existingChromeRequireExplicitStart.enum, [true]);
   assert.equal(manifest.contributes.page.route, "/page");
 });
 
@@ -54,9 +57,20 @@ test("all workflow adapters are generated and side effects require review", asyn
   }
 });
 
+test("emergency detach is a reviewed management action", async () => {
+  const file = path.join(pluginDir, "tools", "browser_emergency_detach.js");
+  assert.equal(fs.existsSync(file), true);
+  const mod = await import(pathToFileURL(file));
+  assert.equal(mod.name, "browser_emergency_detach");
+  assert.equal(mod.sessionPermission.kind, "external_side_effect");
+  assert.equal(mod.sessionPermission.auto, "review");
+  assert.deepEqual(mod.parameters.required, []);
+});
+
 test("bundled bridge metadata matches package and records a commit", () => {
   const metadata = JSON.parse(fs.readFileSync(path.join(pluginDir, "vendor/browser-bridge/BUNDLED_VERSION.json"), "utf8"));
   assert.equal(metadata.name, "browser-bridge");
-  assert.equal(metadata.version, "3.0.0");
+  assert.equal(metadata.version, "3.1.0");
   assert.match(metadata.commit, /^[0-9a-f]{40}$/);
+  assert.equal(typeof metadata.dirty, "boolean");
 });

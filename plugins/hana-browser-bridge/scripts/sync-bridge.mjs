@@ -21,11 +21,20 @@ for (const optional of ["LICENSE", "CHANGELOG.md"]) {
 
 let commit = "unknown";
 try { commit = execFileSync("git", ["-C", bridgeDir, "rev-parse", "HEAD"], { encoding: "utf8" }).trim(); } catch {}
+let dirty = true;
+try {
+  const status = execFileSync("git", [
+    "-C", bridgeDir, "status", "--porcelain", "--untracked-files=no", "--",
+    "lib", "tools", "scripts/start-mcp-server-stdio.mjs", "package.json",
+  ], { encoding: "utf8" }).trim();
+  dirty = status.length > 0;
+} catch {}
 const pkg = JSON.parse(fs.readFileSync(path.join(bridgeDir, "package.json"), "utf8"));
 fs.writeFileSync(path.join(destination, "BUNDLED_VERSION.json"), JSON.stringify({
   name: pkg.name,
   version: pkg.version,
   commit,
+  dirty,
   syncedAt: new Date().toISOString(),
 }, null, 2) + "\n");
-console.log(`Synced browser-bridge ${pkg.version} (${commit.slice(0, 12)}) -> ${destination}`);
+console.log(`Synced browser-bridge ${pkg.version} (${commit.slice(0, 12)}${dirty ? "+dirty" : ""}) -> ${destination}`);

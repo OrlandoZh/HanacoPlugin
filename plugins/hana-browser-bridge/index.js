@@ -11,7 +11,7 @@ export default class BrowserBridgePlugin {
         return await getBridgeStatus(ctx);
       }));
     }
-    ctx.log.info("Browser Bridge for HanaAgent loaded; MCP starts lazily on first tool call");
+    ctx.log.info("Browser Bridge for HanaAgent loaded; dedicated mode starts lazily, existing Chrome requires reviewed explicit start");
   }
 
   async onunload() {
