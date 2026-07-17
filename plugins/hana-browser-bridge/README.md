@@ -78,8 +78,8 @@ npm run pack:plugin
 输出：
 
 ```text
-dist/hana-browser-bridge-0.1.0.zip
-dist/hana-browser-bridge-0.1.0.zip.sha256
+dist/hana-browser-bridge-0.1.1.zip
+dist/hana-browser-bridge-0.1.1.zip.sha256
 ```
 
 发布包包含：

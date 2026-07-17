@@ -11,6 +11,20 @@ const expectedWorkflow = [
   "browser_navigate", "browser_new_tab", "browser_press_key", "browser_read_counters",
   "browser_type_sequence", "browser_type_text",
 ];
+const requiredByTool = new Map([
+  ["browser_action", ["targetId", "action", "selector"]],
+  ["browser_attach_tab", ["targetId"]],
+  ["browser_detach_tab", ["targetId"]],
+  ["browser_detect_modals", ["targetId"]],
+  ["browser_dom", ["targetId", "expression"]],
+  ["browser_eval", ["targetId", "expression"]],
+  ["browser_import_batch", ["targetId", "selector", "codes"]],
+  ["browser_navigate", ["targetId", "url"]],
+  ["browser_press_key", ["targetId", "key"]],
+  ["browser_read_counters", ["targetId"]],
+  ["browser_type_sequence", ["targetId", "selector", "texts"]],
+  ["browser_type_text", ["targetId", "selector", "value"]],
+]);
 
 test("manifest is full-access, workflow-only, and has maintenance UI", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(pluginDir, "manifest.json"), "utf8"));
@@ -27,7 +41,10 @@ test("all workflow adapters are generated and side effects require review", asyn
     const mod = await import(pathToFileURL(file));
     assert.equal(mod.name, name);
     assert.equal(typeof mod.execute, "function");
-    assert.ok(mod.parameters && typeof mod.parameters === "object");
+    assert.equal(mod.parameters?.type, "object");
+    assert.ok(mod.parameters?.properties && typeof mod.parameters.properties === "object");
+    assert.deepEqual(mod.parameters.required, requiredByTool.get(name) || []);
+    assert.equal(mod.parameters.additionalProperties, false);
     if (["browser_health", "browser_list_tabs", "browser_read_counters"].includes(name)) {
       assert.equal(mod.sessionPermission.readOnly, true);
     } else {
