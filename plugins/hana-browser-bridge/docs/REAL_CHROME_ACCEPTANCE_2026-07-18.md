@@ -238,12 +238,10 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 
 ### 13.2 仍需补验
 
-1. **一般 socket close**：restart 后新的 reviewed start 已成功恢复；非重启场景下的一般 WebSocket 异常关闭仍未单独覆盖。
-2. **HanaAgent UI/Reviewer E2E**：全局配置已通过 HanaAgent 配置接口持久化为 `existing-chrome`，宿主对话确认 `mode=existing-chrome`、`ownsBrowser=false`、`toolCount=15`。`0.2.3` 先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未连接；最终安全结果为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。不存在自动 retry loop。第 16 节已定位 start/list 授权时序根因并记录 `0.2.4` 修复；第 17 节记录 `0.2.4` 的 5 秒窗口失败和 `0.2.5` 修复。
-3. **Multi Profile**：只在本地验收页上记录实际可见范围；同一持久 runtime、一次授权、零自动重试，不根据 `browserContextId` 推断 Profile 名称。
-4. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
+1. **Multi Profile**：只在本地验收页上记录实际可见范围；同一持久 runtime、一次授权、零自动重试，不根据 `browserContextId` 推断 Profile 名称。
+2. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
 
-本轮已执行 Deny/recovery、restart 防隐式重连和 HanaAgent 宿主尝试；宿主连续失败后已经停止。Multi Profile 与真实业务页本轮未执行。
+HanaAgent UI/Reviewer E2E、restart 后 reviewed reconnect 与一般 Browser WebSocket close/latch 已分别在第 18、19、20 节完成。Multi Profile 与真实业务页本轮未执行。
 
 ### 13.3 明确不在本验收范围
 
@@ -419,7 +417,7 @@ browserStopped=false
 
 独立复查：Browser Bridge 子进程数为 0；用户 Chrome 主进程仍存活；屏幕上没有残留远程调试授权提示。
 
-结论：**HanaAgent UI/Reviewer 宿主链路已通过 `0.2.5` 的最小 E2E：一次 reviewed start、一次 Chrome Allow、一次 list、一次安全 stop，零自动重试、零重复提示、用户 Chrome 未关闭。**第 19 节另行证明 restart 后 reviewed recovery；当前仍不覆盖 Multi Profile、一般 socket close 或真实业务页准入。
+结论：**HanaAgent UI/Reviewer 宿主链路已通过 `0.2.5` 的最小 E2E：一次 reviewed start、一次 Chrome Allow、一次 list、一次安全 stop，零自动重试、零重复提示、用户 Chrome 未关闭。**第 19 节另行证明 restart 后 reviewed recovery；当前仍不覆盖 Multi Profile 或真实业务页准入；一般 Browser WebSocket close/latch 见第 20 节。
 
 
 ## 19. Chrome restart 后 reviewed reconnect 恢复
@@ -462,4 +460,62 @@ mcpStopped=true
 browserStopped=false
 ```
 
-结论：**Chrome 正常重启并产生新的 endpoint generation 后，用户授权与新的 reviewed start 可以恢复连接；后续单次只读调用成功，插件清理不关闭用户 Chrome。**两次 reviewed start 是两个彼此独立、由人工状态变化分隔的尝试，不是 retry loop；Chrome 授权只需要一次用户点击。一般 socket close 仍需单独补验。
+结论：**Chrome 正常重启并产生新的 endpoint generation 后，用户授权与新的 reviewed start 可以恢复连接；后续单次只读调用成功，插件清理不关闭用户 Chrome。**两次 reviewed start 是两个彼此独立、由人工状态变化分隔的尝试，不是 retry loop；Chrome 授权只需要一次用户点击。一般 Browser WebSocket close/latch 的独立补验见第 20 节。
+
+
+## 20. 一般 Browser WebSocket close/latch
+
+2026-07-18 在真实 Chrome 与已安装 `hana-browser-bridge 0.2.5` 上补验非 restart 场景下的一般 Browser WebSocket 关闭。测试使用临时启动包装器，仅在验收进程收到单次本地信号时终止当前 Browser WebSocket；没有修改安装副本或生产源码，没有关闭远程调试监听，也没有重启或关闭用户 Chrome。
+
+### 20.1 初始 reviewed start
+
+用户对本轮唯一一次 Chrome 提示点击 Allow，连接成功：
+
+```text
+connectionMode=existing-chrome
+ownsBrowser=false
+toolCount=15
+mcpConnected=true
+browserConnected=true
+retryBlocked=false
+retryBlockReason=null
+errorCode=null
+```
+
+### 20.2 单次 socket close 与首次检测
+
+在同一持久 MCP runtime 内，只终止当前 Browser WebSocket。Chrome 主进程和远程调试 endpoint 均未重启。随后只调用一次 `browser_list_tabs`：
+
+```text
+detectedWithoutReconnect=true
+resultIsError=true
+browserConnected=false
+retryBlocked=true
+retryBlockReason=connection-failed
+errorCode=BROWSER_CONNECTION_FAILED
+```
+
+该调用检测到 socket 已关闭，没有隐式建立新的 Browser WebSocket。
+
+### 20.3 second-call latch 与清理
+
+再次调用同一只读工具时，请求在插件本地被拦截：
+
+```text
+blockedWithoutReconnect=true
+errorCode=BROWSER_CONNECT_REVIEW_REQUIRED
+retryBlocked=true
+retryBlockReason=connection-failed
+automaticRetries=0
+```
+
+最后使用 `stopChrome=false` 清理：
+
+```text
+mcpStopped=true
+browserStopped=false
+```
+
+独立复查：Browser Bridge 子进程数为 0，用户 Chrome 主进程仍存活。
+
+结论：**非 restart 的 Browser WebSocket 异常关闭会在首次后续调用中被识别为 connection failure，并设置 review latch；第二次调用不会到达底层连接，也不会自动重连。**本轮只有一次初始 Allow、零自动重试，用户 Chrome 未重启或关闭。
