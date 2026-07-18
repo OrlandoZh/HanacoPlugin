@@ -2,7 +2,7 @@
 
 - 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow、Deny/latch/recovery、restart 后防隐式重连/latch 与自动回归已通过；`0.2.4` 已修复 HanaAgent reviewed start/list 授权时序，宿主复验证明语义生效但暴露 5 秒人机窗口不足；`0.2.5` + 核心 `3.1.4` 增加单次 30 秒窗口并完成 existing Chrome 门禁；`0.2.6` + 核心 `3.1.5` 修复 Gemini/Quill 类 contenteditable 空字符串清空，自动回归通过；真实业务页仍待门禁
 - 日期：2026-07-18
-- Hana 插件：当前安装版 `0.2.5`；发布候选 `0.2.6`；历史基线 `0.2.3`；失败过渡版 `0.2.4`
+- Hana 插件：当前已安装并通过 Gemini 公开网站复验 `0.2.6`；上一稳定版 `0.2.5`；历史基线 `0.2.3`；失败过渡版 `0.2.4`
 - Browser Bridge 核心：`browser-bridge 3.1.5`
 - 当前目标平台：HanaAgent / macOS
 - 后续平台：Windows、Linux

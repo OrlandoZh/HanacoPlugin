@@ -159,7 +159,7 @@ dist/hana-browser-bridge-0.2.6.zip.sha256
 | Hana 插件 `0.2.3` 已安装基线 | `npm test` 27/27、`npm run test:integration` 2/2；已安装副本版本与发布包一致 |
 | Hana 插件 `0.2.4` 宿主复验 | reviewed start 内部 connect 和真实状态返回已生效；但底层 WebSocket 固定 5 秒超时，Chrome 提示在 start 失败后仍停留，已手工取消且未重试 |
 | Hana 插件 `0.2.5` 已安装 | 2026-07-18 增加单次 30 秒人机授权窗口；`npm test` 28/28、`npm run test:integration` 2/2；真实 HanaAgent reviewed start + 单次 list + 安全 stop 已通过 |
-| Hana 插件 `0.2.6` 发布候选 | Gemini 公开网站 contenteditable 输入精确回读通过，未按 Enter/未发送；首次清空暴露空字符串兼容缺口。Core `3.1.5` 修复后，插件 28/28、2/2 自动回归通过，待安装后真实 Gemini 清空复验 |
+| Hana 插件 `0.2.6` 已安装 | 内置 Core `3.1.5`；Gemini 公开网站 contenteditable 输入精确回读、空字符串清空均通过，未按 Enter、未点击发送；插件 28/28、2/2 自动回归通过 |
 | Browser Bridge 核心 `3.1.5` | `npm run check`、259/259 单元测试、8/8 集成 spec、Phase 7 1030/1030 全部通过；新增 contenteditable 选区清空和空文本 clear-only 语义 |
 | 构建可追溯性 | 核心提交 `edee8632853b21c08f15db23a0844721a593949e`，`BUNDLED_VERSION.json` 为 `dirty: false` |
 | 最终版本单次 Allow | 已安装 `0.2.3` 副本完成一次 reviewed start + 一次只读 `browser_list_tabs`；只出现一次授权、零自动重试，清理后无孤立 bridge 进程且用户 Chrome 保持运行 |

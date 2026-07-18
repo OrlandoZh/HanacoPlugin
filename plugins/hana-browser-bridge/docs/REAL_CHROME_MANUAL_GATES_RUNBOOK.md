@@ -2,7 +2,7 @@
 
 - 日期：2026-07-18
 - 当前平台：macOS
-- Hana 插件：当前安装并通过宿主复验 `0.2.5`；发布候选 `0.2.6`；历史基线 `0.2.3`；失败过渡版 `0.2.4`
+- Hana 插件：当前已安装 `0.2.6`，并通过 `0.2.5` 宿主 E2E 与 `0.2.6` Gemini 公开网站输入/清空复验；历史基线 `0.2.3`；失败过渡版 `0.2.4`
 - Browser Bridge：`browser-bridge 3.1.5`
 - 适用范围：`existing-chrome` 的 Deny、Chrome restart/reconnect、HanaAgent UI/Reviewer、Multi Profile、debugger conflict
 

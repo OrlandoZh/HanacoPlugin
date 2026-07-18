@@ -635,4 +635,29 @@ Hana plugin unit         28/28 PASS
 Hana plugin integration  2/2 PASS
 ```
 
-发布候选为 `hana-browser-bridge 0.2.6`，内置 `browser-bridge 3.1.5`。安装后的真实 Gemini 清空复验仍需一次 reviewed Chrome Allow；在该复验完成前，不把 `0.2.6` 写成真实网站最终通过。
+发布候选为 `hana-browser-bridge 0.2.6`，内置 `browser-bridge 3.1.5`。随后已完成安装与真实 Gemini 复验，结果见 22.4。
+
+### 22.4 `0.2.6` 安装后真实 Gemini 复验
+
+将最终 `0.2.6` 发布包原子安装到 HanaAgent 插件目录，并保留 `0.2.5` 回滚副本。用户对新的 reviewed start 点击一次 Allow；随后在新建 Gemini 测试标签页中执行同一固定文本的输入与清空：
+
+```text
+pluginVersion=0.2.6
+coreVersion=3.1.5
+browserConnected=true
+retryBlocked=false
+inputTypeToolOk=true
+inputExactMatch=true
+inputCharacterCount=29
+enterPressed=false
+sendClicked=false
+clearToolOk=true
+inputEmpty=true
+clearedCharacterCount=0
+submitted=false
+passed=true
+```
+
+最后关闭测试标签页并以 `stopChrome=false` 清理。独立复查：Gemini 标签页数为 0，Browser Bridge 临时进程数为 0，用户 Chrome 仍存活。
+
+结论：**`hana-browser-bridge 0.2.6` + `browser-bridge 3.1.5` 已在真实 Gemini contenteditable 上完成“输入精确回读 → 不发送 → 空字符串清空 → 回读为空”的完整可撤销验收。**
