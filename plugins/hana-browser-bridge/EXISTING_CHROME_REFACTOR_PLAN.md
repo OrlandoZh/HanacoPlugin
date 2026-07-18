@@ -769,6 +769,15 @@ npm run test:integration
 6. 多 tab 同名 CDP event 不串线。
 7. 业务工具只有 attach target 后可写。
 
+剩余真机门禁按以下手册执行：
+
+```text
+docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md
+scripts/real-chrome-manual-gates.mjs
+```
+
+辅助脚本只输出 endpoint fingerprint 和健康状态，不输出端口、browser path、sessionId 或用户标签页内容，也不会自动重启 Chrome。
+
 ### 11.3 业务验收
 
 1030 条仿真必须单独记录：
@@ -816,4 +825,4 @@ P2   Hana 独立扩展 + Native Host
 P3   上传、下载与更高层语义
 ```
 
-当前结果：P0-A 至 P1-C 已完成（含独立 Endpoint/DevToolsActivePort provider、连接状态、claim 门禁和 `browser_emergency_detach`）；P1-D 已完成临时 Chrome Auto Connect、dedicated 全回归、1030 条仿真，以及真实 Chrome 的 Allow、显式启动、claim、多 tab 隔离、后台 target 原生点击、SPA、detach/reattach 和非所有权关闭验收。真实 Chrome 记录见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`。Deny、多 Profile、调试器冲突、Chrome restart/endpoint 变化和真实业务页仍需单独人工验收。Extension/Native Host 和文件能力不进入本轮改造。
+当前结果：P0-A 至 P1-C 已完成（含独立 Endpoint/DevToolsActivePort provider、连接状态、claim 门禁和 `browser_emergency_detach`）；P1-D 已完成临时 Chrome Auto Connect、dedicated 全回归、1030 条仿真，以及真实 Chrome 的 Allow、显式启动、claim、多 tab 隔离、后台 target 原生点击、SPA、detach/reattach 和非所有权关闭验收。真实 Chrome 记录见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`。Deny、多 Profile、调试器冲突、Chrome restart/endpoint 变化和真实业务页仍需单独人工验收；操作手册见 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md`，restart 前脱敏基线已采集到 `/tmp/hana-existing-chrome-before-restart.json`。Extension/Native Host 和文件能力不进入本轮改造。

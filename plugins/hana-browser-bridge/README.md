@@ -153,4 +153,5 @@ dist/hana-browser-bridge-0.2.1.zip.sha256
 - Browser Bridge 核心 `3.1.1`：单元测试 246/246，集成 8/8 spec 文件，Phase 7 1030 条仿真通过。
 - Auto Connect 隔离集成使用临时 Headless Chrome；真实 Chrome 已通过 Allow、显式启动、claim、多 tab、后台原生点击、SPA、detach/reattach 和 emergency detach 验收。
 - 核心提交为 `85ee4961b378e30c79f1a588c5d2e189ce0c1291`，`BUNDLED_VERSION.json` 为 `dirty: false`；发布脚本继续拒绝 dirty 核心。
-- Deny、多 Profile、debugger conflict、Chrome restart/endpoint 变化和真实业务页仍需单独人工验收，详见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`。
+- Deny、多 Profile、debugger conflict、Chrome restart/endpoint 变化和真实业务页仍需单独人工验收，详见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md` 和 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md`。
+- 开发树提供 `scripts/real-chrome-manual-gates.mjs`，用于脱敏 snapshot/compare 和 Allow/Deny 探测；脚本不会自动关闭或重启 Chrome。
