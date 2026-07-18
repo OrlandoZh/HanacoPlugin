@@ -94,7 +94,7 @@ async function openRuntime(ctx, config) {
     env,
     stderr: "pipe",
   });
-  const client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.1" });
+  const client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.2" });
   transport.stderr?.on?.("data", (chunk) => {
     const line = sanitizeError(String(chunk || "").trim());
     if (line) ctx?.log?.debug?.(`browser-bridge MCP: ${line}`);
@@ -163,7 +163,7 @@ export async function getBridgeStatus(ctx = {}) {
   return {
     ok: browserProbe.ok && !!runtime && runtime.key === key,
     name: "Browser Bridge for HanaAgent",
-    pluginVersion: "0.2.1",
+    pluginVersion: "0.2.2",
     connection: {
       mode: config.connectionMode,
       ownsBrowser: config.ownsBrowser,
