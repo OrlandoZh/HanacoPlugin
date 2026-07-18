@@ -2,7 +2,7 @@
 import { executeProxyTool, SIDE_EFFECT_PERMISSION } from "../lib/tool-proxy.js";
 
 export const name = "browser_action";
-export const description = "页面交互: click(原生级+全局护栏) / hover / fill / type";
+export const description = "页面交互：CSS selector，或 browser_dom(mode=observe) 返回的临时 ref；点击始终经过全局护栏";
 export const parameters = {
   "type": "object",
   "properties": {
@@ -16,7 +16,11 @@ export const parameters = {
     },
     "selector": {
       "type": "string",
-      "description": "CSS selector"
+      "description": "CSS selector；与 ref 二选一"
+    },
+    "ref": {
+      "type": "string",
+      "description": "browser_dom(mode=observe) 返回的临时元素 ref；与 selector 二选一"
     },
     "value": {
       "type": "string",
@@ -29,12 +33,23 @@ export const parameters = {
     "waitAfterMs": {
       "type": "number",
       "description": "点击后等待毫秒（可选）"
+    },
+    "clear": {
+      "type": "boolean",
+      "description": "ref input 前是否清空，默认 true"
+    },
+    "verify": {
+      "type": "boolean",
+      "description": "ref input 后是否精确回读校验，默认 true"
+    },
+    "fallbackToPerKey": {
+      "type": "boolean",
+      "description": "ref input 校验失败时是否逐键回退"
     }
   },
   "required": [
     "targetId",
-    "action",
-    "selector"
+    "action"
   ],
   "additionalProperties": false
 };

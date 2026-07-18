@@ -12,11 +12,11 @@ import {
 const pluginDir = path.resolve(new URL("..", import.meta.url).pathname);
 const expectedWorkflow = PUBLIC_WORKFLOW_TOOL_NAMES;
 const requiredByTool = new Map([
-  ["browser_action", ["targetId", "action", "selector"]],
+  ["browser_action", ["targetId", "action"]],
   ["browser_attach_tab", ["targetId"]],
   ["browser_detach_tab", ["targetId"]],
   ["browser_detect_modals", ["targetId"]],
-  ["browser_dom", ["targetId", "expression"]],
+  ["browser_dom", ["targetId"]],
   ["browser_eval", ["targetId", "expression"]],
   ["browser_import_batch", ["targetId", "selector", "codes"]],
   ["browser_navigate", ["targetId", "url"]],
@@ -81,7 +81,7 @@ test("emergency detach is a reviewed management action", async () => {
 test("bundled bridge metadata matches package and records a commit", () => {
   const metadata = JSON.parse(fs.readFileSync(path.join(pluginDir, "vendor/browser-bridge/BUNDLED_VERSION.json"), "utf8"));
   assert.equal(metadata.name, "browser-bridge");
-  assert.equal(metadata.version, "3.1.5");
+  assert.equal(metadata.version, "3.2.0");
   assert.match(metadata.commit, /^[0-9a-f]{40}$/);
   assert.equal(typeof metadata.dirty, "boolean");
 });

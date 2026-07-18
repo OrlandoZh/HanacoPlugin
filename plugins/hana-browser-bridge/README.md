@@ -20,6 +20,8 @@ HanaAgent Agent
 ## 提供能力
 
 - 原样代理经过 P0 验收的 15 个 `workflow` 工具；内部 stdio 子进程额外注册一个不贡献给 HanaAgent 的 `browser_connect`，仅供 reviewed `browser_bridge_start` 建立 Browser WebSocket。
+- 保持 15 个工具名不扩张：`browser_dom(mode=observe|verify)` 提供 Page-Agent-inspired 结构化元素观察和断言，`browser_action(ref=...)` 使用 opaque ref 执行单步动作；不引入第二个 LLM、`execute_task` 或 Page Agent MCP。
+- observe 支持 open Shadow DOM、同源 iframe、ARIA/accessibility name 与 contenteditable；不返回输入 value、URL、标题或完整页面正文。
 - `browser_bridge_status/start/restart/stop` 四个维护工具。
 - Browser Bridge 状态面板。
 - `dedicated` 模式首次调用时可按配置懒启动专用 Chrome。
@@ -110,8 +112,8 @@ npm run pack:plugin -- --bridge-dir /absolute/path/to/browser-bridge
 输出：
 
 ```text
-dist/hana-browser-bridge-0.2.6.zip
-dist/hana-browser-bridge-0.2.6.zip.sha256
+dist/hana-browser-bridge-0.3.0.zip
+dist/hana-browser-bridge-0.3.0.zip.sha256
 ```
 
 发布包包含：
@@ -143,6 +145,7 @@ dist/hana-browser-bridge-0.2.6.zip.sha256
 ## 安全边界
 
 - `dedicated` 模式不得把 `chromeProfileDir` 指向日常 Chrome profile。
+- Page-Agent-inspired 控制层只做确定性 Observe/Act/Verify；HanaAgent 是唯一规划 Agent。element locator 只保存在 bridge 进程内，HanaAgent 只能看到短期 opaque ref。
 - 不启用 REST/HTTP MCP。
 - 不把 CDP 监听到 LAN 或公网地址。
 - 不移除 browser-bridge 的点击安全护栏、危险 modal 取消逻辑或审计脱敏。

@@ -8,11 +8,11 @@ import { PUBLIC_WORKFLOW_TOOL_NAMES } from "../lib/tool-profile.js";
 const WORKFLOW_TOOLS = PUBLIC_WORKFLOW_TOOL_NAMES;
 const READ_ONLY = new Set(["browser_health", "browser_list_tabs", "browser_read_counters"]);
 const REQUIRED_PARAMETERS = new Map([
-  ["browser_action", ["targetId", "action", "selector"]],
+  ["browser_action", ["targetId", "action"]],
   ["browser_attach_tab", ["targetId"]],
   ["browser_detach_tab", ["targetId"]],
   ["browser_detect_modals", ["targetId"]],
-  ["browser_dom", ["targetId", "expression"]],
+  ["browser_dom", ["targetId"]],
   ["browser_eval", ["targetId", "expression"]],
   ["browser_import_batch", ["targetId", "selector", "codes"]],
   ["browser_navigate", ["targetId", "url"]],
