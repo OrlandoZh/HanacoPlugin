@@ -59,6 +59,8 @@ test("existing Chrome Auto Connect requires reviewed start and never owns the us
   assert.equal(started.connectionMode, "existing-chrome");
   assert.equal(started.ownsBrowser, false);
   assert.equal(started.toolCount, 15);
+  const preToolStatus = await getBridgeStatus(ctx);
+  assert.equal(preToolStatus.connection.browserConnected, false, "MCP startup must defer the Chrome consent attempt");
 
   const listed = parseText(await callBridgeTool("browser_list_tabs", {}, ctx));
   assert.equal(listed.ok, true);
@@ -102,12 +104,28 @@ test("existing Chrome Auto Connect requires reviewed start and never owns the us
   const status = await getBridgeStatus(ctx);
   assert.equal(status.connection.mode, "existing-chrome");
   assert.equal(status.connection.explicitStartGranted, true);
+  assert.equal(status.connection.retryBlocked, false);
+  assert.equal(status.connection.retryBlockReason, null);
+  assert.equal(status.connection.browserConnected, true);
+  assert.equal(status.mcp.bridgeDirectory, "configured-and-available");
+  const serializedStatus = JSON.stringify(status);
+  assert.equal(serializedStatus.includes(chrome.userDataDir), false);
+  assert.equal(serializedStatus.includes(pluginDir), false);
   assert.equal(status.chrome.owned, false);
   assert.equal(status.chrome.endpoint, "auto-connect:available");
   assert.equal(status.chrome.userDataDir, "configured");
   assert.doesNotMatch(JSON.stringify(status.chrome), /auto-connect:\d+|hana-bb-plugin-it-|\/Users\//);
   assert.equal(status.mcp.connected, true);
   assert.equal(status.security.rawCdpExposed, false);
+
+  const reviewedRestart = await startBridgeRuntime(ctx);
+  assert.equal(reviewedRestart.ok, true);
+  const postRestartPreTool = await getBridgeStatus(ctx);
+  assert.equal(postRestartPreTool.connection.browserConnected, false, "reviewed restart must defer the next Chrome prompt");
+  assert.ok(postRestartPreTool.mcp.generation > status.mcp.generation);
+  const relisted = parseText(await callBridgeTool("browser_list_tabs", {}, ctx));
+  assert.equal(relisted.ok, true);
+  assert.equal((await getBridgeStatus(ctx)).connection.browserConnected, true);
 
   const stopped = await shutdownMcpRuntime({ stopChrome: true });
   runtimeStopped = true;

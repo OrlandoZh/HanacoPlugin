@@ -73,7 +73,7 @@ test("emergency detach is a reviewed management action", async () => {
 test("bundled bridge metadata matches package and records a commit", () => {
   const metadata = JSON.parse(fs.readFileSync(path.join(pluginDir, "vendor/browser-bridge/BUNDLED_VERSION.json"), "utf8"));
   assert.equal(metadata.name, "browser-bridge");
-  assert.equal(metadata.version, "3.1.2");
+  assert.equal(metadata.version, "3.1.3");
   assert.match(metadata.commit, /^[0-9a-f]{40}$/);
   assert.equal(typeof metadata.dirty, "boolean");
 });

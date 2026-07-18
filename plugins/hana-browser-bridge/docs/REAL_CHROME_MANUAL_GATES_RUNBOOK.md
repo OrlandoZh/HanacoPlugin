@@ -2,8 +2,8 @@
 
 - 日期：2026-07-18
 - 当前平台：macOS
-- Hana 插件：`hana-browser-bridge 0.2.1`
-- Browser Bridge：`browser-bridge 3.1.1`
+- Hana 插件：`hana-browser-bridge 0.2.3`
+- Browser Bridge：`browser-bridge 3.1.3`
 - 适用范围：`existing-chrome` 的 Deny、Chrome restart、endpoint generation、多 Profile、debugger conflict
 
 ## 1. 安全规则
@@ -22,7 +22,8 @@
    - 用户标签页标题、URL 或页面正文。
 5. restart 前必须执行 `browser_emergency_detach`。
 6. existing Chrome 永远不由插件 kill/close；Chrome restart 必须由用户或明确的人工步骤执行。
-7. 任一阶段失败即停止，不自动重试生产业务操作。
+7. 任一阶段失败即停止，不自动重试授权探测或业务操作；不得使用定时器循环重建 Browser WebSocket。
+8. 一次 reviewed `browser_bridge_start` 只对应一次初始 Browser WebSocket 尝试；若未及时处理 Chrome 提示或用户选择 Deny，等待用户明确准备好后再进行下一次 reviewed start。
 
 ## 2. 辅助脚本
 
@@ -122,7 +123,7 @@ Deny 必须在一个会显示新授权对话框的授权周期内执行。
 node scripts/real-chrome-manual-gates.mjs probe --expect deny
 ```
 
-Chrome 显示远程调试授权对话框时，用户选择“取消”或 Deny。
+Chrome 显示远程调试授权对话框时，用户选择“取消”或 Deny。命令只能执行一次；不得因未及时点击而由脚本自动重跑。
 
 通过条件：
 
@@ -145,7 +146,7 @@ Chrome 显示远程调试授权对话框时，用户选择“取消”或 Deny�
 
 ## 5. Allow 恢复门禁
 
-Deny 完成后重新发起：
+Deny 完成后，确认用户已准备处理下一次提示，再手工重新发起一次：
 
 ```bash
 node scripts/real-chrome-manual-gates.mjs probe --expect allow
@@ -198,10 +199,12 @@ node scripts/real-chrome-manual-gates.mjs probe --expect allow
 Auto Connect 不承诺按 Profile 名精确选择，因此只记录 Chrome 的实际行为：
 
 1. 用户分别在两个 Chrome Profile 中打开同一个本地验收页。
-2. 两个页面使用不同的随机 marker，但不包含用户信息。
-3. 建立 Auto Connect 后，只列出 target 数量，不输出用户标签页标题或 URL。
-4. 仅 attach 已知本地验收页 target。
-5. 记录：
+2. 启动一个持久 Hana/browser-bridge runtime；整个门禁期间不得按固定间隔断开重连。
+3. 两个页面使用不同的随机 marker，但不包含用户信息。
+4. 仅执行一次 reviewed start 和一次初始工具调用；若授权失败立即停止。
+5. 建立 Auto Connect 后，只列出 target 数量，不输出用户标签页标题或 URL。
+6. 仅 attach 已知本地验收页 target。
+7. 记录：
    - 能看到一个还是两个 Profile 的验收 target；
    - Chrome 实际选择的窗口/Profile 范围；
    - 未选中范围是否 access denied 或完全不可见。
@@ -265,4 +268,6 @@ endpointReachable=true
 file mode=0600
 ```
 
-fingerprint 仅保存在临时文件中，不写入仓库。等待用户确认保存工作后，再执行 restart 与后续人工门禁。
+fingerprint 仅保存在临时文件中，不写入仓库。
+
+截至 2026-07-18，restart generation、Deny/Allow 和 DevTools 共存门禁均已完成。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；通过条件已调整为旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变。多 Profile 门禁曾因临时脚本每约 1.5 秒自动重建连接而重复触发授权框，该脚本已停止并清理；不得再次使用该 retry loop。

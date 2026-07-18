@@ -24,6 +24,7 @@ HanaAgent Agent
 - Browser Bridge 状态面板。
 - `dedicated` 模式首次调用时可按配置懒启动专用 Chrome。
 - `existing-chrome` 模式必须先通过 reviewed `browser_bridge_start` 显式连接，业务只读工具不能隐式触发用户 Chrome 授权。
+- 一次 reviewed start 只放行一次初始 Browser WebSocket 尝试；Deny/连接失败后进入熔断，后续业务工具不会自动重连或重复触发 Chrome 授权框。
 - `browser_emergency_detach` 可立即清空 MCP/CDP 会话和 target claim，且绝不关闭用户 Chrome。
 - 内部 MCP 固定 stdio；REST 和 HTTP MCP 均关闭。
 - CDP host 仅允许 `127.0.0.1`、`localhost` 或 `::1`。
@@ -40,13 +41,15 @@ HanaAgent Agent
 3. 在插件设置中选择 `connectionMode=existing-chrome`；
 4. 根据需要选择 channel 或填写 User Data 目录；
 5. 通过 Hana Reviewer 调用 `browser_bridge_start`；
-6. 在 Chrome 原生对话框中点击 Allow；
+6. 第一次业务工具真正建立 Browser WebSocket 时，在 Chrome 原生对话框中点击一次 Allow；
 7. 使用 `browser_list_tabs -> browser_attach_tab` 后再执行工作流工具。
 
 安全语义：
 
 - `browser_bridge_status` 只检查本地 `DevToolsActivePort` 和端口状态，不建立 Browser WebSocket；
 - existing 模式没有 reviewed start 时返回 `EXPLICIT_CONNECT_REQUIRED`；
+- 若用户 Deny 或连接失败，同一授权轮次后续调用返回 `BROWSER_CONNECT_REVIEW_REQUIRED`，不会再次访问底层 `client.callTool`；用户准备好后重新 reviewed `browser_bridge_start`，才放行一次新尝试；
+- 并发的初始业务调用使用单飞保护，只有一个调用可以触发 Chrome 授权框；
 - stop/unload 只断开 MCP/CDP，不关闭用户 Chrome；
 - 标签页列表不返回 `webSocketDebuggerUrl` 或 sessionId；
 - 精确窗口/标签页授权将在后续 Hana 自有 Chrome 扩展中实现。
@@ -107,8 +110,8 @@ npm run pack:plugin -- --bridge-dir /absolute/path/to/browser-bridge
 输出：
 
 ```text
-dist/hana-browser-bridge-0.2.1.zip
-dist/hana-browser-bridge-0.2.1.zip.sha256
+dist/hana-browser-bridge-0.2.3.zip
+dist/hana-browser-bridge-0.2.3.zip.sha256
 ```
 
 发布包包含：
@@ -143,15 +146,16 @@ dist/hana-browser-bridge-0.2.1.zip.sha256
 - 不启用 REST/HTTP MCP。
 - 不把 CDP 监听到 LAN 或公网地址。
 - 不移除 browser-bridge 的点击安全护栏、危险 modal 取消逻辑或审计脱敏。
-- existing Chrome 必须通过 reviewed explicit start，禁止只读业务工具隐式连接。
+- existing Chrome 必须通过 reviewed explicit start，禁止只读业务工具隐式连接；授权探测和业务工具均禁止自动重试。
 - 不记录 DevTools browser path、sessionId、Cookie、Authorization、输入明文或 CDP result。
 - 真实业务页上线前仍需单独完成只读准入和人工确认。
 
 ## 当前改造验证状态（2026-07-18）
 
-- Hana 插件 `0.2.1`：`npm test` 17/17，existing/dedicated 集成 2/2。
-- Browser Bridge 核心 `3.1.1`：单元测试 246/246，集成 8/8 spec 文件，Phase 7 1030 条仿真通过。
-- Auto Connect 隔离集成使用临时 Headless Chrome；真实 Chrome 已通过 Allow、显式启动、claim、多 tab、后台原生点击、SPA、detach/reattach 和 emergency detach 验收。
-- 核心提交为 `85ee4961b378e30c79f1a588c5d2e189ce0c1291`，`BUNDLED_VERSION.json` 为 `dirty: false`；发布脚本继续拒绝 dirty 核心。
-- Deny、多 Profile、debugger conflict、Chrome restart/endpoint 变化和真实业务页仍需单独人工验收，详见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md` 和 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md`。
-- 开发树提供 `scripts/real-chrome-manual-gates.mjs`，用于脱敏 snapshot/compare 和 Allow/Deny 探测；脚本不会自动关闭或重启 Chrome。
+- Hana 插件 `0.2.3`：`npm test` 27/27，existing/dedicated 集成 2/2；新增 Deny/连接失败熔断和并发单飞保护。
+- Browser Bridge 核心 `3.1.3`：`npm run check` 通过，单元测试 258/258，集成 8/8 spec 文件，Phase 7 1030/1030 通过。
+- 核心提交为 `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`，`BUNDLED_VERSION.json` 为 `dirty: false`；发布脚本继续拒绝 dirty 核心。
+- 真实 Chrome 已通过 Deny（HTTP 403）、Allow 恢复、restart generation、旧 claim 失效、两种 DevTools attach 顺序 `COEXIST`、claim、多 tab、后台原生点击、SPA、detach/reattach 和 emergency detach。
+- Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 的通过条件是旧 Chrome 主进程退出、旧 endpoint 不可达、新 endpoint fingerprint 改变，而不是要求该文件消失。
+- 多 Profile 门禁尚未完成。旧临时脚本因每约 1.5 秒重建连接而重复触发授权框，已停止并清理；后续只能在同一持久 runtime 中执行，且不得自动重试。
+- 真实业务页仍需单独完成只读准入和人工确认；生产数据导入仍须单独审批。

@@ -1,9 +1,9 @@
 # Hana Browser Bridge：现有 Chrome 与人机协作改造方案
 
-- 状态：P0-A 至 P1-C 已完成；P1-D 已通过真实 Chrome Allow、claim、多 tab、后台原生点击、SPA 与 detach/reattach，Deny/多 Profile/调试器冲突/Chrome restart/真实业务页仍待人工门禁
+- 状态：P0-A 至 P1-C 已完成；P1-D 已通过 Deny/Allow、restart generation、DevTools 共存、claim、多 tab、后台原生点击、SPA 与 detach/reattach；多 Profile 与真实业务页仍待人工门禁
 - 日期：2026-07-18
-- Hana 插件：`hana-browser-bridge 0.2.1`
-- Browser Bridge 核心：`browser-bridge 3.1.1`
+- Hana 插件：`hana-browser-bridge 0.2.3`
+- Browser Bridge 核心：`browser-bridge 3.1.3`
 - 当前目标平台：HanaAgent / macOS
 - 后续平台：Windows、Linux
 
@@ -25,7 +25,7 @@ extension        Hana 自有 MV3 扩展 + 自有 Native Host，精确窗口/标�
 2. 不覆盖、代理或接管 `com.openai.codexextension`。
 3. 不把原始 unrestricted CDP 暴露给 HanaAgent。
 4. 保留当前 15 个 workflow 工具、Reviewer、点击硬门禁和审计。
-5. `existing-chrome` 必须先通过 reviewed 管理操作显式连接；只读业务工具不得隐式触发用户 Chrome 授权。
+5. `existing-chrome` 必须先通过 reviewed 管理操作显式连接；只读业务工具不得隐式触发用户 Chrome 授权；Deny/连接失败后必须熔断，禁止自动重试。
 6. `browser_attach_tab` 在 Phase 1 同时承担 claim + attach；未 attach 的 target 不能执行写操作。
 7. endpoint、transport 和 target session 实现在独立 `browser-bridge` 核心仓库，Hana 插件只负责配置、生命周期和 MCP 子进程编排。
 8. 正式的精确授权能力最终采用 Hana 自有扩展，不复用官方 Codex 扩展。
@@ -163,7 +163,7 @@ Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugg
 - MCP stop/unload 不关闭非插件拥有的 Chrome；
 - dedicated 全量回归和 1030 条业务仿真保持通过。
 
-核心现已提交为 `85ee4961b378e30c79f1a588c5d2e189ce0c1291`，同步元数据为 `browser-bridge 3.1.1`、`dirty: false`。发布脚本继续默认拒绝打包 dirty 核心。
+核心当前提交为 `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`，同步元数据为 `browser-bridge 3.1.3`、`dirty: false`。发布脚本继续默认拒绝打包 dirty 核心。
 
 ## 4. 外部事实核验
 
@@ -825,4 +825,4 @@ P2   Hana 独立扩展 + Native Host
 P3   上传、下载与更高层语义
 ```
 
-当前结果：P0-A 至 P1-C 已完成（含独立 Endpoint/DevToolsActivePort provider、连接状态、claim 门禁和 `browser_emergency_detach`）；P1-D 已完成临时 Chrome Auto Connect、dedicated 全回归、1030 条仿真，以及真实 Chrome 的 Allow、显式启动、claim、多 tab 隔离、后台 target 原生点击、SPA、detach/reattach 和非所有权关闭验收。真实 Chrome 记录见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`。Deny、多 Profile、调试器冲突、Chrome restart/endpoint 变化和真实业务页仍需单独人工验收；操作手册见 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md`，restart 前脱敏基线已采集到 `/tmp/hana-existing-chrome-before-restart.json`。Extension/Native Host 和文件能力不进入本轮改造。
+当前结果：P0-A 至 P1-C 已完成（含独立 Endpoint/DevToolsActivePort provider、连接状态、claim 门禁和 `browser_emergency_detach`）；P1-D 已完成临时 Chrome Auto Connect、dedicated 全回归、1030/1030 仿真，以及真实 Chrome 的 Deny（HTTP 403）、Allow 恢复、restart endpoint generation、旧 claim `NO_SESSION`、两种 DevTools attach 顺序 `COEXIST`、显式启动、claim、多 tab 隔离、后台 target 原生点击、SPA、detach/reattach 和非所有权关闭验收。Browser Bridge 核心为 `3.1.3` / `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`；Hana 插件 `0.2.3` 新增授权失败熔断和初始连接单飞：一次 reviewed start 只放行一次 Browser WebSocket 尝试，失败后业务工具不得自动重试。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件，因此 restart 以“旧进程退出 + 旧 endpoint 不可达 + 新 fingerprint 改变”为准。多 Profile 门禁因旧临时脚本错误地每约 1.5 秒重建连接而中止；该脚本已停止，后续必须在同一持久 runtime 内、无自动重试地执行。真实 Chrome 记录见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`，操作手册见 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md`。真实业务页和文件能力不进入本轮自动验收，生产数据导入仍须单独审批。
