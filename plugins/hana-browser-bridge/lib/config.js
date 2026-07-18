@@ -131,6 +131,7 @@ export async function resolveConfig(ctx = {}) {
     autoStartChrome: connectionMode === "dedicated" && raw.autoStartChrome !== false,
     existingChromeChannel,
     existingChromeUserDataDir,
+    existingChromeUserDataConfigured: configuredExistingDir.length > 0,
     existingChromeRequireExplicitStart: raw.existingChromeRequireExplicitStart,
     bridgeDirectory,
     bridgeEntrypoint,

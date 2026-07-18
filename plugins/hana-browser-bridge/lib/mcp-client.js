@@ -94,7 +94,7 @@ async function openRuntime(ctx, config) {
     env,
     stderr: "pipe",
   });
-  const client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.0" });
+  const client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.1" });
   transport.stderr?.on?.("data", (chunk) => {
     const line = sanitizeError(String(chunk || "").trim());
     if (line) ctx?.log?.debug?.(`browser-bridge MCP: ${line}`);
@@ -163,7 +163,7 @@ export async function getBridgeStatus(ctx = {}) {
   return {
     ok: browserProbe.ok && !!runtime && runtime.key === key,
     name: "Browser Bridge for HanaAgent",
-    pluginVersion: "0.2.0",
+    pluginVersion: "0.2.1",
     connection: {
       mode: config.connectionMode,
       ownsBrowser: config.ownsBrowser,
@@ -183,10 +183,10 @@ export async function getBridgeStatus(ctx = {}) {
     chrome: config.connectionMode === "existing-chrome"
       ? {
           cdpOnline: browserProbe.ok,
-          endpoint: browserProbe.port ? `auto-connect:${browserProbe.port}` : "auto-connect:unavailable",
+          endpoint: browserProbe.ok ? "auto-connect:available" : "auto-connect:unavailable",
           browser: null,
           channel: config.existingChromeChannel,
-          userDataDir: config.existingChromeUserDataDir,
+          userDataDir: config.existingChromeUserDataConfigured ? "configured" : "channel-default",
           activePortPresent: browserProbe.activePortPresent,
           owned: false,
           pid: null,

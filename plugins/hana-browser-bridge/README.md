@@ -107,8 +107,8 @@ npm run pack:plugin -- --bridge-dir /absolute/path/to/browser-bridge
 输出：
 
 ```text
-dist/hana-browser-bridge-0.2.0.zip
-dist/hana-browser-bridge-0.2.0.zip.sha256
+dist/hana-browser-bridge-0.2.1.zip
+dist/hana-browser-bridge-0.2.1.zip.sha256
 ```
 
 发布包包含：
@@ -147,9 +147,10 @@ dist/hana-browser-bridge-0.2.0.zip.sha256
 - 不记录 DevTools browser path、sessionId、Cookie、Authorization、输入明文或 CDP result。
 - 真实业务页上线前仍需单独完成只读准入和人工确认。
 
-## 当前改造验证状态（2026-07-17）
+## 当前改造验证状态（2026-07-18）
 
-- Hana 插件：`npm test` 16/16，existing/dedicated 集成 2/2。
-- Browser Bridge 核心：单元测试 242/242，集成 8/8 spec 文件（25/25 tests），Phase 7 1030 条仿真通过。
-- Auto Connect 集成使用临时 Headless Chrome，不连接用户真实 Chrome。
-- 核心 working tree 未提交时，`BUNDLED_VERSION.json` 会记录 `dirty: true`，发布脚本默认拒绝打包；正式发布必须先提交核心改造。
+- Hana 插件 `0.2.1`：`npm test` 17/17，existing/dedicated 集成 2/2。
+- Browser Bridge 核心 `3.1.1`：单元测试 246/246，集成 8/8 spec 文件，Phase 7 1030 条仿真通过。
+- Auto Connect 隔离集成使用临时 Headless Chrome；真实 Chrome 已通过 Allow、显式启动、claim、多 tab、后台原生点击、SPA、detach/reattach 和 emergency detach 验收。
+- 核心提交为 `85ee4961b378e30c79f1a588c5d2e189ce0c1291`，`BUNDLED_VERSION.json` 为 `dirty: false`；发布脚本继续拒绝 dirty 核心。
+- Deny、多 Profile、debugger conflict、Chrome restart/endpoint 变化和真实业务页仍需单独人工验收，详见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`。

@@ -35,6 +35,9 @@ test("manifest is full-access, workflow-only, and has maintenance UI", () => {
   assert.deepEqual(manifest.contributes.configuration.properties.existingChromeChannel.enum, ["stable", "beta", "dev", "canary"]);
   assert.deepEqual(manifest.contributes.configuration.properties.existingChromeRequireExplicitStart.enum, [true]);
   assert.equal(manifest.contributes.page.route, "/page");
+  assert.deepEqual(manifest.ui.hostCapabilities, ["clipboard.writeText"]);
+  const panel = fs.readFileSync(path.join(pluginDir, "assets/panel.js"), "utf8");
+  assert.doesNotMatch(panel, /toast\.show/);
 });
 
 test("all workflow adapters are generated and side effects require review", async () => {
@@ -70,7 +73,7 @@ test("emergency detach is a reviewed management action", async () => {
 test("bundled bridge metadata matches package and records a commit", () => {
   const metadata = JSON.parse(fs.readFileSync(path.join(pluginDir, "vendor/browser-bridge/BUNDLED_VERSION.json"), "utf8"));
   assert.equal(metadata.name, "browser-bridge");
-  assert.equal(metadata.version, "3.1.0");
+  assert.equal(metadata.version, "3.1.1");
   assert.match(metadata.commit, /^[0-9a-f]{40}$/);
   assert.equal(typeof metadata.dirty, "boolean");
 });

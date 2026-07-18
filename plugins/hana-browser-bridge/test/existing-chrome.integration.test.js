@@ -74,6 +74,27 @@ test("existing Chrome Auto Connect requires reviewed start and never owns the us
   assert.equal(attached.ok, true);
   assertNoRoutingSecrets(attached);
 
+  // Regression: after a second tab becomes active, native mouse input to the first
+  // claimed tab must activate that target before Input.dispatchMouseEvent.
+  const backgroundingTab = parseText(await callBridgeTool("browser_new_tab", { url: fixture.url }, ctx));
+  assert.equal(backgroundingTab.ok, true);
+  assertNoRoutingSecrets(backgroundingTab);
+  const clicked = parseText(await callBridgeTool("browser_action", {
+    targetId: created.targetId,
+    action: "click",
+    selector: "#spa-action",
+    waitAfterMs: 100,
+  }, ctx));
+  assert.equal(clicked.ok, true);
+  assert.equal(clicked.mode, "native");
+  const spaState = parseText(await callBridgeTool("browser_dom", {
+    targetId: created.targetId,
+    expression: "({marker:document.querySelector('#spa-marker')?.textContent,hash:location.hash,clicks:window.__bbTest?.clicks})",
+  }, ctx));
+  assert.deepEqual(spaState.value, { marker: "spa-ok", hash: "#accepted", clicks: 1 });
+  assertNoRoutingSecrets(clicked);
+  assertNoRoutingSecrets(spaState);
+
   const counters = parseText(await callBridgeTool("browser_read_counters", { targetId: created.targetId }, ctx));
   assert.equal(counters.ok, true);
   assert.deepEqual(counters.counters, { total: 0, success: 0, fail: 0 });
@@ -82,6 +103,9 @@ test("existing Chrome Auto Connect requires reviewed start and never owns the us
   assert.equal(status.connection.mode, "existing-chrome");
   assert.equal(status.connection.explicitStartGranted, true);
   assert.equal(status.chrome.owned, false);
+  assert.equal(status.chrome.endpoint, "auto-connect:available");
+  assert.equal(status.chrome.userDataDir, "configured");
+  assert.doesNotMatch(JSON.stringify(status.chrome), /auto-connect:\d+|hana-bb-plugin-it-|\/Users\//);
   assert.equal(status.mcp.connected, true);
   assert.equal(status.security.rawCdpExposed, false);
 

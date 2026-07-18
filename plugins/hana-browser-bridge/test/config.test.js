@@ -55,6 +55,7 @@ test("existing Chrome mode resolves user data without treating it as a launch pr
   assert.equal(config.autoStartChrome, false);
   assert.equal(config.existingChromeRequireExplicitStart, true);
   assert.equal(config.existingChromeUserDataDir, daily);
+  assert.equal(config.existingChromeUserDataConfigured, true);
 });
 
 test("Chrome channel discovery uses platform-specific user data roots", () => {

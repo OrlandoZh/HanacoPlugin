@@ -1,9 +1,9 @@
 # Hana Browser Bridge：现有 Chrome 与人机协作改造方案
 
-- 状态：P0-A 至 P1-C 已实施并通过隔离集成验收；P1-D 真实用户 Chrome 授权验收待人工执行
-- 日期：2026-07-17
-- Hana 插件：`hana-browser-bridge 0.2.0`
-- Browser Bridge 核心：`browser-bridge 3.1.0`
+- 状态：P0-A 至 P1-C 已完成；P1-D 已通过真实 Chrome Allow、claim、多 tab、后台原生点击、SPA 与 detach/reattach，Deny/多 Profile/调试器冲突/Chrome restart/真实业务页仍待人工门禁
+- 日期：2026-07-18
+- Hana 插件：`hana-browser-bridge 0.2.1`
+- Browser Bridge 核心：`browser-bridge 3.1.1`
 - 当前目标平台：HanaAgent / macOS
 - 后续平台：Windows、Linux
 
@@ -163,7 +163,7 @@ Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugg
 - MCP stop/unload 不关闭非插件拥有的 Chrome；
 - dedicated 全量回归和 1030 条业务仿真保持通过。
 
-注意：核心工作树尚未形成新提交，因此同步元数据标记为 `dirty: true`；发布脚本默认拒绝打包 dirty 核心。正式发布前必须先提交核心改造，再重新同步、复测、升级插件版本并打包。
+核心现已提交为 `85ee4961b378e30c79f1a588c5d2e189ce0c1291`，同步元数据为 `browser-bridge 3.1.1`、`dirty: false`。发布脚本继续默认拒绝打包 dirty 核心。
 
 ## 4. 外部事实核验
 
@@ -816,4 +816,4 @@ P2   Hana 独立扩展 + Native Host
 P3   上传、下载与更高层语义
 ```
 
-当前结果：P0-A 至 P1-C 已完成（含独立 Endpoint/DevToolsActivePort provider、连接状态、claim 门禁和 `browser_emergency_detach`）；P1-D 已完成临时 Chrome Auto Connect、dedicated 全回归和 1030 条仿真，记录见 `docs/PHASE1D_1030_ACCEPTANCE_2026-07-17.md`。真实用户 Chrome 的 Allow/Deny、多 Profile、调试器冲突及真实业务页仍需人工验收。Extension/Native Host 和文件能力不进入本轮改造。
+当前结果：P0-A 至 P1-C 已完成（含独立 Endpoint/DevToolsActivePort provider、连接状态、claim 门禁和 `browser_emergency_detach`）；P1-D 已完成临时 Chrome Auto Connect、dedicated 全回归、1030 条仿真，以及真实 Chrome 的 Allow、显式启动、claim、多 tab 隔离、后台 target 原生点击、SPA、detach/reattach 和非所有权关闭验收。真实 Chrome 记录见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`。Deny、多 Profile、调试器冲突、Chrome restart/endpoint 变化和真实业务页仍需单独人工验收。Extension/Native Host 和文件能力不进入本轮改造。

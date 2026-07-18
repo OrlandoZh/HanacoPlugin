@@ -118,7 +118,15 @@ export async function launchChrome({ autoConnect = false } = {}) {
 export async function startFixture() {
   const html = `<!doctype html><meta charset="utf-8"><title>Browser Bridge Plugin Fixture</title>
   <div>总数 <span id="total">0</span> 成功 <span id="success">0</span> 失败 <span id="fail">0</span></div>
-  <input id="trace-input"><script>window.__bbTest={getCounters:()=>({total:0,success:0,fail:0})};</script>`;
+  <input id="trace-input"><button id="spa-action">SPA</button><span id="spa-marker">ready</span>
+  <script>
+  window.__bbTest={getCounters:()=>({total:0,success:0,fail:0}),clicks:0};
+  document.querySelector('#spa-action').addEventListener('click',()=>{
+    history.pushState({accepted:true},'',location.pathname+'?spa=1#accepted');
+    window.__bbTest.clicks+=1;
+    document.querySelector('#spa-marker').textContent='spa-ok';
+  });
+  </script>`;
   const server = http.createServer((_request, response) => {
     response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     response.end(html);

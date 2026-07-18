@@ -1,6 +1,5 @@
 const PROTOCOL = "hana.plugin.ui";
 const VERSION = 1;
-let seq = 0;
 
 function targetOrigin() {
   const explicit = new URLSearchParams(location.search).get("hana-host-origin");
@@ -9,23 +8,6 @@ function targetOrigin() {
 }
 function post(message) { window.parent.postMessage(message, targetOrigin()); }
 function event(type, payload) { post({ protocol: PROTOCOL, version: VERSION, kind: "event", type, payload }); }
-function request(type, payload, timeoutMs = 10000) {
-  const id = `hana-plugin-${Date.now()}-${++seq}`;
-  const origin = targetOrigin();
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => { removeEventListener("message", onMessage); reject(new Error(`Host request timed out: ${type}`)); }, timeoutMs);
-    function onMessage(evt) {
-      if (evt.source !== window.parent || (origin !== "*" && evt.origin !== origin)) return;
-      const msg = evt.data || {};
-      if (msg.protocol !== PROTOCOL || msg.version !== VERSION || msg.id !== id || msg.type !== type) return;
-      clearTimeout(timeout); removeEventListener("message", onMessage);
-      if (msg.kind === "error") reject(new Error(msg.error?.message || `Host request failed: ${type}`));
-      else resolve(msg.payload);
-    }
-    addEventListener("message", onMessage);
-    post({ protocol: PROTOCOL, version: VERSION, id, kind: "request", type, payload });
-  });
-}
 function currentPluginId() {
   const match = /^\/api\/plugins\/([^/]+)(?:\/|$)/.exec(location.pathname || "");
   if (!match) throw new Error("Plugin route is not under /api/plugins/:pluginId/");
@@ -46,7 +28,6 @@ function apiFetch(relative, init = {}) {
 const hana = {
   ready: () => event("hana.ready"),
   ui: { resize: (size) => event("ui.resize", size) },
-  toast: { show: (input) => request("toast.show", input) },
 };
 
 const root = document.querySelector("#root");
@@ -99,23 +80,31 @@ async function refresh() {
   document.querySelector("#start").textContent = existing ? "授权并连接" : "启动";
   document.querySelector("#error").hidden = true;
 }
+function showNotice(message, type = "error") {
+  const box = document.querySelector("#error");
+  box.hidden = false;
+  box.className = `notice ${type}`;
+  box.textContent = message;
+}
 async function action(name) {
   setBusy(true);
   try {
     const res = await apiFetch(`api/${name}`, { method: "POST" });
     if (!res.ok) throw new Error(`${name} HTTP ${res.status}`);
     await refresh();
-    await hana.toast.show({ message: `Browser Bridge：${name} 完成`, type: "success" });
+    showNotice(`Browser Bridge：${name} 完成`, "success");
   } catch (error) {
-    const box = document.querySelector("#error"); box.hidden = false; box.textContent = error.message;
-    await hana.toast.show({ message: error.message, type: "error" });
+    showNotice(error.message, "error");
   } finally { setBusy(false); }
 }
 function setBusy(busy) { document.querySelectorAll("button").forEach((button) => { button.disabled = busy; }); }
-document.querySelector("#refresh").onclick = () => { setBusy(true); refresh().finally(() => setBusy(false)); };
+document.querySelector("#refresh").onclick = () => {
+  setBusy(true);
+  refresh().catch((error) => showNotice(error.message, "error")).finally(() => setBusy(false));
+};
 document.querySelector("#start").onclick = () => action("start");
 document.querySelector("#restart").onclick = () => action("restart");
 document.querySelector("#emergency").onclick = () => action("emergency-detach");
 document.querySelector("#stop").onclick = () => action("stop");
-refresh().catch((error) => { document.querySelector("#error").hidden = false; document.querySelector("#error").textContent = error.message; });
+refresh().catch((error) => showNotice(error.message, "error"));
 hana.ready(); hana.ui.resize({ height: 620 });
