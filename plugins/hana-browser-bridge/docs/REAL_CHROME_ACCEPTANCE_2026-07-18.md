@@ -230,19 +230,20 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 | 项目 | 证据级别 | 结论 |
 |---|---|---|
 | `0.2.3` 单次 Allow | 最终安装副本 + 真实 Chrome | 通过；一次 reviewed start、一次只读工具、零重试 |
+| `0.2.3` Deny/latch/recovery | 最终安装副本 + 真实 Chrome | 通过；Deny 后 latch 生效，第二次调用不触发新提示，新的 reviewed start 后 Allow 恢复 |
+| restart 后防隐式重连/latch | 最终安装副本 + 真实 Chrome restart | 通过；旧运行时只返回显式重连要求并在第二次调用本地熔断，不隐式重连 |
 | 自动回归 | 最终源码/发布基线 | Hana 27/27 + 2/2；核心 258/258 + 8/8；Phase 7 1030/1030 |
 | Deny/Allow、restart、DevTools、claim、多 tab 等 | 真实 Chrome 历史门禁 | 行为已观察，但部分证据早于最终 `0.2.3` 熔断/reconnect 改造 |
 | 发布包 | 构建产物 | `hana-browser-bridge-0.2.3.zip` SHA256 为 `434dad05291a1db9809b292104a01e95fb5a560f6a95454b1026569bab8a8f9e`，内置核心 `3.1.3` / `ed0a2028e2fde57f0d7b25335d80d6011cf35b57` / `dirty=false` |
 
 ### 13.2 仍需补验
 
-1. **最终 `0.2.3` Deny/latch/recovery**：只触发一次 Deny；确认 `retryBlocked=true`；第二次业务调用直接返回 `BROWSER_CONNECT_REVIEW_REQUIRED` 且不出现新提示；重新 reviewed start 后只允许一次恢复尝试。
-2. **最终 `0.2.3` 断线/reconnect**：先成功连接，再由用户正常重启 Chrome 或制造 socket close；确认旧连接失效后不会由业务工具隐式重建 Browser WebSocket，必须重新 reviewed start。
-3. **HanaAgent UI/Reviewer E2E**：从 HanaAgent 对话调用 Reviewer 审批的 `browser_bridge_start`，随后只调用一次只读工具并完成一次 Allow。当前最终证据只覆盖已安装模块，不覆盖宿主 UI 调度。
-4. **Multi Profile**：只在本地验收页上记录实际可见范围；同一持久 runtime、一次授权、零自动重试，不根据 `browserContextId` 推断 Profile 名称。
-5. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
+1. **restart 后 reviewed reconnect 恢复**：当前只证明旧运行时不隐式重连和第二次调用 latch；尚未在 restart 后重新 reviewed start 并成功恢复，也未单独覆盖一般 socket close。
+2. **HanaAgent UI/Reviewer E2E**：全局配置已通过 HanaAgent 配置接口持久化为 `existing-chrome`，宿主对话确认 `mode=existing-chrome`、`ownsBrowser=false`、`toolCount=15`。先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未连接；最终安全结果为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。不存在自动 retry loop，失败原因尚未确定。
+3. **Multi Profile**：只在本地验收页上记录实际可见范围；同一持久 runtime、一次授权、零自动重试，不根据 `browserContextId` 推断 Profile 名称。
+4. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
 
-本次审查仅复跑不会连接用户 Chrome 的自动测试，没有主动执行以上门禁，以免再次出现授权提示。
+本轮已执行 Deny/recovery、restart 防隐式重连和 HanaAgent 宿主尝试；宿主连续失败后已经停止。Multi Profile 与真实业务页本轮未执行。
 
 ### 13.3 明确不在本验收范围
 
@@ -252,3 +253,72 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 - 下载并导入 **2026-06-01 至 2026-07-18** 的真实追溯码。该生产任务尚未执行，且最终提交必须再次人工审批。
 
 `1030/1030` 是隔离 fixture 的自动验收证据，不是生产追溯码下载或导入完成证明。
+
+
+## 14. `0.2.3` 最终 Deny/recovery/reconnect 补验
+
+### 14.1 Deny 与 latch
+
+使用已安装 `0.2.3` 副本执行一次 reviewed start 和一次 `browser_list_tabs`，用户在唯一一次 Chrome 提示中选择 Deny：
+
+```json
+{"phase":"first-tool","observed":"deny","retryBlocked":true,"retryBlockReason":"consent-denied","browserConnected":false,"errorCode":null}
+{"phase":"second-tool","blockedWithoutRetry":true,"errorCode":"BROWSER_CONNECT_REVIEW_REQUIRED","retryBlocked":true,"retryBlockReason":"consent-denied","browserConnected":false}
+{"phase":"deny-latch-result","passed":true}
+{"phase":"cleanup","mcpStopped":true,"browserStopped":false}
+```
+
+结论：首次 Deny 正确设置 latch；第二次业务调用没有到达底层连接，也没有产生第二个 Chrome 授权提示；清理没有关闭用户 Chrome。
+
+### 14.2 reviewed Allow recovery
+
+在用户明确准备后重新 reviewed start，并只调用一次 `browser_list_tabs`：
+
+```json
+{"phase":"allow-recovery","observed":"allow","passed":true,"tabCount":1,"browserConnected":true,"retryBlocked":false,"retryBlockReason":null,"errorCode":null}
+{"phase":"cleanup","mcpStopped":true,"browserStopped":false}
+```
+
+结论：Deny 后的新 reviewed start 可以单次恢复；恢复成功后 latch 清除，用户 Chrome 仍不归插件所有。
+
+### 14.3 Chrome restart 后不隐式重连与 latch
+
+先建立成功连接，再由脚本通过正常退出流程重启 Chrome，不使用强制结束：
+
+```json
+{"phase":"connected","ok":true,"browserConnected":true,"ownsBrowser":false}
+{"phase":"restart","chromeExitedNormally":true,"chromeReopened":true,"endpointChanged":true}
+{"phase":"post-restart-first-tool","resultClass":"explicit-reconnect-required","retryBlocked":true,"retryBlockReason":"connection-failed","browserConnected":false}
+{"phase":"post-restart-second-tool","resultClass":"review-required","retryBlocked":true,"retryBlockReason":"connection-failed","browserConnected":false}
+{"phase":"reconnect-gate-result","passed":true}
+{"phase":"cleanup","mcpStopped":true,"browserStopped":false}
+```
+
+结论：endpoint generation 改变后，旧运行时没有隐式建立新 Browser WebSocket；第一次调用返回显式重连要求，第二次调用被本地 review latch 拦截。用户 Chrome 正常重开且未被插件关闭。此结果不证明 restart 后新的 reviewed start 已成功恢复，也不覆盖一般 socket close。
+
+### 14.4 HanaAgent 宿主 E2E 尝试
+
+HanaAgent 插件配置已持久化为：
+
+```json
+{"connectionMode":"existing-chrome","existingChromeChannel":"stable","existingChromeRequireExplicitStart":true,"toolProfile":"workflow"}
+```
+
+宿主对话能够读取并报告以下安全字段：
+
+```text
+mode=existing-chrome
+ownsBrowser=false
+toolCount=15
+```
+
+先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`。三轮均未连接；最后一轮记录：
+
+```text
+tabCount=null
+retryBlocked=true
+browserConnected=false
+browserStopped=false
+```
+
+各轮均没有自动 retry loop。最后一轮 stop 后 `browserStopped=false`；随后独立复查实际 Browser Bridge 子进程数为 0，用户 Chrome 仍存活。失败原因尚未确定。**因此 HanaAgent UI/Reviewer 完整 E2E 仍未通过，不能与模块级真实 Chrome 门禁合并宣称完成。**

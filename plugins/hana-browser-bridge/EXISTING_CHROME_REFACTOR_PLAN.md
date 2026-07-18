@@ -1,6 +1,6 @@
 # Hana Browser Bridge：现有 Chrome 与人机协作改造方案
 
-- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow 与自动回归已通过；最终 Deny/reconnect、HanaAgent UI/Reviewer、Multi Profile 和真实业务页仍待门禁
+- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow、Deny/latch/recovery、restart 后防隐式重连/latch 与自动回归已通过；HanaAgent UI/Reviewer、Multi Profile 和真实业务页仍待门禁
 - 日期：2026-07-18
 - Hana 插件：`hana-browser-bridge 0.2.3`
 - Browser Bridge 核心：`browser-bridge 3.1.3`
@@ -165,14 +165,17 @@ Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugg
 |---|---|---|
 | P0-A 至 P1-C 代码与自动回归 | 完成 | 日志最小化、连接分层、ownership、explicit start、claim、emergency detach 均已落地并回归 |
 | 最终 `0.2.3` 单次 Allow | 完成 | 已安装副本一次 reviewed start + 一次只读工具，零自动重试，用户 Chrome 未关闭 |
-| Deny、restart、DevTools 等真实行为 | 历史门禁完成 | 已在真实 Chrome 观察；但最终 `0.2.3` 的 Deny latch 和断线后 reviewed reconnect 仍需版本级补验 |
+| 最终 `0.2.3` Deny/latch/recovery | 完成 | Deny 后进入 `consent-denied`；第二次调用本地返回 `BROWSER_CONNECT_REVIEW_REQUIRED` 且无新提示；新的 reviewed start 后单次 Allow 恢复 |
+| restart 后防隐式重连/latch | 完成 | 正常重启 Chrome 后 endpoint 改变；旧运行时返回 `EXPLICIT_RECONNECT_REQUIRED`，第二次调用进入 review-required，绝不隐式握手 |
+| restart 后 reviewed reconnect 恢复 | 未完成 | 尚未在同一 restart 场景中重新 reviewed start 并成功恢复，也未单独覆盖一般 socket close |
+| restart、DevTools 等其他真实行为 | 历史门禁完成 | 已在真实 Chrome 观察 generation、旧 claim、两种 DevTools 顺序、多 tab、后台点击、SPA 和 detach/reattach |
 | Multi Profile | 未完成 | 旧 retry-loop 验收无效且已停止；必须改用同一持久 runtime、一次授权、零自动重试 |
-| HanaAgent UI/Reviewer 完整链路 | 未完成 | 最终 Allow 证据直接调用已安装插件模块，不等同于从 HanaAgent 对话和 Reviewer 发起 |
+| HanaAgent UI/Reviewer 完整链路 | 未完成 | 配置已持久化为 `existing-chrome`，宿主确认 mode/ownership/15 工具；三轮人工发起、每轮最多一次的 `browser_list_tabs` 均未连接，最终 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false` |
 | 真实业务页 | 未完成 | 只允许先做小批量只读/可撤销准入；不得用 fixture 结果替代 |
 | 生产追溯码下载与导入 | 不属于本轮插件交付 | 2026-06-01 至 2026-07-18 的生产业务任务尚未执行，最终提交需独立人工审批 |
 | Phase 2 / Phase 3 | 延后 | Hana MV3 Extension + Native Host、上传/下载及更高层文件语义 |
 
-本轮文档审查不主动建立新的 Browser WebSocket，避免再次触发 Chrome 授权提示。剩余真实门禁必须按 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md` 逐项、单次执行。
+本轮已经执行 Deny/recovery、restart 防隐式重连和 HanaAgent 宿主尝试；宿主连续失败后已经停止。剩余门禁必须按 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md` 逐项、单次执行，禁止 retry loop。
 
 ## 4. 外部事实核验
 
@@ -837,8 +840,8 @@ P3   上传、下载与更高层语义
 当前结果：
 
 - **P0-A 至 P1-C：完成。** 代码、自动测试、工具最小化、ownership、claim、emergency detach 和日志脱敏均已收口。
-- **P1-D：部分完成，不能写成“全部完成”。** 临时 Chrome Auto Connect、dedicated 全回归、1030/1030 仿真、最终 `0.2.3` 单次 Allow 已完成；真实 Chrome 历史门禁已覆盖 Deny/Allow、restart generation、旧 claim、DevTools 共存、多 tab、后台点击、SPA 和 detach/reattach。
-- **P1-D 剩余版本级门禁：** 最终 `0.2.3` Deny/latch/第二次调用不弹框/ reviewed recovery；连接成功后的断线或 Chrome restart 不隐式重连；HanaAgent 对话与 Reviewer 完整 E2E；Multi Profile；真实业务页小批量只读/可撤销准入。
+- **P1-D：部分完成，不能写成“全部完成”。** 临时 Chrome Auto Connect、dedicated 全回归、1030/1030 仿真，以及最终 `0.2.3` 的单次 Allow、Deny/latch/reviewed recovery、restart 后防隐式重连/latch 均已完成；真实 Chrome 历史门禁还覆盖旧 claim、DevTools 共存、多 tab、后台点击、SPA 和 detach/reattach。
+- **P1-D 剩余门禁：** restart 后新的 reviewed start 成功恢复、一般 socket close、HanaAgent 对话与 Reviewer 完整 E2E、Multi Profile、真实业务页小批量只读/可撤销准入。宿主 E2E 已确认配置和 mode/ownership/工具数，但三轮人工发起且每轮最多一次的 `browser_list_tabs` 均未连接；不得把这些失败轮次记为通过。
 - **P2、P3：延后。** 精确窗口/Profile/tab 授权、上传/下载和文件语义不属于当前 P0 交付。
 - **生产任务：未执行。** 下载并导入 2026-06-01 至 2026-07-18 的追溯码不是插件自动验收的一部分，必须作为独立业务任务并在最终提交前再次获得人工审批。
 

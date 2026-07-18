@@ -160,19 +160,20 @@ dist/hana-browser-bridge-0.2.3.zip.sha256
 | Browser Bridge 核心 `3.1.3` | `npm run check`、258/258 单元测试、8/8 集成 spec、Phase 7 1030/1030 全部通过 |
 | 构建可追溯性 | 核心提交 `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`，`BUNDLED_VERSION.json` 为 `dirty: false` |
 | 最终版本单次 Allow | 已安装 `0.2.3` 副本完成一次 reviewed start + 一次只读 `browser_list_tabs`；只出现一次授权、零自动重试，清理后无孤立 bridge 进程且用户 Chrome 保持运行 |
-| 历史真实 Chrome 行为 | 已观察 Deny（HTTP 403）/Allow 恢复、restart generation、旧 claim `NO_SESSION`、两种 DevTools attach 顺序 `COEXIST`、后台原生点击、SPA、detach/reattach 和 emergency detach |
+| 最终版本 Deny/latch/recovery | 真实 Deny 后 `retryBlocked=true`、原因 `consent-denied`；第二次调用返回 `BROWSER_CONNECT_REVIEW_REQUIRED` 且无新提示；新的 reviewed start 后单次 Allow 恢复通过 |
+| restart 后不隐式重连/latch | 已连接后正常重启 Chrome，endpoint generation 改变；旧运行时首次调用返回 `EXPLICIT_RECONNECT_REQUIRED`，第二次调用本地熔断，均未隐式重连，用户 Chrome 未被插件关闭 |
+| 历史真实 Chrome 行为 | 已观察 restart generation、旧 claim `NO_SESSION`、两种 DevTools attach 顺序 `COEXIST`、后台原生点击、SPA、detach/reattach 和 emergency detach |
 
 Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 的判定标准是旧 Chrome 主进程退出、旧 endpoint 不可达、新 endpoint fingerprint 改变，而不是要求该文件消失。
 
 ### 待完成的真实门禁
 
-1. **最终 `0.2.3` Deny/latch/recovery**：在同一发布包上只触发一次 Deny，确认 latch 被设置、第二次业务调用不再触发提示，并在新的 reviewed start 后单次恢复。
-2. **最终 `0.2.3` 断线/reconnect**：连接建立后重启 Chrome 或断开 socket，确认返回 `EXPLICIT_RECONNECT_REQUIRED`/受控错误且绝不隐式重连；新的 reviewed start 才允许下一次尝试。
-3. **HanaAgent 宿主级 E2E**：目前最终 Allow 证据是直接调用已安装插件模块；仍需从 HanaAgent 对话 -> Reviewer -> `browser_bridge_start` -> 一次只读业务工具完整跑通。
-4. **Multi Profile**：仍需在同一持久 runtime、一次授权、零自动重试条件下，仅用本地验收页记录 Chrome 实际可见范围；不得根据 `browserContextId` 猜测 Profile 名称。
-5. **真实业务页准入**：需先做小批量只读/可撤销验收和人工确认，不能用 1030 条隔离仿真替代。
+1. **restart 后 reviewed reconnect 恢复**：已证明旧运行时不会隐式重连，但尚未在同一 restart 场景中执行新的 reviewed start 并成功恢复，也未单独覆盖一般 socket close。
+2. **HanaAgent 宿主级 E2E**：HanaAgent 全局配置已切换并持久化为 `existing-chrome`；宿主对话已确认 `mode=existing-chrome`、`ownsBrowser=false`、`toolCount=15`。先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未建立连接；最终安全状态为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。没有自动 retry loop；失败原因尚未确定。
+3. **Multi Profile**：仍需在同一持久 runtime、一次授权、零自动重试条件下，仅用本地验收页记录 Chrome 实际可见范围；不得根据 `browserContextId` 猜测 Profile 名称。
+4. **真实业务页准入**：需先做小批量只读/可撤销验收和人工确认，不能用 1030 条隔离仿真替代。
 
-以上门禁均不得使用定时重连或 retry loop；为避免再次弹出 Chrome 授权框，本次文档审查没有主动执行这些真机门禁。
+剩余门禁均不得使用定时重连或 retry loop。本轮已执行 Deny/recovery、restart 防隐式重连和 HanaAgent 宿主尝试；宿主连续失败后已经停止，不再反复触发授权框。Multi Profile 与真实业务页本轮未执行。
 
 ### 明确延后
 

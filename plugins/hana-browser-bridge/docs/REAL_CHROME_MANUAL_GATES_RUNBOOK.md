@@ -68,7 +68,7 @@ node scripts/real-chrome-manual-gates.mjs snapshot \
 
 ## 3. Chrome restart / endpoint generation 门禁
 
-> 状态：历史真实 Chrome generation/旧 claim 门禁已通过；最终 `0.2.3` 的“断线后不隐式重连、重新 reviewed start 才恢复”仍需按本节补验。整轮只能建立一次新连接，不得自动重试。
+> 状态：**restart 后不隐式重连与 second-call latch 已通过**。正常重启 Chrome 后 endpoint fingerprint 改变；旧运行时第一次调用返回 `EXPLICIT_RECONNECT_REQUIRED`，第二次调用返回 review-required，均未隐式建立新 Browser WebSocket。restart 后新的 reviewed start 成功恢复与一般 socket close 尚未补验。
 
 ### 3.1 restart 前
 
@@ -119,7 +119,7 @@ node scripts/real-chrome-manual-gates.mjs compare \
 
 ## 4. Deny 门禁
 
-> 状态：真实 Chrome 曾观察到 Deny/HTTP 403，但最终 `0.2.3` 发布包的 latch、第二次调用不弹框和 reviewed recovery 尚未做版本级真机闭环。本节仍是待执行门禁。
+> 状态：最终 `0.2.3` 已通过。真实 Deny 后 `retryBlocked=true`、原因 `consent-denied`；第二次调用返回 `BROWSER_CONNECT_REVIEW_REQUIRED` 且没有出现新授权提示。
 
 Deny 必须在一个会显示新授权对话框的授权周期内执行。
 
@@ -150,7 +150,7 @@ Chrome 显示远程调试授权对话框时，用户选择“取消”或 Deny�
 
 ## 5. Allow 恢复门禁
 
-> 状态：最终 `0.2.3` 的单次 Allow 已通过；Deny 后的 reviewed recovery 仍需与第 4 节同轮闭环。
+> 状态：最终 `0.2.3` 已通过。Deny 后重新 reviewed start，再执行一次只读工具可恢复 Allow；恢复后 `browserConnected=true`、`retryBlocked=false`。
 
 Deny 完成后，确认用户已准备处理下一次提示，再手工重新发起一次：
 
@@ -280,19 +280,20 @@ file mode=0600
 
 fingerprint 仅保存在临时文件中，不写入仓库。
 
-截至 2026-07-18，真实 Chrome 历史门禁已覆盖 restart generation、旧 claim、Deny/Allow 和 DevTools 共存；最终 `0.2.3` 已完成一次单次 Allow，不得将这些合并表述为“最终版本所有真实门禁完成”。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。多 Profile 旧 retry-loop 结果无效，脚本已停止并清理，不得再次使用。
+截至 2026-07-18，最终 `0.2.3` 已完成单次 Allow、Deny/latch/reviewed recovery，以及 Chrome restart 后防隐式重连/latch 门禁；历史门禁还覆盖旧 claim 与 DevTools 共存。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。HanaAgent 宿主调用已确认 existing-chrome mode/ownership/15 工具，但 `browser_list_tabs` 尚未建立 WebSocket；Multi Profile 旧 retry-loop 结果无效，脚本已停止并清理，不得再次使用。
 
-## 10. 审查后剩余门禁清单
+## 10. 当前门禁状态清单
 
 按优先级执行；任何一项开始前都要先确认用户已准备处理**最多一次** Chrome 授权提示。
 
-| 优先级 | 门禁 | 完成标准 |
+| 优先级 | 门禁 | 状态与完成标准 |
 |---|---|---|
-| P0 | 最终 `0.2.3` Deny/latch/recovery | 一次 Deny；状态进入 `consent-denied`；第二次业务调用不触发提示；新的 reviewed start 后一次 Allow 恢复 |
-| P0 | 最终 `0.2.3` 断线/reconnect | 已连接后 Chrome restart/socket close；业务工具不得隐式重连；重新 reviewed start 后才允许一次新握手；用户 Chrome 不由插件关闭 |
-| P0 | HanaAgent UI/Reviewer E2E | HanaAgent 对话 -> Reviewer -> `browser_bridge_start` -> 一次只读工具 -> 一次 Allow；只记录安全状态，不记录 tab 内容 |
-| P1 | Multi Profile | 两个本地验收页、同一 runtime、一次授权、零自动重试；记录 Chrome 实际可见范围，不推断 Profile 名称 |
-| P1 | 真实业务页准入 | 小批量、只读/可撤销、用户在场；先证明定位和计数正确，不点击生产提交 |
+| P0 | 最终 `0.2.3` Deny/latch/recovery | **完成**：一次 Deny；`consent-denied`；第二次调用无提示；新的 reviewed start 后一次 Allow 恢复 |
+| P0 | restart 后防隐式重连/latch | **完成**：Chrome 正常重启且 endpoint 改变；旧运行时显式要求 reconnect，第二次调用本地熔断；用户 Chrome 未关闭 |
+| P0 | restart 后 reviewed reconnect 恢复 | **未完成**：尚未在同一 restart 场景中重新 reviewed start 并成功恢复，也未单独覆盖一般 socket close |
+| P0 | HanaAgent UI/Reviewer E2E | **未完成**：配置和 `mode=existing-chrome`/`ownsBrowser=false`/15 工具已确认；三轮人工发起、每轮最多一次的 `browser_list_tabs` 均未连接；禁止 retry loop |
+| P1 | Multi Profile | **未完成**：两个本地验收页、同一 runtime、一次授权、零自动重试；记录 Chrome 实际可见范围，不推断 Profile 名称 |
+| P1 | 真实业务页准入 | **未完成**：小批量、只读/可撤销、用户在场；先证明定位和计数正确，不点击生产提交 |
 
 ### 10.1 HanaAgent UI/Reviewer E2E 最小步骤
 
@@ -301,6 +302,8 @@ fingerprint 仅保存在临时文件中，不写入仓库。
 3. 只发起一次 `browser_list_tabs`；Chrome 出现提示时只处理一次。
 4. 仅记录 `mode=existing-chrome`、`ownsBrowser=false`、工具数、tab 数和安全 latch 状态，不记录标题、URL、正文或 endpoint。
 5. 调用 stop/emergency detach，确认 `browserStopped=false`，用户 Chrome 保持运行。
+
+2026-07-18 实际执行结果：配置已持久化为 `existing-chrome`，宿主能够报告正确 mode/ownership/工具数。先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未连接；最后一轮为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。不存在自动 retry loop，失败原因尚未确定；在完成原因定位前不得继续反复触发 Chrome 授权框。
 
 ### 10.2 生产业务边界
 
