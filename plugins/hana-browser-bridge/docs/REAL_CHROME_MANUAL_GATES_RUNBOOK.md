@@ -68,7 +68,7 @@ node scripts/real-chrome-manual-gates.mjs snapshot \
 
 ## 3. Chrome restart / endpoint generation 门禁
 
-> 状态：**restart 后不隐式重连与 second-call latch 已通过**。正常重启 Chrome 后 endpoint fingerprint 改变；旧运行时第一次调用返回 `EXPLICIT_RECONNECT_REQUIRED`，第二次调用返回 review-required，均未隐式建立新 Browser WebSocket。restart 后新的 reviewed start 成功恢复与一般 socket close 尚未补验。
+> 状态：**restart 后不隐式重连、second-call latch 与新的 reviewed start 恢复均已通过**。正常重启 Chrome 后 endpoint fingerprint 改变；旧运行时第一次调用返回 `EXPLICIT_RECONNECT_REQUIRED`，第二次调用返回 review-required，均未隐式建立新 Browser WebSocket。随后由用户处理一次 Allow，新的 reviewed start 成功连接，单次 list 成功，安全 stop 未关闭用户 Chrome。一般 socket close 尚未补验。
 
 ### 3.1 restart 前
 
@@ -281,7 +281,7 @@ file mode=0600
 
 fingerprint 仅保存在临时文件中，不写入仓库。
 
-截至 2026-07-18，最终 `0.2.3` 已完成单次 Allow、Deny/latch/reviewed recovery，以及 Chrome restart 后防隐式重连/latch 门禁；历史门禁还覆盖旧 claim 与 DevTools 共存。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。HanaAgent `0.2.3` 宿主失败已定位为 start/list 授权时序错位；`0.2.4` 已修复为 reviewed start 内直接连接；宿主复验证明该语义生效，但固定 5 秒 WebSocket open 窗口不足，失败后提示仍停留并已取消。`0.2.5` 增加单次 30 秒窗口，并已完成一次 reviewed start、一次 list、一次 stop 的宿主复验。Multi Profile 旧 retry-loop 结果无效，脚本已停止并清理，不得再次使用。
+截至 2026-07-18，最终 `0.2.3` 已完成单次 Allow、Deny/latch/reviewed recovery，以及 Chrome restart 后防隐式重连/latch 门禁；`0.2.5` 又完成 restart 后新的 reviewed start 恢复。历史门禁还覆盖旧 claim 与 DevTools 共存。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。HanaAgent `0.2.3` 宿主失败已定位为 start/list 授权时序错位；`0.2.4` 已修复为 reviewed start 内直接连接；宿主复验证明该语义生效，但固定 5 秒 WebSocket open 窗口不足，失败后提示仍停留并已取消。`0.2.5` 增加单次 30 秒窗口，并已完成一次 reviewed start、一次 list、一次 stop 的宿主复验。Multi Profile 旧 retry-loop 结果无效，脚本已停止并清理，不得再次使用。
 
 ## 10. 当前门禁状态清单
 
@@ -291,7 +291,7 @@ fingerprint 仅保存在临时文件中，不写入仓库。
 |---|---|---|
 | P0 | 最终 `0.2.3` Deny/latch/recovery | **完成**：一次 Deny；`consent-denied`；第二次调用无提示；新的 reviewed start 后一次 Allow 恢复 |
 | P0 | restart 后防隐式重连/latch | **完成**：Chrome 正常重启且 endpoint 改变；旧运行时显式要求 reconnect，第二次调用本地熔断；用户 Chrome 未关闭 |
-| P0 | restart 后 reviewed reconnect 恢复 | **未完成**：尚未在同一 restart 场景中重新 reviewed start 并成功恢复，也未单独覆盖一般 socket close |
+| P0 | restart 后 reviewed reconnect 恢复 | **完成**：Chrome 正常重启且 generation 改变；用户处理一次 Allow 后新的 reviewed start 成功、单次 list 成功、stopChrome=false；一般 socket close 仍未完成 |
 | P0 | HanaAgent UI/Reviewer E2E | **完成**：`0.2.5` 单次 reviewed start 成功、单次 list 成功、stopChrome=false；无自动重试、无重复提示、用户 Chrome 保持运行 |
 | P1 | Multi Profile | **未完成**：两个本地验收页、同一 runtime、一次授权、零自动重试；记录 Chrome 实际可见范围，不推断 Profile 名称 |
 | P1 | 真实业务页准入 | **未完成**：小批量、只读/可撤销、用户在场；先证明定位和计数正确，不点击生产提交 |

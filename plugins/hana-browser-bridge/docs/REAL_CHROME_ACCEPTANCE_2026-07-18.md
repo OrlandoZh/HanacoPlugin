@@ -238,7 +238,7 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 
 ### 13.2 仍需补验
 
-1. **restart 后 reviewed reconnect 恢复**：当前只证明旧运行时不隐式重连和第二次调用 latch；尚未在 restart 后重新 reviewed start 并成功恢复，也未单独覆盖一般 socket close。
+1. **一般 socket close**：restart 后新的 reviewed start 已成功恢复；非重启场景下的一般 WebSocket 异常关闭仍未单独覆盖。
 2. **HanaAgent UI/Reviewer E2E**：全局配置已通过 HanaAgent 配置接口持久化为 `existing-chrome`，宿主对话确认 `mode=existing-chrome`、`ownsBrowser=false`、`toolCount=15`。`0.2.3` 先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未连接；最终安全结果为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。不存在自动 retry loop。第 16 节已定位 start/list 授权时序根因并记录 `0.2.4` 修复；第 17 节记录 `0.2.4` 的 5 秒窗口失败和 `0.2.5` 修复。
 3. **Multi Profile**：只在本地验收页上记录实际可见范围；同一持久 runtime、一次授权、零自动重试，不根据 `browserContextId` 推断 Profile 名称。
 4. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
@@ -294,7 +294,7 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 {"phase":"cleanup","mcpStopped":true,"browserStopped":false}
 ```
 
-结论：endpoint generation 改变后，旧运行时没有隐式建立新 Browser WebSocket；第一次调用返回显式重连要求，第二次调用被本地 review latch 拦截。用户 Chrome 正常重开且未被插件关闭。此结果不证明 restart 后新的 reviewed start 已成功恢复，也不覆盖一般 socket close。
+结论：endpoint generation 改变后，旧运行时没有隐式建立新 Browser WebSocket；第一次调用返回显式重连要求，第二次调用被本地 review latch 拦截。用户 Chrome 正常重开且未被插件关闭。此阶段结果本身不证明 restart 后新的 reviewed start 已成功恢复，也不覆盖一般 socket close；后续恢复补验见第 19 节。
 
 ### 14.4 HanaAgent 宿主 E2E 尝试
 
@@ -419,4 +419,47 @@ browserStopped=false
 
 独立复查：Browser Bridge 子进程数为 0；用户 Chrome 主进程仍存活；屏幕上没有残留远程调试授权提示。
 
-结论：**HanaAgent UI/Reviewer 宿主链路已通过 `0.2.5` 的最小 E2E：一次 reviewed start、一次 Chrome Allow、一次 list、一次安全 stop，零自动重试、零重复提示、用户 Chrome 未关闭。**该结论不覆盖 Multi Profile、一般 socket close、restart 后 reviewed recovery 或真实业务页准入。
+结论：**HanaAgent UI/Reviewer 宿主链路已通过 `0.2.5` 的最小 E2E：一次 reviewed start、一次 Chrome Allow、一次 list、一次安全 stop，零自动重试、零重复提示、用户 Chrome 未关闭。**第 19 节另行证明 restart 后 reviewed recovery；当前仍不覆盖 Multi Profile、一般 socket close 或真实业务页准入。
+
+
+## 19. Chrome restart 后 reviewed reconnect 恢复
+
+2026-07-18 在已安装 `hana-browser-bridge 0.2.5` 上补验 restart 后的新 reviewed start。整个过程没有强制结束 Chrome，也没有定时重连或自动 retry loop。
+
+### 19.1 正常 restart 与 generation 变化
+
+先采集脱敏基线，然后通过 Chrome 正常退出流程关闭并重新打开 stable channel。结果：
+
+```text
+chromeExitedNormally=true
+chromeReopened=true
+beforeReachable=true
+currentReachable=true
+endpointChanged=true
+```
+
+只记录 generation fingerprint 是否改变，不记录原始端口或 Browser WebSocket endpoint。
+
+### 19.2 reviewed recovery
+
+第一次 reviewed reconnect 等待窗口结束后返回 `connection-failed`；Chrome 提示随后由用户点击一次 Allow。该失败尝试已经结束并完成清理，没有内部重试。收到用户明确的“已允许”确认后，人工发起一个新的 reviewed start；新尝试在无需第二次用户操作的情况下成功：
+
+```text
+connectionMode=existing-chrome
+ownsBrowser=false
+toolCount=15
+mcpConnected=true
+browserConnected=true
+retryBlocked=false
+retryBlockReason=null
+errorCode=null
+```
+
+随后只调用一次 `browser_list_tabs`，结果 `ok=true`、`tabCount=1`；没有记录标题、URL 或正文。最后执行 `stopChrome=false` 清理：
+
+```text
+mcpStopped=true
+browserStopped=false
+```
+
+结论：**Chrome 正常重启并产生新的 endpoint generation 后，用户授权与新的 reviewed start 可以恢复连接；后续单次只读调用成功，插件清理不关闭用户 Chrome。**两次 reviewed start 是两个彼此独立、由人工状态变化分隔的尝试，不是 retry loop；Chrome 授权只需要一次用户点击。一般 socket close 仍需单独补验。

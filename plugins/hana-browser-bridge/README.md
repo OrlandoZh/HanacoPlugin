@@ -170,11 +170,11 @@ Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；resta
 
 ### 待完成的真实门禁
 
-1. **restart 后 reviewed reconnect 恢复**：已证明旧运行时不会隐式重连，但尚未在同一 restart 场景中执行新的 reviewed start 并成功恢复，也未单独覆盖一般 socket close。
+1. **一般 socket close**：restart 后新的 reviewed start 已成功恢复；非重启场景下的一般 WebSocket 异常关闭仍未单独覆盖。
 2. **Multi Profile**：仍需在同一持久 runtime、一次授权、零自动重试条件下，仅用本地验收页记录 Chrome 实际可见范围；不得根据 `browserContextId` 猜测 Profile 名称。
 3. **真实业务页准入**：需先做小批量只读/可撤销验收和人工确认，不能用 1030 条隔离仿真替代。
 
-剩余门禁均不得使用定时重连或 retry loop。`0.2.3` 宿主连续失败后已经停止，不再反复触发授权框；`0.2.4` 失败提示已取消且没有重试；`0.2.5` 已完成一次受控宿主复验，未出现重复提示。Multi Profile 与真实业务页本轮未执行。
+剩余门禁均不得使用定时重连或 retry loop。`0.2.3` 宿主连续失败后已经停止，不再反复触发授权框；`0.2.4` 失败提示已取消且没有重试；`0.2.5` 已完成宿主最小 E2E，并在 Chrome 正常重启、endpoint generation 改变后完成 reviewed reconnect 恢复。Multi Profile、一般 socket close 与真实业务页本轮未执行。
 
 ### 明确延后
 
