@@ -12,7 +12,16 @@ export const parameters = {
     },
     "action": {
       "type": "string",
-      "description": "click / hover / fill / type"
+      "enum": [
+        "click",
+        "hover",
+        "fill",
+        "type",
+        "focus",
+        "input",
+        "clear"
+      ],
+      "description": "selector 支持 click/hover/fill/type；ref 支持 click/hover/focus/input/clear（fill/type 会映射为 input）"
     },
     "selector": {
       "type": "string",
@@ -28,7 +37,10 @@ export const parameters = {
     },
     "fallback": {
       "type": "string",
-      "description": "click 兜底模式: 'synthetic' 强制 DOM 合成点击（默认原生 CDP 点击）"
+      "enum": [
+        "synthetic"
+      ],
+      "description": "selector click 兜底模式: 'synthetic' 强制 DOM 合成点击（默认原生 CDP 点击）"
     },
     "waitAfterMs": {
       "type": "number",
@@ -51,7 +63,29 @@ export const parameters = {
     "targetId",
     "action"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "required": [
+        "selector"
+      ],
+      "not": {
+        "required": [
+          "ref"
+        ]
+      }
+    },
+    {
+      "required": [
+        "ref"
+      ],
+      "not": {
+        "required": [
+          "selector"
+        ]
+      }
+    }
+  ]
 };
 export const sessionPermission = SIDE_EFFECT_PERMISSION;
 export async function execute(input, ctx) { return await executeProxyTool(name, input, ctx); }

@@ -42,6 +42,29 @@ for (const toolName of WORKFLOW_TOOLS) {
     required: REQUIRED_PARAMETERS.get(toolName) || [],
     additionalProperties: false,
   };
+  if (toolName === "browser_action") {
+    parameters.oneOf = [
+      { required: ["selector"], not: { required: ["ref"] } },
+      { required: ["ref"], not: { required: ["selector"] } },
+    ];
+  }
+  if (toolName === "browser_dom") {
+    parameters.allOf = [
+      {
+        if: { properties: { mode: { const: "verify" } }, required: ["mode"] },
+        then: { required: ["ref", "assertion"] },
+      },
+      {
+        if: {
+          anyOf: [
+            { properties: { mode: { const: "expression" } }, required: ["mode"] },
+            { not: { required: ["mode"] } },
+          ],
+        },
+        then: { required: ["expression"] },
+      },
+    ];
+  }
   const permission = READ_ONLY.has(toolName) ? "READ_ONLY_PERMISSION" : "SIDE_EFFECT_PERMISSION";
   const source = `// Generated from browser-bridge/tools/${toolName}.js. Do not edit manually.\n` +
 `import { executeProxyTool, ${permission} } from "../lib/tool-proxy.js";\n\n` +

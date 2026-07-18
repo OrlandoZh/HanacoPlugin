@@ -112,8 +112,8 @@ npm run pack:plugin -- --bridge-dir /absolute/path/to/browser-bridge
 输出：
 
 ```text
-dist/hana-browser-bridge-0.3.0.zip
-dist/hana-browser-bridge-0.3.0.zip.sha256
+dist/hana-browser-bridge-0.3.2.zip
+dist/hana-browser-bridge-0.3.2.zip.sha256
 ```
 
 发布包包含：
@@ -145,7 +145,7 @@ dist/hana-browser-bridge-0.3.0.zip.sha256
 ## 安全边界
 
 - `dedicated` 模式不得把 `chromeProfileDir` 指向日常 Chrome profile。
-- Page-Agent-inspired 控制层只做确定性 Observe/Act/Verify；HanaAgent 是唯一规划 Agent。element locator 只保存在 bridge 进程内，HanaAgent 只能看到短期 opaque ref。
+- Page-Agent-inspired 控制层只做确定性 Observe/Act/Verify；HanaAgent 是唯一规划 Agent。真实 DOM 节点身份只保存在 bridge/page registry 内，HanaAgent 只能看到短期 opaque ref；节点删除、导航或下一次 observe 后旧 ref 会 stale。
 - 不启用 REST/HTTP MCP。
 - 不把 CDP 监听到 LAN 或公网地址。
 - 不移除 browser-bridge 的点击安全护栏、危险 modal 取消逻辑或审计脱敏。

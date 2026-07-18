@@ -16,10 +16,17 @@ export const parameters = {
     },
     "mode": {
       "type": "string",
+      "enum": [
+        "expression",
+        "observe",
+        "verify"
+      ],
       "description": "expression(默认) / observe / verify"
     },
     "maxElements": {
-      "type": "number",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200,
       "description": "observe 最多返回元素数，默认 80，最大 200"
     },
     "includeDisabled": {
@@ -36,7 +43,16 @@ export const parameters = {
     },
     "assertion": {
       "type": "string",
-      "description": "verify: exact/contains/empty/visible/enabled/checked/selected"
+      "enum": [
+        "exact",
+        "contains",
+        "empty",
+        "visible",
+        "enabled",
+        "checked",
+        "selected"
+      ],
+      "description": "verify 断言；敏感字段禁止 exact/contains"
     },
     "expected": {
       "description": "verify 的期望值；实际输入内容不会回显"
@@ -45,7 +61,55 @@ export const parameters = {
   "required": [
     "targetId"
   ],
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "verify"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      "then": {
+        "required": [
+          "ref",
+          "assertion"
+        ]
+      }
+    },
+    {
+      "if": {
+        "anyOf": [
+          {
+            "properties": {
+              "mode": {
+                "const": "expression"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          {
+            "not": {
+              "required": [
+                "mode"
+              ]
+            }
+          }
+        ]
+      },
+      "then": {
+        "required": [
+          "expression"
+        ]
+      }
+    }
+  ]
 };
 export const sessionPermission = SIDE_EFFECT_PERMISSION;
 export async function execute(input, ctx) { return await executeProxyTool(name, input, ctx); }

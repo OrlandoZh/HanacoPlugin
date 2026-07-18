@@ -51,6 +51,15 @@ test("all workflow adapters are generated and side effects require review", asyn
     assert.ok(mod.parameters?.properties && typeof mod.parameters.properties === "object");
     assert.deepEqual(mod.parameters.required, requiredByTool.get(name) || []);
     assert.equal(mod.parameters.additionalProperties, false);
+    if (name === "browser_action") {
+      assert.deepEqual(mod.parameters.properties.action.enum, ["click", "hover", "fill", "type", "focus", "input", "clear"]);
+      assert.equal(mod.parameters.oneOf.length, 2);
+    }
+    if (name === "browser_dom") {
+      assert.deepEqual(mod.parameters.properties.mode.enum, ["expression", "observe", "verify"]);
+      assert.deepEqual(mod.parameters.properties.assertion.enum, ["exact", "contains", "empty", "visible", "enabled", "checked", "selected"]);
+      assert.equal(mod.parameters.allOf.length, 2);
+    }
     if (["browser_health", "browser_list_tabs", "browser_read_counters"].includes(name)) {
       assert.equal(mod.sessionPermission.readOnly, true);
     } else {
@@ -81,7 +90,7 @@ test("emergency detach is a reviewed management action", async () => {
 test("bundled bridge metadata matches package and records a commit", () => {
   const metadata = JSON.parse(fs.readFileSync(path.join(pluginDir, "vendor/browser-bridge/BUNDLED_VERSION.json"), "utf8"));
   assert.equal(metadata.name, "browser-bridge");
-  assert.equal(metadata.version, "3.2.0");
+  assert.equal(metadata.version, "3.2.2");
   assert.match(metadata.commit, /^[0-9a-f]{40}$/);
   assert.equal(typeof metadata.dirty, "boolean");
 });
