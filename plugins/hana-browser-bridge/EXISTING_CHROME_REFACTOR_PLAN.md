@@ -1,9 +1,9 @@
 # Hana Browser Bridge：现有 Chrome 与人机协作改造方案
 
-- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow、Deny/latch/recovery、restart 后防隐式重连/latch 与自动回归已通过；`0.2.4` 已修复 HanaAgent reviewed start/list 授权时序，宿主复验证明语义生效但暴露 5 秒人机窗口不足；`0.2.5` + 核心 `3.1.4` 增加单次 30 秒窗口，自动回归、宿主 start/list/stop、Chrome restart 后 reviewed reconnect 恢复、一般 Browser WebSocket close/latch 及 Multi Profile 实际可见范围均通过；真实业务页仍待门禁
+- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow、Deny/latch/recovery、restart 后防隐式重连/latch 与自动回归已通过；`0.2.4` 已修复 HanaAgent reviewed start/list 授权时序，宿主复验证明语义生效但暴露 5 秒人机窗口不足；`0.2.5` + 核心 `3.1.4` 增加单次 30 秒窗口并完成 existing Chrome 门禁；`0.2.6` + 核心 `3.1.5` 修复 Gemini/Quill 类 contenteditable 空字符串清空，自动回归通过；真实业务页仍待门禁
 - 日期：2026-07-18
-- Hana 插件：当前已安装并通过宿主复验 `0.2.5`；历史基线 `0.2.3`；失败过渡版 `0.2.4`
-- Browser Bridge 核心：`browser-bridge 3.1.4`
+- Hana 插件：当前安装版 `0.2.5`；发布候选 `0.2.6`；历史基线 `0.2.3`；失败过渡版 `0.2.4`
+- Browser Bridge 核心：`browser-bridge 3.1.5`
 - 当前目标平台：HanaAgent / macOS
 - 后续平台：Windows、Linux
 
@@ -136,7 +136,7 @@ npm run test:integration  2/2 PASS
 git diff --check          PASS
 ```
 
-Browser Bridge 核心 `3.1.4`：
+Browser Bridge 核心 `3.1.5`：
 
 ```text
 npm run check             PASS
@@ -157,7 +157,7 @@ Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugg
 - MCP stop/unload 不关闭非插件拥有的 Chrome；
 - dedicated 全量回归和 1030 条业务仿真保持通过。
 
-核心当前提交为 `aec197d9542f`，同步元数据为 `browser-bridge 3.1.4`、`dirty: false`。发布脚本继续默认拒绝打包 dirty 核心。
+核心当前提交为 `edee8632853b`，同步元数据为 `browser-bridge 3.1.5`、`dirty: false`。发布脚本继续默认拒绝打包 dirty 核心。
 
 ### 3.5 当前交付边界
 

@@ -580,3 +580,59 @@ automaticRetries=0
 临时 fixture 服务已停止，可见的 fixture 标签页已清理；复查未发现残留本地验收页。
 
 结论：**现有 Chrome Auto Connect 在本次 Multi Profile 环境中只暴露一个授权 Profile 范围，不会自动汇总两个 Profile 的所有 target。**这满足“记录实际可见范围”的门禁，但不提供精确 Profile 选择能力。若业务必须明确选择 Profile、窗口或标签页，应进入 Hana 自有 MV3 Extension + Native Host 阶段，而不是扩大 Auto Connect 或 raw CDP 权限。
+
+
+## 22. Gemini 公开网站 contenteditable 输入测试与 `0.2.6` 修复
+
+2026-07-18 使用真实 Chrome 登录态打开 Gemini Web 页面，对公开网站富文本输入框执行可撤销输入测试。测试文本为非敏感的固定说明文字；没有按 Enter、没有点击发送，也没有创建对话。
+
+### 22.1 `0.2.5` 首次实测
+
+一次 reviewed start 成功后创建并 attach Gemini 测试标签页。插件定位到可见 contenteditable 输入框，使用 `browser_type_text` 输入固定文本，回读结果：
+
+```text
+pageOpened=true
+inputFound=true
+typeToolOk=true
+exactMatch=true
+characterCount=29
+enterPressed=false
+sendClicked=false
+```
+
+这证明真实公开网站上的 contenteditable 原生输入路径可用。但随后以 `value=''` 调用同一工具清空时：
+
+```text
+clearToolOk=false
+inputEmpty=false
+submitted=false
+```
+
+测试标签页随后被关闭；独立复查 Gemini 标签页数为 0，Browser Bridge 子进程数为 0，用户 Chrome 仍存活，因此没有留下草稿或提交内容。
+
+### 22.2 根因
+
+`clearField` 只对 input/textarea 使用 `select()` 或 `setSelectionRange()`；contenteditable 没有建立覆盖全部内容的 DOM Range。原生 Backspace 因此只作用于当前光标，兜底逻辑也只检查 `el.value`，没有清理 `textContent`。此外，对空字符串继续调用 `Input.insertText` 在 Chrome 中是 no-op，不应作为清空动作的一部分。
+
+### 22.3 Core `3.1.5` / Hana `0.2.6` 修复
+
+Core 提交 `edee8632853b21c08f15db23a0844721a593949e`：
+
+- contenteditable 清空前使用 DOM Range 选中全部内容；
+- 原生 Backspace 后增加 contenteditable `textContent` 与 input 事件兜底；
+- `value=''` 改为 clear-only，不再调用空 payload 的 `Input.insertText`；
+- fixture 新增 Gemini/Quill 类 contenteditable；
+- 集成测试新增“输入非空文本后以空字符串清空”的回归用例。
+
+自动验证：
+
+```text
+Core npm run check       PASS
+Core unit                259/259 PASS
+Core integration         8/8 spec files PASS
+Phase 7                  1030/1030 PASS
+Hana plugin unit         28/28 PASS
+Hana plugin integration  2/2 PASS
+```
+
+发布候选为 `hana-browser-bridge 0.2.6`，内置 `browser-bridge 3.1.5`。安装后的真实 Gemini 清空复验仍需一次 reviewed Chrome Allow；在该复验完成前，不把 `0.2.6` 写成真实网站最终通过。

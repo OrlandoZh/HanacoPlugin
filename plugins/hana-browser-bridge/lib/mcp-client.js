@@ -147,7 +147,7 @@ async function openRuntime(ctx, config, attempt) {
       env,
       stderr: "pipe",
     });
-    client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.5" });
+    client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.6" });
     attempt.transport = transport;
     attempt.client = client;
     transport.stderr?.on?.("data", (chunk) => {
@@ -299,7 +299,7 @@ export async function getBridgeStatus(ctx = {}) {
       && !guardStatus.retryBlocked
       && (config.connectionMode !== "existing-chrome" || guardStatus.browserConnected),
     name: "Browser Bridge for HanaAgent",
-    pluginVersion: "0.2.5",
+    pluginVersion: "0.2.6",
     connection: {
       mode: config.connectionMode,
       ownsBrowser: config.ownsBrowser,
