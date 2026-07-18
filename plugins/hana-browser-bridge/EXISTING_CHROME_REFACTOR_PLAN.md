@@ -1,9 +1,9 @@
 # Hana Browser Bridge：现有 Chrome 与人机协作改造方案
 
-- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow、Deny/latch/recovery、restart 后防隐式重连/latch 与自动回归已通过；HanaAgent UI/Reviewer、Multi Profile 和真实业务页仍待门禁
+- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow、Deny/latch/recovery、restart 后防隐式重连/latch 与自动回归已通过；`0.2.4` 已修复 HanaAgent reviewed start/list 授权时序，宿主复验证明语义生效但暴露 5 秒人机窗口不足；`0.2.5` + 核心 `3.1.4` 增加单次 30 秒窗口，自动回归与宿主 start/list/stop 复验均通过；Multi Profile 和真实业务页仍待门禁
 - 日期：2026-07-18
-- Hana 插件：`hana-browser-bridge 0.2.3`
-- Browser Bridge 核心：`browser-bridge 3.1.3`
+- Hana 插件：当前已安装并通过宿主复验 `0.2.5`；历史基线 `0.2.3`；失败过渡版 `0.2.4`
+- Browser Bridge 核心：`browser-bridge 3.1.4`
 - 当前目标平台：HanaAgent / macOS
 - 后续平台：Windows、Linux
 
@@ -136,7 +136,7 @@ npm run test:integration  2/2 PASS
 git diff --check          PASS
 ```
 
-Browser Bridge 核心 `3.1.3`：
+Browser Bridge 核心 `3.1.4`：
 
 ```text
 npm run check             PASS
@@ -157,7 +157,7 @@ Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugg
 - MCP stop/unload 不关闭非插件拥有的 Chrome；
 - dedicated 全量回归和 1030 条业务仿真保持通过。
 
-核心当前提交为 `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`，同步元数据为 `browser-bridge 3.1.3`、`dirty: false`。发布脚本继续默认拒绝打包 dirty 核心。
+核心当前提交为 `aec197d9542f`，同步元数据为 `browser-bridge 3.1.4`、`dirty: false`。发布脚本继续默认拒绝打包 dirty 核心。
 
 ### 3.5 当前交付边界
 
@@ -170,12 +170,12 @@ Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugg
 | restart 后 reviewed reconnect 恢复 | 未完成 | 尚未在同一 restart 场景中重新 reviewed start 并成功恢复，也未单独覆盖一般 socket close |
 | restart、DevTools 等其他真实行为 | 历史门禁完成 | 已在真实 Chrome 观察 generation、旧 claim、两种 DevTools 顺序、多 tab、后台点击、SPA 和 detach/reattach |
 | Multi Profile | 未完成 | 旧 retry-loop 验收无效且已停止；必须改用同一持久 runtime、一次授权、零自动重试 |
-| HanaAgent UI/Reviewer 完整链路 | 未完成 | 配置已持久化为 `existing-chrome`，宿主确认 mode/ownership/15 工具；三轮人工发起、每轮最多一次的 `browser_list_tabs` 均未连接，最终 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false` |
+| HanaAgent UI/Reviewer 完整链路 | 完成 | `0.2.5` 单次 reviewed start 返回真实 connected 状态；一次 Chrome Allow；单次 list 成功；stopChrome=false；无重复提示，用户 Chrome 未关闭 |
 | 真实业务页 | 未完成 | 只允许先做小批量只读/可撤销准入；不得用 fixture 结果替代 |
 | 生产追溯码下载与导入 | 不属于本轮插件交付 | 2026-06-01 至 2026-07-18 的生产业务任务尚未执行，最终提交需独立人工审批 |
 | Phase 2 / Phase 3 | 延后 | Hana MV3 Extension + Native Host、上传/下载及更高层文件语义 |
 
-本轮已经执行 Deny/recovery、restart 防隐式重连和 HanaAgent 宿主尝试；宿主连续失败后已经停止。剩余门禁必须按 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md` 逐项、单次执行，禁止 retry loop。
+本轮已经执行 Deny/recovery、restart 防隐式重连和 HanaAgent `0.2.5` 宿主最小 E2E；宿主链路已通过。剩余门禁必须按 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md` 逐项、单次执行，禁止 retry loop。
 
 ## 4. 外部事实核验
 
@@ -812,7 +812,7 @@ report path
 
 - 需要覆盖 `com.openai.codexextension`。
 - 修改或重打包 Codex 官方扩展。
-- existing 模式由只读业务工具隐式连接。
+- existing 模式由只读业务工具隐式连接，或 reviewed start 只授予令牌却不完成实际 Browser WebSocket 连接。
 - 未 reviewed start 即可访问用户 Chrome。
 - 未 attach/claim target 即可执行写操作。
 - 输出 `webSocketDebuggerUrl`、browser path 或 sessionId。
@@ -841,7 +841,7 @@ P3   上传、下载与更高层语义
 
 - **P0-A 至 P1-C：完成。** 代码、自动测试、工具最小化、ownership、claim、emergency detach 和日志脱敏均已收口。
 - **P1-D：部分完成，不能写成“全部完成”。** 临时 Chrome Auto Connect、dedicated 全回归、1030/1030 仿真，以及最终 `0.2.3` 的单次 Allow、Deny/latch/reviewed recovery、restart 后防隐式重连/latch 均已完成；真实 Chrome 历史门禁还覆盖旧 claim、DevTools 共存、多 tab、后台点击、SPA 和 detach/reattach。
-- **P1-D 剩余门禁：** restart 后新的 reviewed start 成功恢复、一般 socket close、HanaAgent 对话与 Reviewer 完整 E2E、Multi Profile、真实业务页小批量只读/可撤销准入。宿主 E2E 已确认配置和 mode/ownership/工具数，但三轮人工发起且每轮最多一次的 `browser_list_tabs` 均未连接；不得把这些失败轮次记为通过。
+- **P1-D 剩余门禁：** restart 后新的 reviewed start 成功恢复、一般 socket close、Multi Profile、真实业务页小批量只读/可撤销准入。2026-07-18 对宿主 JSONL 的事实复盘已定位：`0.2.3` 的 reviewed start 仅启动 MCP，真正的 Chrome 连接延迟到 list，且 start 输出未提供真实 `browserConnected/retryBlocked`。`0.2.4` 已在 reviewed start 内使用不对 Hana 暴露的 `browser_connect` 完成单次连接，并保持公共工具数 15；宿主复验确认状态语义正确，但 5 秒固定 open timeout 先失败、提示后残留。`0.2.5` + 核心 `3.1.4` 通过 `BB_BROWSER_CONNECT_TIMEOUT_MS=30000` 给唯一一次 reviewed attempt 提供人机窗口，不增加重试；最终安装后的宿主复验已完成：单次 start 成功连接、单次 list 成功、stopChrome=false 清理成功。
 - **P2、P3：延后。** 精确窗口/Profile/tab 授权、上传/下载和文件语义不属于当前 P0 交付。
 - **生产任务：未执行。** 下载并导入 2026-06-01 至 2026-07-18 的追溯码不是插件自动验收的一部分，必须作为独立业务任务并在最终提交前再次获得人工审批。
 

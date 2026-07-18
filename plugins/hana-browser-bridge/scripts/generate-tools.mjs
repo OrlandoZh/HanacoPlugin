@@ -3,12 +3,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveBridgeSource } from "./resolve-bridge-source.mjs";
 
-const WORKFLOW_TOOLS = [
-  "browser_action", "browser_attach_tab", "browser_detach_tab", "browser_detect_modals",
-  "browser_dom", "browser_eval", "browser_health", "browser_import_batch", "browser_list_tabs",
-  "browser_navigate", "browser_new_tab", "browser_press_key", "browser_read_counters",
-  "browser_type_sequence", "browser_type_text",
-];
+import { PUBLIC_WORKFLOW_TOOL_NAMES } from "../lib/tool-profile.js";
+
+const WORKFLOW_TOOLS = PUBLIC_WORKFLOW_TOOL_NAMES;
 const READ_ONLY = new Set(["browser_health", "browser_list_tabs", "browser_read_counters"]);
 const REQUIRED_PARAMETERS = new Map([
   ["browser_action", ["targetId", "action", "selector"]],

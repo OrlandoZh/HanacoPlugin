@@ -19,11 +19,11 @@ HanaAgent Agent
 
 ## 提供能力
 
-- 原样代理经过 P0 验收的 15 个 `workflow` 工具。
+- 原样代理经过 P0 验收的 15 个 `workflow` 工具；内部 stdio 子进程额外注册一个不贡献给 HanaAgent 的 `browser_connect`，仅供 reviewed `browser_bridge_start` 建立 Browser WebSocket。
 - `browser_bridge_status/start/restart/stop` 四个维护工具。
 - Browser Bridge 状态面板。
 - `dedicated` 模式首次调用时可按配置懒启动专用 Chrome。
-- `existing-chrome` 模式必须先通过 reviewed `browser_bridge_start` 显式连接，业务只读工具不能隐式触发用户 Chrome 授权。
+- `existing-chrome` 模式必须先通过 reviewed `browser_bridge_start` 显式连接；该 reviewed action 本身立即发起唯一一次 Chrome Browser WebSocket 尝试，业务只读工具不能隐式触发用户 Chrome 授权。
 - 一次 reviewed start 只放行一次初始 Browser WebSocket 尝试；Deny/连接失败后进入熔断，后续业务工具不会自动重连或重复触发 Chrome 授权框。
 - `browser_emergency_detach` 可立即清空 MCP/CDP 会话和 target claim，且绝不关闭用户 Chrome。
 - 内部 MCP 固定 stdio；REST 和 HTTP MCP 均关闭。
@@ -41,15 +41,15 @@ HanaAgent Agent
 3. 在插件设置中选择 `connectionMode=existing-chrome`；
 4. 根据需要选择 channel 或填写 User Data 目录；
 5. 通过 Hana Reviewer 调用 `browser_bridge_start`；
-6. 第一次业务工具真正建立 Browser WebSocket 时，在 Chrome 原生对话框中点击一次 Allow；
-7. 使用 `browser_list_tabs -> browser_attach_tab` 后再执行工作流工具。
+6. `browser_bridge_start` 执行期间会立即出现一次 Chrome 原生授权对话框，在该对话框中点击 Allow；
+7. 仅当 start 返回 `browserConnected=true`、`retryBlocked=false` 后，使用 `browser_list_tabs -> browser_attach_tab` 再执行工作流工具。
 
 安全语义：
 
 - `browser_bridge_status` 只检查本地 `DevToolsActivePort` 和端口状态，不建立 Browser WebSocket；
 - existing 模式没有 reviewed start 时返回 `EXPLICIT_CONNECT_REQUIRED`；
-- 若用户 Deny 或连接失败，同一授权轮次后续调用返回 `BROWSER_CONNECT_REVIEW_REQUIRED`，不会再次访问底层 `client.callTool`；用户准备好后重新 reviewed `browser_bridge_start`，才放行一次新尝试；
-- 并发的初始业务调用使用单飞保护，只有一个调用可以触发 Chrome 授权框；
+- 若用户 Deny 或连接失败，本次 start 返回安全枚举 `CONSENT_DENIED` 或 `BROWSER_CONNECTION_FAILED` 并设置 latch；同一授权轮次后续业务调用返回 `BROWSER_CONNECT_REVIEW_REQUIRED`，不会再次访问底层 `client.callTool`；用户准备好后重新 reviewed `browser_bridge_start`，才放行一次新尝试；
+- reviewed start 使用单飞保护，只有一个内部 `browser_connect` 可以触发 Chrome 授权框；
 - stop/unload 只断开 MCP/CDP，不关闭用户 Chrome；
 - 标签页列表不返回 `webSocketDebuggerUrl` 或 sessionId；
 - 精确窗口/标签页授权将在后续 Hana 自有 Chrome 扩展中实现。
@@ -110,8 +110,8 @@ npm run pack:plugin -- --bridge-dir /absolute/path/to/browser-bridge
 输出：
 
 ```text
-dist/hana-browser-bridge-0.2.3.zip
-dist/hana-browser-bridge-0.2.3.zip.sha256
+dist/hana-browser-bridge-0.2.5.zip
+dist/hana-browser-bridge-0.2.5.zip.sha256
 ```
 
 发布包包含：
@@ -156,9 +156,11 @@ dist/hana-browser-bridge-0.2.3.zip.sha256
 
 | 项目 | 证据 |
 |---|---|
-| Hana 插件 `0.2.3` | `npm test` 27/27、`npm run test:integration` 2/2；已安装副本版本与发布包一致 |
-| Browser Bridge 核心 `3.1.3` | `npm run check`、258/258 单元测试、8/8 集成 spec、Phase 7 1030/1030 全部通过 |
-| 构建可追溯性 | 核心提交 `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`，`BUNDLED_VERSION.json` 为 `dirty: false` |
+| Hana 插件 `0.2.3` 已安装基线 | `npm test` 27/27、`npm run test:integration` 2/2；已安装副本版本与发布包一致 |
+| Hana 插件 `0.2.4` 宿主复验 | reviewed start 内部 connect 和真实状态返回已生效；但底层 WebSocket 固定 5 秒超时，Chrome 提示在 start 失败后仍停留，已手工取消且未重试 |
+| Hana 插件 `0.2.5` 已安装 | 2026-07-18 增加单次 30 秒人机授权窗口；`npm test` 28/28、`npm run test:integration` 2/2；真实 HanaAgent reviewed start + 单次 list + 安全 stop 已通过 |
+| Browser Bridge 核心 `3.1.4` | `npm run check`、259/259 单元测试、8/8 集成 spec、Phase 7 1030/1030 全部通过；新增受控 Browser WebSocket open timeout |
+| 构建可追溯性 | 核心提交 `aec197d9542f92d731c4ebf8e3697675a9db90b3`，`BUNDLED_VERSION.json` 为 `dirty: false` |
 | 最终版本单次 Allow | 已安装 `0.2.3` 副本完成一次 reviewed start + 一次只读 `browser_list_tabs`；只出现一次授权、零自动重试，清理后无孤立 bridge 进程且用户 Chrome 保持运行 |
 | 最终版本 Deny/latch/recovery | 真实 Deny 后 `retryBlocked=true`、原因 `consent-denied`；第二次调用返回 `BROWSER_CONNECT_REVIEW_REQUIRED` 且无新提示；新的 reviewed start 后单次 Allow 恢复通过 |
 | restart 后不隐式重连/latch | 已连接后正常重启 Chrome，endpoint generation 改变；旧运行时首次调用返回 `EXPLICIT_RECONNECT_REQUIRED`，第二次调用本地熔断，均未隐式重连，用户 Chrome 未被插件关闭 |
@@ -169,11 +171,10 @@ Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；resta
 ### 待完成的真实门禁
 
 1. **restart 后 reviewed reconnect 恢复**：已证明旧运行时不会隐式重连，但尚未在同一 restart 场景中执行新的 reviewed start 并成功恢复，也未单独覆盖一般 socket close。
-2. **HanaAgent 宿主级 E2E**：HanaAgent 全局配置已切换并持久化为 `existing-chrome`；宿主对话已确认 `mode=existing-chrome`、`ownsBrowser=false`、`toolCount=15`。先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未建立连接；最终安全状态为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。没有自动 retry loop；失败原因尚未确定。
-3. **Multi Profile**：仍需在同一持久 runtime、一次授权、零自动重试条件下，仅用本地验收页记录 Chrome 实际可见范围；不得根据 `browserContextId` 猜测 Profile 名称。
-4. **真实业务页准入**：需先做小批量只读/可撤销验收和人工确认，不能用 1030 条隔离仿真替代。
+2. **Multi Profile**：仍需在同一持久 runtime、一次授权、零自动重试条件下，仅用本地验收页记录 Chrome 实际可见范围；不得根据 `browserContextId` 猜测 Profile 名称。
+3. **真实业务页准入**：需先做小批量只读/可撤销验收和人工确认，不能用 1030 条隔离仿真替代。
 
-剩余门禁均不得使用定时重连或 retry loop。本轮已执行 Deny/recovery、restart 防隐式重连和 HanaAgent 宿主尝试；宿主连续失败后已经停止，不再反复触发授权框。Multi Profile 与真实业务页本轮未执行。
+剩余门禁均不得使用定时重连或 retry loop。`0.2.3` 宿主连续失败后已经停止，不再反复触发授权框；`0.2.4` 失败提示已取消且没有重试；`0.2.5` 已完成一次受控宿主复验，未出现重复提示。Multi Profile 与真实业务页本轮未执行。
 
 ### 明确延后
 

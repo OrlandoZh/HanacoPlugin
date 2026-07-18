@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { launchChrome, startFixture } from "./harness.js";
+import { execute as executeStartTool } from "../tools/browser_bridge_start.js";
 import {
   callBridgeTool,
   getBridgeStatus,
@@ -54,13 +55,21 @@ test("existing Chrome Auto Connect requires reviewed start and never owns the us
     "read-only workflow tools must not implicitly connect to the user's Chrome",
   );
 
-  const started = await startBridgeRuntime(ctx);
+  const startedToolResult = await executeStartTool({}, ctx);
+  const started = startedToolResult.details;
+  assert.equal(startedToolResult.isError, false, "HanaAgent start tool must report a successful reviewed Chrome connection");
   assert.equal(started.ok, true);
   assert.equal(started.connectionMode, "existing-chrome");
   assert.equal(started.ownsBrowser, false);
   assert.equal(started.toolCount, 15);
+  assert.equal(started.mcpConnected, true);
+  assert.equal(started.browserConnected, true, "reviewed start must complete the Chrome connection itself");
+  assert.equal(started.retryBlocked, false);
+  assert.equal(started.tools.includes("browser_connect"), false, "private connect primitive must not reach HanaAgent");
   const preToolStatus = await getBridgeStatus(ctx);
-  assert.equal(preToolStatus.connection.browserConnected, false, "MCP startup must defer the Chrome consent attempt");
+  assert.equal(preToolStatus.connection.browserConnected, true);
+  assert.equal(preToolStatus.mcp.toolCount, 15);
+  assert.equal(preToolStatus.mcp.tools.includes("browser_connect"), false);
 
   const listed = parseText(await callBridgeTool("browser_list_tabs", {}, ctx));
   assert.equal(listed.ok, true);
@@ -120,9 +129,10 @@ test("existing Chrome Auto Connect requires reviewed start and never owns the us
 
   const reviewedRestart = await startBridgeRuntime(ctx);
   assert.equal(reviewedRestart.ok, true);
-  const postRestartPreTool = await getBridgeStatus(ctx);
-  assert.equal(postRestartPreTool.connection.browserConnected, false, "reviewed restart must defer the next Chrome prompt");
-  assert.ok(postRestartPreTool.mcp.generation > status.mcp.generation);
+  assert.equal(reviewedRestart.browserConnected, true, "reviewed restart must finish the replacement Chrome connection");
+  const postRestartStatus = await getBridgeStatus(ctx);
+  assert.equal(postRestartStatus.connection.browserConnected, true);
+  assert.ok(postRestartStatus.mcp.generation > status.mcp.generation);
   const relisted = parseText(await callBridgeTool("browser_list_tabs", {}, ctx));
   assert.equal(relisted.ok, true);
   assert.equal((await getBridgeStatus(ctx)).connection.browserConnected, true);

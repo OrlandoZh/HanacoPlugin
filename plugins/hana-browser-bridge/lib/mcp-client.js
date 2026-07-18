@@ -10,6 +10,11 @@ import {
   getOwnedChromeStatus,
 } from "./chrome-manager.js";
 import { ExistingChromeConnectGuard } from "./existing-chrome-connect-guard.js";
+import {
+  EXISTING_CHROME_CONNECT_TIMEOUT_MS,
+  MCP_ALLOWLIST_TOOL_NAMES,
+  publicWorkflowTools,
+} from "./tool-profile.js";
 
 let runtime = null;
 let connectAttempt = null;
@@ -114,6 +119,9 @@ async function openRuntime(ctx, config, attempt) {
       ...getDefaultEnvironment(),
       BB_CONNECTION_MODE: config.connectionMode,
       BB_TOOL_PROFILE: config.toolProfile,
+      // Register one private connect-only primitive in the stdio child. It is not
+      // contributed to HanaAgent and is used only by reviewed browser_bridge_start.
+      BB_TOOL_ALLOWLIST: MCP_ALLOWLIST_TOOL_NAMES.join(","),
       BB_ENABLE_REST: "0",
       BB_ENABLE_HTTP_MCP: "0",
     };
@@ -124,6 +132,9 @@ async function openRuntime(ctx, config, attempt) {
       // Starting the MCP subprocess itself must not consume a Chrome consent prompt.
       env.BB_DEFER_INITIAL_CONNECT = "1";
       env.BB_REQUIRE_REVIEWED_RECONNECT = "1";
+      // One reviewed action, one WebSocket open, no retry. Give the human enough
+      // time to answer Chrome's native consent dialog before the sole attempt expires.
+      env.BB_BROWSER_CONNECT_TIMEOUT_MS = String(EXISTING_CHROME_CONNECT_TIMEOUT_MS);
     } else {
       env.BB_CDP_HOST = config.cdpHost;
       env.BB_CDP_PORT = String(config.cdpPort);
@@ -136,7 +147,7 @@ async function openRuntime(ctx, config, attempt) {
       env,
       stderr: "pipe",
     });
-    client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.3" });
+    client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.5" });
     attempt.transport = transport;
     attempt.client = client;
     transport.stderr?.on?.("data", (chunk) => {
@@ -153,12 +164,21 @@ async function openRuntime(ctx, config, attempt) {
     const listed = await client.listTools();
     if (!attemptIsCurrent(attempt)) throw runtimeStartCancelledError();
     const toolNames = listed.tools.map((tool) => tool.name).sort();
+    const missingTools = MCP_ALLOWLIST_TOOL_NAMES.filter((name) => !toolNames.includes(name));
+    if (missingTools.length > 0) {
+      throw new Error(`Bundled browser-bridge is missing required MCP tools: ${missingTools.join(", ")}`);
+    }
+    const unexpectedTools = toolNames.filter((name) => !MCP_ALLOWLIST_TOOL_NAMES.includes(name));
+    if (unexpectedTools.length > 0) {
+      throw new Error("Bundled browser-bridge exposed tools outside the private allowlist");
+    }
     const created = {
       key: runtimeKey(config),
       client,
       transport,
       config,
       toolNames,
+      publicToolNames: publicWorkflowTools(toolNames),
       connectedAt: new Date().toISOString(),
       generation: ++generation,
     };
@@ -224,7 +244,7 @@ export async function ensureMcpRuntime(ctx = {}, options = {}) {
 
 export async function callBridgeTool(name, args = {}, ctx = {}) {
   let active = await ensureMcpRuntime(ctx);
-  if (!active.toolNames.includes(name)) throw new Error(`MCP tool is not available in workflow profile: ${name}`);
+  if (!active.publicToolNames.includes(name)) throw new Error(`MCP tool is not available in workflow profile: ${name}`);
 
   if (active.config.connectionMode === "existing-chrome") {
     try {
@@ -279,7 +299,7 @@ export async function getBridgeStatus(ctx = {}) {
       && !guardStatus.retryBlocked
       && (config.connectionMode !== "existing-chrome" || guardStatus.browserConnected),
     name: "Browser Bridge for HanaAgent",
-    pluginVersion: "0.2.3",
+    pluginVersion: "0.2.5",
     connection: {
       mode: config.connectionMode,
       ownsBrowser: config.ownsBrowser,
@@ -291,8 +311,8 @@ export async function getBridgeStatus(ctx = {}) {
       connected: !!runtime && runtime.key === key,
       generation: runtime?.generation || generation,
       connectedAt: runtime?.connectedAt || null,
-      toolCount: runtime?.toolNames?.length || 0,
-      tools: runtime?.toolNames || [],
+      toolCount: runtime?.publicToolNames?.length || 0,
+      tools: runtime?.publicToolNames || [],
       lastError,
       bridgeDirectory: config.bridgeAvailable ? "configured-and-available" : "configured-unavailable",
       bridgeAvailable: config.bridgeAvailable,
@@ -340,22 +360,65 @@ export async function startBridgeRuntime(ctx = {}) {
       || existingChromeConnectGuard.status(key).browserConnected
     )
   ) {
-    // Core intentionally refuses implicit reconnect after a successful user-Chrome
-    // socket closes. Every later reviewed start replaces the MCP process, so a user
-    // who knows Chrome restarted needs one review—not a failed tool call plus a second review.
+    // Every reviewed start receives a fresh one-attempt generation. This avoids
+    // implicit reconnects after denial, timeout, or a Chrome restart.
     await shutdownMcpRuntime({ stopChrome: false });
   }
+
   const active = await ensureMcpRuntime(ctx, { explicit: true });
-  if (active.config.connectionMode === "existing-chrome") {
-    existingChromeConnectGuard.reviewedStart(active.key);
+  if (active.config.connectionMode !== "existing-chrome") {
+    return {
+      ok: true,
+      connected: true,
+      mcpConnected: true,
+      browserConnected: true,
+      retryBlocked: false,
+      retryBlockReason: null,
+      errorCode: null,
+      connectionMode: active.config.connectionMode,
+      ownsBrowser: active.config.ownsBrowser,
+      toolCount: active.publicToolNames.length,
+      tools: active.publicToolNames,
+    };
   }
+
+  // The reviewed start must itself consume the single Chrome consent attempt.
+  // Deferring it to browser_list_tabs made HanaAgent report start success before
+  // Chrome was connected and left the human only the unreviewed tool's short
+  // WebSocket-open window to answer the prompt.
+  existingChromeConnectGuard.reviewedStart(active.key);
+  let thrownCode = null;
+  try {
+    await existingChromeConnectGuard.invoke(
+      active.key,
+      () => active.client.callTool({ name: "browser_connect", arguments: {} }),
+    );
+  } catch (error) {
+    thrownCode = typeof error?.code === "string" ? error.code : "BROWSER_CONNECTION_FAILED";
+  }
+
+  const guardStatus = existingChromeConnectGuard.status(active.key);
+  const browserConnected = guardStatus.browserConnected && !guardStatus.retryBlocked;
+  const errorCode = browserConnected
+    ? null
+    : thrownCode
+      || (guardStatus.retryBlockReason === "consent-denied"
+        ? "CONSENT_DENIED"
+        : "BROWSER_CONNECTION_FAILED");
+  lastError = errorCode;
+
   return {
-    ok: true,
-    connected: true,
+    ok: browserConnected,
+    connected: browserConnected,
+    mcpConnected: true,
+    browserConnected,
+    retryBlocked: guardStatus.retryBlocked,
+    retryBlockReason: guardStatus.retryBlockReason,
+    errorCode,
     connectionMode: active.config.connectionMode,
     ownsBrowser: active.config.ownsBrowser,
-    toolCount: active.toolNames.length,
-    tools: active.toolNames,
+    toolCount: active.publicToolNames.length,
+    tools: active.publicToolNames,
   };
 }
 

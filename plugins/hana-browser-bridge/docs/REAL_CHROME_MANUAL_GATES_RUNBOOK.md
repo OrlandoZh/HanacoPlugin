@@ -2,8 +2,8 @@
 
 - 日期：2026-07-18
 - 当前平台：macOS
-- Hana 插件：`hana-browser-bridge 0.2.3`
-- Browser Bridge：`browser-bridge 3.1.3`
+- Hana 插件：当前已安装并通过宿主复验 `0.2.5`；历史基线 `0.2.3`；失败过渡版 `0.2.4`
+- Browser Bridge：`browser-bridge 3.1.4`
 - 适用范围：`existing-chrome` 的 Deny、Chrome restart/reconnect、HanaAgent UI/Reviewer、Multi Profile、debugger conflict
 
 ## 1. 安全规则
@@ -23,7 +23,7 @@
 5. restart 前必须执行 `browser_emergency_detach`。
 6. existing Chrome 永远不由插件 kill/close；Chrome restart 必须由用户或明确的人工步骤执行。
 7. 任一阶段失败即停止，不自动重试授权探测或业务操作；不得使用定时器循环重建 Browser WebSocket。
-8. 一次 reviewed `browser_bridge_start` 只对应一次初始 Browser WebSocket 尝试；若未及时处理 Chrome 提示或用户选择 Deny，等待用户明确准备好后再进行下一次 reviewed start。
+8. 一次 reviewed `browser_bridge_start` 只对应一次初始 Browser WebSocket 尝试；Chrome 提示应在该 start 执行期间出现，且 start 必须返回真实 `browserConnected/retryBlocked`。若未及时处理提示或用户选择 Deny，等待用户明确准备好后再进行下一次 reviewed start。
 
 ## 2. 辅助脚本
 
@@ -172,11 +172,12 @@ node scripts/real-chrome-manual-gates.mjs probe --expect allow
 
 随后在 HanaAgent 中：
 
-1. reviewed `browser_bridge_start`；
+1. reviewed `browser_bridge_start`，并在该工具执行期间处理唯一一次 Chrome 提示；
 2. 确认 mode=`existing-chrome`；
 3. 确认 ownsBrowser=`false`；
-4. 确认工具数为 15；
-5. 确认状态只显示 `auto-connect:available` 和 `configured/channel-default`。
+4. 确认工具数为 15，输出中不存在内部 `browser_connect`；
+5. 确认 `browserConnected=true`、`retryBlocked=false`；
+6. 确认状态只显示 `auto-connect:available` 和 `configured/channel-default`。
 
 ## 6. DevTools / 其他 debugger 冲突
 
@@ -280,7 +281,7 @@ file mode=0600
 
 fingerprint 仅保存在临时文件中，不写入仓库。
 
-截至 2026-07-18，最终 `0.2.3` 已完成单次 Allow、Deny/latch/reviewed recovery，以及 Chrome restart 后防隐式重连/latch 门禁；历史门禁还覆盖旧 claim 与 DevTools 共存。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。HanaAgent 宿主调用已确认 existing-chrome mode/ownership/15 工具，但 `browser_list_tabs` 尚未建立 WebSocket；Multi Profile 旧 retry-loop 结果无效，脚本已停止并清理，不得再次使用。
+截至 2026-07-18，最终 `0.2.3` 已完成单次 Allow、Deny/latch/reviewed recovery，以及 Chrome restart 后防隐式重连/latch 门禁；历史门禁还覆盖旧 claim 与 DevTools 共存。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。HanaAgent `0.2.3` 宿主失败已定位为 start/list 授权时序错位；`0.2.4` 已修复为 reviewed start 内直接连接；宿主复验证明该语义生效，但固定 5 秒 WebSocket open 窗口不足，失败后提示仍停留并已取消。`0.2.5` 增加单次 30 秒窗口，并已完成一次 reviewed start、一次 list、一次 stop 的宿主复验。Multi Profile 旧 retry-loop 结果无效，脚本已停止并清理，不得再次使用。
 
 ## 10. 当前门禁状态清单
 
@@ -291,19 +292,19 @@ fingerprint 仅保存在临时文件中，不写入仓库。
 | P0 | 最终 `0.2.3` Deny/latch/recovery | **完成**：一次 Deny；`consent-denied`；第二次调用无提示；新的 reviewed start 后一次 Allow 恢复 |
 | P0 | restart 后防隐式重连/latch | **完成**：Chrome 正常重启且 endpoint 改变；旧运行时显式要求 reconnect，第二次调用本地熔断；用户 Chrome 未关闭 |
 | P0 | restart 后 reviewed reconnect 恢复 | **未完成**：尚未在同一 restart 场景中重新 reviewed start 并成功恢复，也未单独覆盖一般 socket close |
-| P0 | HanaAgent UI/Reviewer E2E | **未完成**：配置和 `mode=existing-chrome`/`ownsBrowser=false`/15 工具已确认；三轮人工发起、每轮最多一次的 `browser_list_tabs` 均未连接；禁止 retry loop |
+| P0 | HanaAgent UI/Reviewer E2E | **完成**：`0.2.5` 单次 reviewed start 成功、单次 list 成功、stopChrome=false；无自动重试、无重复提示、用户 Chrome 保持运行 |
 | P1 | Multi Profile | **未完成**：两个本地验收页、同一 runtime、一次授权、零自动重试；记录 Chrome 实际可见范围，不推断 Profile 名称 |
 | P1 | 真实业务页准入 | **未完成**：小批量、只读/可撤销、用户在场；先证明定位和计数正确，不点击生产提交 |
 
 ### 10.1 HanaAgent UI/Reviewer E2E 最小步骤
 
-1. 确认安装版本为 `0.2.3`，连接模式为 `existing-chrome`。
-2. 从 HanaAgent 对话发起 `browser_bridge_start`，在 Reviewer 中人工批准。
-3. 只发起一次 `browser_list_tabs`；Chrome 出现提示时只处理一次。
+1. 确认安装版本为 `0.2.5`，连接模式为 `existing-chrome`。
+2. 从 HanaAgent 对话发起 `browser_bridge_start`，在 Reviewer 中人工批准；Chrome 提示应在该 start 执行期间出现，只处理一次。
+3. start 返回 `browserConnected=true` 后，只发起一次 `browser_list_tabs`；list 不应再次触发 Chrome 提示。
 4. 仅记录 `mode=existing-chrome`、`ownsBrowser=false`、工具数、tab 数和安全 latch 状态，不记录标题、URL、正文或 endpoint。
 5. 调用 stop/emergency detach，确认 `browserStopped=false`，用户 Chrome 保持运行。
 
-2026-07-18 实际执行结果：配置已持久化为 `existing-chrome`，宿主能够报告正确 mode/ownership/工具数。先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未连接；最后一轮为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。不存在自动 retry loop，失败原因尚未确定；在完成原因定位前不得继续反复触发 Chrome 授权框。
+2026-07-18 `0.2.3` 实际执行结果：配置已持久化为 `existing-chrome`，宿主能够报告正确 mode/ownership/工具数。先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未连接；最后一轮为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。不存在自动 retry loop。原始 JSONL 已确认 start/list 共享 runtime/latch，根因是 reviewed start 只启动 MCP，真正授权被延迟到随后立即执行的 list。`0.2.4` 首次复验已确认 reviewed start 内部连接和状态返回生效，但 5 秒后返回 `connection-failed`，Chrome 提示仍在屏幕；该过期提示已取消，没有发起第二次连接。`0.2.5` 已执行唯一一次受控宿主复验并通过；除新的明确门禁外不再重复触发授权框。
 
 ### 10.2 生产业务边界
 

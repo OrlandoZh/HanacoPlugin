@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import {
+  EXISTING_CHROME_CONNECT_TIMEOUT_MS,
+  INTERNAL_MCP_TOOL_NAMES,
+  PUBLIC_WORKFLOW_TOOL_NAMES,
+} from "../lib/tool-profile.js";
 
 const pluginDir = path.resolve(new URL("..", import.meta.url).pathname);
-const expectedWorkflow = [
-  "browser_action", "browser_attach_tab", "browser_detach_tab", "browser_detect_modals",
-  "browser_dom", "browser_eval", "browser_health", "browser_import_batch", "browser_list_tabs",
-  "browser_navigate", "browser_new_tab", "browser_press_key", "browser_read_counters",
-  "browser_type_sequence", "browser_type_text",
-];
+const expectedWorkflow = PUBLIC_WORKFLOW_TOOL_NAMES;
 const requiredByTool = new Map([
   ["browser_action", ["targetId", "action", "selector"]],
   ["browser_attach_tab", ["targetId"]],
@@ -60,6 +60,14 @@ test("all workflow adapters are generated and side effects require review", asyn
   }
 });
 
+
+test("private MCP connect primitive is not contributed as a HanaAgent tool", () => {
+  assert.deepEqual(INTERNAL_MCP_TOOL_NAMES, ["browser_connect"]);
+  assert.equal(EXISTING_CHROME_CONNECT_TIMEOUT_MS, 30000);
+  assert.equal(fs.existsSync(path.join(pluginDir, "vendor/browser-bridge/tools/browser_connect.js")), true);
+  assert.equal(fs.existsSync(path.join(pluginDir, "tools/browser_connect.js")), false);
+});
+
 test("emergency detach is a reviewed management action", async () => {
   const file = path.join(pluginDir, "tools", "browser_emergency_detach.js");
   assert.equal(fs.existsSync(file), true);
@@ -73,7 +81,7 @@ test("emergency detach is a reviewed management action", async () => {
 test("bundled bridge metadata matches package and records a commit", () => {
   const metadata = JSON.parse(fs.readFileSync(path.join(pluginDir, "vendor/browser-bridge/BUNDLED_VERSION.json"), "utf8"));
   assert.equal(metadata.name, "browser-bridge");
-  assert.equal(metadata.version, "3.1.3");
+  assert.equal(metadata.version, "3.1.4");
   assert.match(metadata.commit, /^[0-9a-f]{40}$/);
   assert.equal(typeof metadata.dirty, "boolean");
 });

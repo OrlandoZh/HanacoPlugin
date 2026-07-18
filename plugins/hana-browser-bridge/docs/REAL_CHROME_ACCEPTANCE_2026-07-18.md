@@ -239,7 +239,7 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 ### 13.2 仍需补验
 
 1. **restart 后 reviewed reconnect 恢复**：当前只证明旧运行时不隐式重连和第二次调用 latch；尚未在 restart 后重新 reviewed start 并成功恢复，也未单独覆盖一般 socket close。
-2. **HanaAgent UI/Reviewer E2E**：全局配置已通过 HanaAgent 配置接口持久化为 `existing-chrome`，宿主对话确认 `mode=existing-chrome`、`ownsBrowser=false`、`toolCount=15`。先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未连接；最终安全结果为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。不存在自动 retry loop，失败原因尚未确定。
+2. **HanaAgent UI/Reviewer E2E**：全局配置已通过 HanaAgent 配置接口持久化为 `existing-chrome`，宿主对话确认 `mode=existing-chrome`、`ownsBrowser=false`、`toolCount=15`。`0.2.3` 先后进行了三轮人工发起、每轮最多一次的 `browser_list_tabs`，均未连接；最终安全结果为 `tabCount=null`、`retryBlocked=true`、`browserConnected=false`、`browserStopped=false`。不存在自动 retry loop。第 16 节已定位 start/list 授权时序根因并记录 `0.2.4` 修复；第 17 节记录 `0.2.4` 的 5 秒窗口失败和 `0.2.5` 修复。
 3. **Multi Profile**：只在本地验收页上记录实际可见范围；同一持久 runtime、一次授权、零自动重试，不根据 `browserContextId` 推断 Profile 名称。
 4. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
 
@@ -321,4 +321,102 @@ browserConnected=false
 browserStopped=false
 ```
 
-各轮均没有自动 retry loop。最后一轮 stop 后 `browserStopped=false`；随后独立复查实际 Browser Bridge 子进程数为 0，用户 Chrome 仍存活。失败原因尚未确定。**因此 HanaAgent UI/Reviewer 完整 E2E 仍未通过，不能与模块级真实 Chrome 门禁合并宣称完成。**
+各轮均没有自动 retry loop。最后一轮 stop 后 `browserStopped=false`；随后独立复查实际 Browser Bridge 子进程数为 0，用户 Chrome 仍存活。第 16 节已定位根因。**因此 `0.2.3` HanaAgent UI/Reviewer 完整 E2E 未通过；`0.2.4` 复验也未通过。**
+
+## 16. HanaAgent 宿主失败根因与 `0.2.4` 修复
+
+2026-07-18 对 HanaAgent 原始会话 JSONL 进行脱敏复盘。existing-chrome 的三轮失败均为：
+
+```text
+reviewed browser_bridge_start -> 约 0.2 秒返回 ok/connected
+browser_list_tabs            -> 约 5 秒后返回 WebSocket connection failure
+browser_bridge_stop          -> stopChrome=false
+```
+
+关键事实：
+
+1. `browser_list_tabs` 已到达底层 MCP 并返回 Chrome WebSocket 错误；如果 HanaAgent 在每次工具调用间丢失模块级 runtime/latch，它会在本地提前返回 `BROWSER_CONNECT_REVIEW_REQUIRED`。因此“每个工具调用使用不同插件实例”不是本次根因。
+2. `0.2.3` 的 `browser_bridge_start` 只完成 MCP stdio 启动，并设置下一次连接许可；它没有建立 Browser WebSocket，却返回含糊的 `connected=true`，宿主 Agent 因此错误报告 `browserConnected=true`。
+3. 真正会触发 Chrome 原生授权的动作是随后执行的 `browser_list_tabs`。该只读工具没有 Reviewer 停顿，宿主会在 start 后立即调用；人工点击旧提示或在调用窗口外点击 Allow 不能保证当前 WebSocket 尝试成功。
+4. 三轮内部均无自动 retry；失败后的 latch 与 `stopChrome=false` 正常工作。
+
+`0.2.4` 开发候选修复：
+
+- 内部 MCP stdio allowlist 增加 `browser_connect`，但不生成 HanaAgent adapter，不进入公共 15 工具列表；
+- reviewed `browser_bridge_start` 在 MCP 启动后立即使用 guard 调用一次 connect-only 工具；Chrome 授权提示因此与 Reviewer action 对齐；
+- start 直接返回真实 `mcpConnected`、`browserConnected`、`retryBlocked`、`retryBlockReason` 和安全 `errorCode`；失败结果标记为 tool error；
+- `browser_list_tabs` 只复用已建立连接，不再承担初始授权；
+- Deny/连接失败仍只消费一次尝试并设置 latch，没有 retry loop；stop/unload 仍不关闭用户 Chrome；
+- 自动验证：`npm test` 28/28，`npm run test:integration` 2/2；临时 headless Chrome Auto Connect 替身证明 `start -> list -> stop` 复用同一连接，且公共工具输出保持 15 个、不包含 `browser_connect`。
+- 发布候选：`hana-browser-bridge-0.2.4.zip`；SHA256 以同目录 `.sha256` 文件和最终交付记录为准。内置核心仍为 `3.1.3` / `ed0a2028e2fde57f0d7b25335d80d6011cf35b57` / `dirty=false`。
+
+当前边界：`0.2.4` 已安装并完成一次失败复验；失败原因与后续 `0.2.5` 修复见第 17 节，宿主 E2E 仍未通过。
+
+## 17. `0.2.4` 宿主复验与 `0.2.5` 人机窗口修复
+
+安装 `0.2.4` 并重启 HanaAgent 后，仅发起一次 `browser_bridge_start`，没有调用 list、attach 或 stop，也没有自动重试。安全结果：
+
+```text
+connectionMode=existing-chrome
+ownsBrowser=false
+toolCount=15
+mcpConnected=true
+browserConnected=false
+retryBlocked=true
+retryBlockReason=connection-failed
+errorCode=BROWSER_CONNECTION_FAILED
+```
+
+这次复验证明第 16 节的主修复已进入宿主：start 不再虚报浏览器已连接，且确实在 reviewed action 内发起 Chrome 连接。新的阻断来自核心 `_openWs` 固定 5 秒超时：start 失败后 Chrome 原生授权提示仍停留在屏幕，说明提示到达人机界面时，唯一一次 socket open 已结束。该过期提示已手工点击取消；没有点击 Allow、没有发起第二次 start，也没有 retry loop。
+
+后续修复：
+
+- Browser Bridge `3.1.4` 新增 `BB_BROWSER_CONNECT_TIMEOUT_MS`，仅控制单次 Browser WebSocket open 的等待时间，接受 1–120 秒，默认行为仍为 5 秒；
+- Hana 插件 `0.2.5` 在 existing-chrome 子进程中固定传入 30000ms；仍然只有一个 reviewed start、一个 `browser_connect`、一个 WebSocket open；
+- dedicated 模式不使用该扩展窗口；Deny/连接失败仍设置 latch，业务工具不能自动重连；
+- 核心验证：259/259 单元测试、8/8 集成 spec、Phase 7 1030/1030；
+- 插件验证：28/28 测试、2/2 集成测试；临时 headless Chrome 替身完成 `reviewed start -> list -> stop`，公共工具仍为 15 个且不包含内部 `browser_connect`。
+
+当前边界：`0.2.5` 的真实 Chrome + HanaAgent 宿主复验已完成，结果见第 18 节。
+
+## 18. `0.2.5` 最终 HanaAgent 宿主 E2E
+
+2026-07-18 安装 `hana-browser-bridge 0.2.5`（内置 `browser-bridge 3.1.4`）并重启 HanaAgent。测试分两步人工发起，整个流程没有自动重试：
+
+### 18.1 reviewed start
+
+仅调用一次 `browser_bridge_start`。Chrome 原生提示出现后只点击一次 Allow。工具约 3.7 秒返回：
+
+```text
+connectionMode=existing-chrome
+ownsBrowser=false
+toolCount=15
+mcpConnected=true
+browserConnected=true
+retryBlocked=false
+retryBlockReason=null
+errorCode=null
+```
+
+内部 `browser_connect` 未出现在 HanaAgent 公共工具列表或 start 输出中。没有调用业务工具，没有重复 Chrome 提示。
+
+### 18.2 单次 list 与安全 stop
+
+在同一 HanaAgent 进程和已建立 runtime 上，仅调用一次 `browser_list_tabs`；结果 `ok=true`、`tabCount=1`，未 attach，也未在验收报告中输出标题、URL 或正文。随后调用：
+
+```text
+browser_bridge_stop(stopChrome=false)
+```
+
+安全结果：
+
+```text
+retryBlocked=false
+browserConnected=true   # stop 前的已连接事实
+mcpStopped=true
+browserStopped=false
+```
+
+独立复查：Browser Bridge 子进程数为 0；用户 Chrome 主进程仍存活；屏幕上没有残留远程调试授权提示。
+
+结论：**HanaAgent UI/Reviewer 宿主链路已通过 `0.2.5` 的最小 E2E：一次 reviewed start、一次 Chrome Allow、一次 list、一次安全 stop，零自动重试、零重复提示、用户 Chrome 未关闭。**该结论不覆盖 Multi Profile、一般 socket close、restart 后 reviewed recovery 或真实业务页准入。
