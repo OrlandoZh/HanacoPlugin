@@ -16,6 +16,19 @@ import {
   publicWorkflowTools,
 } from "./tool-profile.js";
 
+const pluginMetadata = JSON.parse(
+  fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+);
+const bundledMetadata = JSON.parse(
+  fs.readFileSync(
+    new URL("../vendor/browser-bridge/BUNDLED_VERSION.json", import.meta.url),
+    "utf8",
+  ),
+);
+
+export const PLUGIN_VERSION = pluginMetadata.version;
+export const CORE_VERSION = bundledMetadata.version;
+
 let runtime = null;
 let connectAttempt = null;
 let lifecycleEpoch = 0;
@@ -147,7 +160,7 @@ async function openRuntime(ctx, config, attempt) {
       env,
       stderr: "pipe",
     });
-    client = new Client({ name: "hana-browser-bridge-plugin", version: "0.2.6" });
+    client = new Client({ name: "hana-browser-bridge-plugin", version: PLUGIN_VERSION });
     attempt.transport = transport;
     attempt.client = client;
     transport.stderr?.on?.("data", (chunk) => {
@@ -299,7 +312,8 @@ export async function getBridgeStatus(ctx = {}) {
       && !guardStatus.retryBlocked
       && (config.connectionMode !== "existing-chrome" || guardStatus.browserConnected),
     name: "Browser Bridge for HanaAgent",
-    pluginVersion: "0.2.6",
+    pluginVersion: PLUGIN_VERSION,
+    coreVersion: CORE_VERSION,
     connection: {
       mode: config.connectionMode,
       ownsBrowser: config.ownsBrowser,
