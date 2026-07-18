@@ -158,4 +158,5 @@ dist/hana-browser-bridge-0.2.3.zip.sha256
 - 真实 Chrome 已通过 Deny（HTTP 403）、Allow 恢复、restart generation、旧 claim 失效、两种 DevTools attach 顺序 `COEXIST`、claim、多 tab、后台原生点击、SPA、detach/reattach 和 emergency detach。
 - Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 的通过条件是旧 Chrome 主进程退出、旧 endpoint 不可达、新 endpoint fingerprint 改变，而不是要求该文件消失。
 - 多 Profile 门禁尚未完成。旧临时脚本因每约 1.5 秒重建连接而重复触发授权框，已停止并清理；后续只能在同一持久 runtime 中执行，且不得自动重试。
+- `0.2.3` 已完成最终单次真实授权验证：一次 reviewed start + 一次只读工具调用观察到 Allow，连接成功，零自动重试；清理后孤立 bridge 进程为 0，用户 Chrome 保持运行。
 - 真实业务页仍需单独完成只读准入和人工确认；生产数据导入仍须单独审批。

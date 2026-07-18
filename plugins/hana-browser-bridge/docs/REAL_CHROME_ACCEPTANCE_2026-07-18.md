@@ -203,3 +203,22 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 7. 状态只暴露 `retryBlocked` 与 `retryBlockReason=consent-denied|connection-failed`，不保存或输出 endpoint、端口、session、Cookie 或原始 CDP 内容。
 
 多 Profile 门禁仍未完成。后续只能复用同一持久 runtime，禁止定时断开重连；若第一次提示没有及时处理，任务必须停止，等待用户再次明确准备后才能发起下一轮。
+
+## 12. `0.2.3` 最终单次真实授权验证
+
+2026-07-18 使用已安装副本执行最终门禁。测试严格限制为：一次 reviewed start、一次只读 `browser_list_tabs`、零自动重试，响应仅记录安全计数，不输出标签页标题、URL、正文或 endpoint 信息。
+
+```json
+{"phase":"reviewed-start","ok":true,"mode":"existing-chrome","ownsBrowser":false,"toolCount":15}
+{"phase":"before-tool","browserConnected":false,"retryBlocked":false}
+{"phase":"single-tool","observed":"allow","ok":true,"tabCount":1,"browserConnected":true,"retryBlocked":false,"retryBlockReason":null}
+{"phase":"cleanup","mcpStopped":true,"browserStopped":false}
+```
+
+结束后等待 5 秒复查：
+
+```json
+{"orphanBridgeProcesses":0,"chromeAlive":true,"tempScriptRemoved":true}
+```
+
+结论：MCP 启动阶段没有提前消费 Chrome 授权；唯一一次业务调用触发并完成 Allow；连接成功后 latch 未误触发；测试没有重试循环，清理后无孤立 bridge 进程，用户 Chrome 保持运行。重复授权提示问题的最终真实 Chrome 门禁通过。
