@@ -202,7 +202,7 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 6. shutdown 和 emergency detach 清除 latch；dedicated 模式不受影响；
 7. 状态只暴露 `retryBlocked` 与 `retryBlockReason=consent-denied|connection-failed`，不保存或输出 endpoint、端口、session、Cookie 或原始 CDP 内容。
 
-多 Profile 门禁仍未完成。后续只能复用同一持久 runtime，禁止定时断开重连；若第一次提示没有及时处理，任务必须停止，等待用户再次明确准备后才能发起下一轮。
+该阶段多 Profile 门禁仍未完成。后续最终补验改为复用同一持久 runtime，禁止定时断开重连；最终结果见第 21 节。
 
 ## 12. `0.2.3` 最终单次真实授权验证
 
@@ -238,10 +238,9 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 
 ### 13.2 仍需补验
 
-1. **Multi Profile**：只在本地验收页上记录实际可见范围；同一持久 runtime、一次授权、零自动重试，不根据 `browserContextId` 推断 Profile 名称。
-2. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
+1. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
 
-HanaAgent UI/Reviewer E2E、restart 后 reviewed reconnect 与一般 Browser WebSocket close/latch 已分别在第 18、19、20 节完成。Multi Profile 与真实业务页本轮未执行。
+HanaAgent UI/Reviewer E2E、restart 后 reviewed reconnect、一般 Browser WebSocket close/latch 与 Multi Profile 实际可见范围已分别在第 18、19、20、21 节完成。真实业务页本轮未执行。
 
 ### 13.3 明确不在本验收范围
 
@@ -417,7 +416,7 @@ browserStopped=false
 
 独立复查：Browser Bridge 子进程数为 0；用户 Chrome 主进程仍存活；屏幕上没有残留远程调试授权提示。
 
-结论：**HanaAgent UI/Reviewer 宿主链路已通过 `0.2.5` 的最小 E2E：一次 reviewed start、一次 Chrome Allow、一次 list、一次安全 stop，零自动重试、零重复提示、用户 Chrome 未关闭。**第 19 节另行证明 restart 后 reviewed recovery；当前仍不覆盖 Multi Profile 或真实业务页准入；一般 Browser WebSocket close/latch 见第 20 节。
+结论：**HanaAgent UI/Reviewer 宿主链路已通过 `0.2.5` 的最小 E2E：一次 reviewed start、一次 Chrome Allow、一次 list、一次安全 stop，零自动重试、零重复提示、用户 Chrome 未关闭。**第 19 节另行证明 restart 后 reviewed recovery；当前仍不覆盖真实业务页准入；一般 Browser WebSocket close/latch 与 Multi Profile 结果见第 20、21 节。
 
 
 ## 19. Chrome restart 后 reviewed reconnect 恢复
@@ -519,3 +518,65 @@ browserStopped=false
 独立复查：Browser Bridge 子进程数为 0，用户 Chrome 主进程仍存活。
 
 结论：**非 restart 的 Browser WebSocket 异常关闭会在首次后续调用中被识别为 connection failure，并设置 review latch；第二次调用不会到达底层连接，也不会自动重连。**本轮只有一次初始 Allow、零自动重试，用户 Chrome 未重启或关闭。
+
+
+## 21. Multi Profile 实际可见范围
+
+2026-07-18 在真实 Chrome 的两个现有 Profile 中执行最终 Multi Profile 门禁。两个 Profile 分别打开一个由临时 `127.0.0.1` 服务提供的验收页；页面使用不同的随机 marker，不包含用户信息。测试不输出其他标签页的标题、URL 或正文，也不使用 `browserContextId` 推断 Profile 名称。
+
+### 21.1 约束
+
+- Hana 插件：`0.2.5`；Browser Bridge：`3.1.4`；
+- 一个持久 MCP runtime；
+- 一次 reviewed start；
+- 用户只处理一次 Chrome Allow；
+- 零定时重连、零自动 retry；
+- 只 attach 已知的本地验收 target；
+- 不重启或关闭用户 Chrome。
+
+开始前通过 Chrome 本地窗口检查确认两个验收页都已打开。
+
+### 21.2 实际观察
+
+reviewed start 成功：
+
+```text
+connectionMode=existing-chrome
+ownsBrowser=false
+toolCount=15
+mcpConnected=true
+browserConnected=true
+retryBlocked=false
+retryBlockReason=null
+errorCode=null
+```
+
+同一 runtime 中只执行一次 list，然后仅筛选已知 `127.0.0.1` fixture：
+
+```text
+listOk=true
+fixtureTargetCount=1
+accessibleFixtureCount=1
+inaccessibleFixtureCount=0
+markerASeen=true
+markerBSeen=false
+bothProfilesVisible=false
+browserContextUsedForInference=false
+automaticRetries=0
+```
+
+两个页面在连接前都存在，但 Auto Connect 只列出并访问了其中一个 marker；另一 Profile 的验收 target 没有以 access-denied 错误出现，而是完全不在可见 target 集合中。该结论只描述本次 Chrome 实际授权范围，不把 marker 或 target 映射推断成可泛化的 Profile 名称选择规则。
+
+### 21.3 清理与结论
+
+```text
+mcpStopped=true
+browserStopped=false
+bridgeProcessesPresent=false
+userChromeAlive=true
+automaticRetries=0
+```
+
+临时 fixture 服务已停止，可见的 fixture 标签页已清理；复查未发现残留本地验收页。
+
+结论：**现有 Chrome Auto Connect 在本次 Multi Profile 环境中只暴露一个授权 Profile 范围，不会自动汇总两个 Profile 的所有 target。**这满足“记录实际可见范围”的门禁，但不提供精确 Profile 选择能力。若业务必须明确选择 Profile、窗口或标签页，应进入 Hana 自有 MV3 Extension + Native Host 阶段，而不是扩大 Auto Connect 或 raw CDP 权限。

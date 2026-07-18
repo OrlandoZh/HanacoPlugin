@@ -205,7 +205,7 @@ node scripts/real-chrome-manual-gates.mjs probe --expect allow
 
 ## 7. 多 Profile 门禁
 
-> 状态：未完成。旧临时脚本因定时重建连接导致重复授权提示，其结果无效且脚本已停用。只能使用同一持久 runtime、一次授权、零自动重试。
+> 状态：**完成**。旧临时脚本结果仍视为无效；最终门禁使用同一持久 runtime、一次授权、零自动重试。两个 Profile 各有一个本地随机 marker 页，Auto Connect 只看到并成功访问其中一个验收 target，另一 Profile target 完全不可见。该结果记录 Chrome 的实际授权范围，不代表按 Profile 名精确选择。
 
 Auto Connect 不承诺按 Profile 名精确选择，因此只记录 Chrome 的实际行为：
 
@@ -281,7 +281,7 @@ file mode=0600
 
 fingerprint 仅保存在临时文件中，不写入仓库。
 
-截至 2026-07-18，最终 `0.2.3` 已完成单次 Allow、Deny/latch/reviewed recovery，以及 Chrome restart 后防隐式重连/latch 门禁；`0.2.5` 又完成 restart 后新的 reviewed start 恢复。历史门禁还覆盖旧 claim 与 DevTools 共存。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。HanaAgent `0.2.3` 宿主失败已定位为 start/list 授权时序错位；`0.2.4` 已修复为 reviewed start 内直接连接；宿主复验证明该语义生效，但固定 5 秒 WebSocket open 窗口不足，失败后提示仍停留并已取消。`0.2.5` 增加单次 30 秒窗口，并已完成一次 reviewed start、一次 list、一次 stop 的宿主复验；随后又完成 restart 后 reviewed reconnect 与一般 Browser WebSocket close/latch。Multi Profile 旧 retry-loop 结果无效，脚本已停止并清理，不得再次使用。
+截至 2026-07-18，最终 `0.2.3` 已完成单次 Allow、Deny/latch/reviewed recovery，以及 Chrome restart 后防隐式重连/latch 门禁；`0.2.5` 又完成 restart 后新的 reviewed start 恢复。历史门禁还覆盖旧 claim 与 DevTools 共存。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。HanaAgent `0.2.3` 宿主失败已定位为 start/list 授权时序错位；`0.2.4` 已修复为 reviewed start 内直接连接；宿主复验证明该语义生效，但固定 5 秒 WebSocket open 窗口不足，失败后提示仍停留并已取消。`0.2.5` 增加单次 30 秒窗口，并已完成一次 reviewed start、一次 list、一次 stop 的宿主复验；随后又完成 restart 后 reviewed reconnect、一般 Browser WebSocket close/latch 与 Multi Profile 实际可见范围。Multi Profile 旧 retry-loop 结果仍无效，脚本已停止并清理，不得再次使用。
 
 ## 10. 当前门禁状态清单
 
@@ -294,7 +294,7 @@ fingerprint 仅保存在临时文件中，不写入仓库。
 | P0 | restart 后 reviewed reconnect 恢复 | **完成**：Chrome 正常重启且 generation 改变；用户处理一次 Allow 后新的 reviewed start 成功、单次 list 成功、stopChrome=false |
 | P0 | 一般 Browser WebSocket close/latch | **完成**：Chrome 不重启；当前 socket 被单次关闭后，首次调用返回 connection failure 并设置 latch，第二次调用本地 review-required；零自动重试 |
 | P0 | HanaAgent UI/Reviewer E2E | **完成**：`0.2.5` 单次 reviewed start 成功、单次 list 成功、stopChrome=false；无自动重试、无重复提示、用户 Chrome 保持运行 |
-| P1 | Multi Profile | **未完成**：两个本地验收页、同一 runtime、一次授权、零自动重试；记录 Chrome 实际可见范围，不推断 Profile 名称 |
+| P1 | Multi Profile | **完成**：两个 Profile 各一个本地随机 marker 页；同一 runtime、一次 Allow、零自动重试；只看到并访问一个验收 target，另一个完全不可见；未用 `browserContextId` 推断 Profile |
 | P1 | 真实业务页准入 | **未完成**：小批量、只读/可撤销、用户在场；先证明定位和计数正确，不点击生产提交 |
 
 ### 10.1 HanaAgent UI/Reviewer E2E 最小步骤

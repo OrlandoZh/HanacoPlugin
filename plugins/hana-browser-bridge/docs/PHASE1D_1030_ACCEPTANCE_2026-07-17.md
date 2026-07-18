@@ -40,4 +40,4 @@
 
 ## 边界
 
-本记录只证明隔离临时 Chrome 的自动验收。真实用户 Chrome 的 Allow/Deny、多 Profile、DevTools 冲突、Chrome restart 和真实业务页只读准入仍需用户在场的人工验收，不得由自动测试替代。
+本记录只证明隔离临时 Chrome 的自动验收。在本记录生成时，真实用户 Chrome 的 Allow/Deny、多 Profile、DevTools 冲突、Chrome restart 和真实业务页只读准入仍需用户在场的人工验收，不得由自动测试替代；其中除真实业务页准入外，后续门禁结果已记录在 `REAL_CHROME_ACCEPTANCE_2026-07-18.md`。

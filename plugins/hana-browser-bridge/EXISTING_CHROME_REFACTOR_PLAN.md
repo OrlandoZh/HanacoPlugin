@@ -1,6 +1,6 @@
 # Hana Browser Bridge：现有 Chrome 与人机协作改造方案
 
-- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow、Deny/latch/recovery、restart 后防隐式重连/latch 与自动回归已通过；`0.2.4` 已修复 HanaAgent reviewed start/list 授权时序，宿主复验证明语义生效但暴露 5 秒人机窗口不足；`0.2.5` + 核心 `3.1.4` 增加单次 30 秒窗口，自动回归、宿主 start/list/stop、Chrome restart 后 reviewed reconnect 恢复及一般 Browser WebSocket close/latch 均通过；Multi Profile 和真实业务页仍待门禁
+- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow、Deny/latch/recovery、restart 后防隐式重连/latch 与自动回归已通过；`0.2.4` 已修复 HanaAgent reviewed start/list 授权时序，宿主复验证明语义生效但暴露 5 秒人机窗口不足；`0.2.5` + 核心 `3.1.4` 增加单次 30 秒窗口，自动回归、宿主 start/list/stop、Chrome restart 后 reviewed reconnect 恢复、一般 Browser WebSocket close/latch 及 Multi Profile 实际可见范围均通过；真实业务页仍待门禁
 - 日期：2026-07-18
 - Hana 插件：当前已安装并通过宿主复验 `0.2.5`；历史基线 `0.2.3`；失败过渡版 `0.2.4`
 - Browser Bridge 核心：`browser-bridge 3.1.4`
@@ -170,13 +170,13 @@ Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugg
 | restart 后 reviewed reconnect 恢复 | 完成 | Chrome 正常退出并重开，endpoint generation 改变；用户单次 Allow 后新的 reviewed start 成功，单次 list 成功，stopChrome=false |
 | 一般 Browser WebSocket close/latch | 完成 | 不重启 Chrome，只关闭当前 Browser WebSocket；首次调用检测断开并设置 `connection-failed`，第二次调用本地返回 `BROWSER_CONNECT_REVIEW_REQUIRED`；零自动重试 |
 | restart、DevTools 等其他真实行为 | 历史门禁完成 | 已在真实 Chrome 观察 generation、旧 claim、两种 DevTools 顺序、多 tab、后台点击、SPA 和 detach/reattach |
-| Multi Profile | 未完成 | 旧 retry-loop 验收无效且已停止；必须改用同一持久 runtime、一次授权、零自动重试 |
+| Multi Profile | 完成 | 两个 Profile 各打开一个本地随机 marker 页；同一持久 runtime、一次 Allow、零自动重试。Auto Connect 只看到其中一个验收 target，另一 Profile target 完全不可见；不按 `browserContextId` 推断 Profile |
 | HanaAgent UI/Reviewer 完整链路 | 完成 | `0.2.5` 单次 reviewed start 返回真实 connected 状态；一次 Chrome Allow；单次 list 成功；stopChrome=false；无重复提示，用户 Chrome 未关闭 |
 | 真实业务页 | 未完成 | 只允许先做小批量只读/可撤销准入；不得用 fixture 结果替代 |
 | 生产追溯码下载与导入 | 不属于本轮插件交付 | 2026-06-01 至 2026-07-18 的生产业务任务尚未执行，最终提交需独立人工审批 |
 | Phase 2 / Phase 3 | 延后 | Hana MV3 Extension + Native Host、上传/下载及更高层文件语义 |
 
-本轮已经执行 Deny/recovery、restart 防隐式重连、HanaAgent `0.2.5` 宿主最小 E2E、restart 后 reviewed reconnect 恢复，以及一般 Browser WebSocket close/latch；上述链路均已通过。剩余门禁必须按 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md` 逐项、单次执行，禁止 retry loop。
+本轮已经执行 Deny/recovery、restart 防隐式重连、HanaAgent `0.2.5` 宿主最小 E2E、restart 后 reviewed reconnect 恢复、一般 Browser WebSocket close/latch，以及 Multi Profile 实际可见范围；上述链路均已完成。剩余门禁必须按 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md` 逐项、单次执行，禁止 retry loop。
 
 ## 4. 外部事实核验
 
@@ -842,7 +842,7 @@ P3   上传、下载与更高层语义
 
 - **P0-A 至 P1-C：完成。** 代码、自动测试、工具最小化、ownership、claim、emergency detach 和日志脱敏均已收口。
 - **P1-D：部分完成，不能写成“全部完成”。** 临时 Chrome Auto Connect、dedicated 全回归、1030/1030 仿真，以及最终 `0.2.3` 的单次 Allow、Deny/latch/reviewed recovery、restart 后防隐式重连/latch 均已完成；真实 Chrome 历史门禁还覆盖旧 claim、DevTools 共存、多 tab、后台点击、SPA 和 detach/reattach。
-- **P1-D 剩余门禁：** Multi Profile、真实业务页小批量只读/可撤销准入。restart 后新的 reviewed start 与一般 Browser WebSocket close/latch 均已通过。2026-07-18 对宿主 JSONL 的事实复盘已定位：`0.2.3` 的 reviewed start 仅启动 MCP，真正的 Chrome 连接延迟到 list，且 start 输出未提供真实 `browserConnected/retryBlocked`。`0.2.4` 已在 reviewed start 内使用不对 Hana 暴露的 `browser_connect` 完成单次连接，并保持公共工具数 15；宿主复验确认状态语义正确，但 5 秒固定 open timeout 先失败、提示后残留。`0.2.5` + 核心 `3.1.4` 通过 `BB_BROWSER_CONNECT_TIMEOUT_MS=30000` 给唯一一次 reviewed attempt 提供人机窗口，不增加重试；最终安装后的宿主复验已完成：单次 start 成功连接、单次 list 成功、stopChrome=false 清理成功。
+- **P1-D 剩余门禁：** 真实业务页小批量只读/可撤销准入。restart 后新的 reviewed start、一般 Browser WebSocket close/latch 与 Multi Profile 实际可见范围均已完成。2026-07-18 对宿主 JSONL 的事实复盘已定位：`0.2.3` 的 reviewed start 仅启动 MCP，真正的 Chrome 连接延迟到 list，且 start 输出未提供真实 `browserConnected/retryBlocked`。`0.2.4` 已在 reviewed start 内使用不对 Hana 暴露的 `browser_connect` 完成单次连接，并保持公共工具数 15；宿主复验确认状态语义正确，但 5 秒固定 open timeout 先失败、提示后残留。`0.2.5` + 核心 `3.1.4` 通过 `BB_BROWSER_CONNECT_TIMEOUT_MS=30000` 给唯一一次 reviewed attempt 提供人机窗口，不增加重试；最终安装后的宿主复验已完成：单次 start 成功连接、单次 list 成功、stopChrome=false 清理成功。
 - **P2、P3：延后。** 精确窗口/Profile/tab 授权、上传/下载和文件语义不属于当前 P0 交付。
 - **生产任务：未执行。** 下载并导入 2026-06-01 至 2026-07-18 的追溯码不是插件自动验收的一部分，必须作为独立业务任务并在最终提交前再次获得人工审批。
 
