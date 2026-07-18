@@ -1,6 +1,6 @@
 # Hana Browser Bridge：现有 Chrome 与人机协作改造方案
 
-- 状态：P0-A 至 P1-C 已完成；P1-D 已通过 Deny/Allow、restart generation、DevTools 共存、claim、多 tab、后台原生点击、SPA 与 detach/reattach；多 Profile 与真实业务页仍待人工门禁
+- 状态：P0-A 至 P1-C 已完成；P1-D 部分完成。最终 `0.2.3` 单次 Allow 与自动回归已通过；最终 Deny/reconnect、HanaAgent UI/Reviewer、Multi Profile 和真实业务页仍待门禁
 - 日期：2026-07-18
 - Hana 插件：`hana-browser-bridge 0.2.3`
 - Browser Bridge 核心：`browser-bridge 3.1.3`
@@ -126,32 +126,26 @@ HEAD                     c6a0509
 
 1030 条业务仿真不属于两个仓库的 `npm test`；它位于 Browser Bridge 的 `npm run test:integration` 中，仍需单独记录 fixture、Chrome 版本、运行耗时和验收结果。
 
-### 3.4 2026-07-17 改造后验证结果
+### 3.4 改造后验证结果与 2026-07-18 复核
 
-Hana 插件：
-
-```text
-npm test                 16/16 PASS
-npm run test:integration 2/2 PASS
-git diff --check         PASS
-```
-
-Browser Bridge 核心：
+Hana 插件 `0.2.3`：
 
 ```text
-npm run check            PASS
-npm test                 242/242 PASS
-npm run test:integration 8/8 spec files、25/25 tests PASS
-git diff --check         PASS
+npm test                  27/27 PASS
+npm run test:integration  2/2 PASS
+git diff --check          PASS
 ```
 
-其中 Phase 7：
+Browser Bridge 核心 `3.1.3`：
 
 ```text
-1030 条追溯码仿真       PASS
-端到端测试耗时           8729ms
-业务执行耗时             7891ms
+npm run check             PASS
+npm test                  258/258 PASS
+npm run test:integration  8/8 spec files PASS
+Phase 7                   1030/1030 PASS
 ```
+
+2026-07-18 复核再次运行以上自动测试并全部通过。Phase 7 本次复核的单个 spec 耗时约 8.9 秒、业务执行耗时约 8.1 秒；固定验收记录仍以 `docs/PHASE1D_1030_ACCEPTANCE_2026-07-17.md` 中保存的首次正式结果为准。
 
 Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugging-port=0` 启动临时 Headless Chrome，不读取、不连接、不操作用户真实 Chrome。已验证：
 
@@ -164,6 +158,21 @@ Auto Connect 隔离集成测试使用临时 User Data 目录和 `--remote-debugg
 - dedicated 全量回归和 1030 条业务仿真保持通过。
 
 核心当前提交为 `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`，同步元数据为 `browser-bridge 3.1.3`、`dirty: false`。发布脚本继续默认拒绝打包 dirty 核心。
+
+### 3.5 当前交付边界
+
+| 分类 | 状态 | 说明 |
+|---|---|---|
+| P0-A 至 P1-C 代码与自动回归 | 完成 | 日志最小化、连接分层、ownership、explicit start、claim、emergency detach 均已落地并回归 |
+| 最终 `0.2.3` 单次 Allow | 完成 | 已安装副本一次 reviewed start + 一次只读工具，零自动重试，用户 Chrome 未关闭 |
+| Deny、restart、DevTools 等真实行为 | 历史门禁完成 | 已在真实 Chrome 观察；但最终 `0.2.3` 的 Deny latch 和断线后 reviewed reconnect 仍需版本级补验 |
+| Multi Profile | 未完成 | 旧 retry-loop 验收无效且已停止；必须改用同一持久 runtime、一次授权、零自动重试 |
+| HanaAgent UI/Reviewer 完整链路 | 未完成 | 最终 Allow 证据直接调用已安装插件模块，不等同于从 HanaAgent 对话和 Reviewer 发起 |
+| 真实业务页 | 未完成 | 只允许先做小批量只读/可撤销准入；不得用 fixture 结果替代 |
+| 生产追溯码下载与导入 | 不属于本轮插件交付 | 2026-06-01 至 2026-07-18 的生产业务任务尚未执行，最终提交需独立人工审批 |
+| Phase 2 / Phase 3 | 延后 | Hana MV3 Extension + Native Host、上传/下载及更高层文件语义 |
+
+本轮文档审查不主动建立新的 Browser WebSocket，避免再次触发 Chrome 授权提示。剩余真实门禁必须按 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md` 逐项、单次执行。
 
 ## 4. 外部事实核验
 
@@ -825,4 +834,12 @@ P2   Hana 独立扩展 + Native Host
 P3   上传、下载与更高层语义
 ```
 
-当前结果：P0-A 至 P1-C 已完成（含独立 Endpoint/DevToolsActivePort provider、连接状态、claim 门禁和 `browser_emergency_detach`）；P1-D 已完成临时 Chrome Auto Connect、dedicated 全回归、1030/1030 仿真，以及真实 Chrome 的 Deny（HTTP 403）、Allow 恢复、restart endpoint generation、旧 claim `NO_SESSION`、两种 DevTools attach 顺序 `COEXIST`、显式启动、claim、多 tab 隔离、后台 target 原生点击、SPA、detach/reattach 和非所有权关闭验收。Browser Bridge 核心为 `3.1.3` / `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`；Hana 插件 `0.2.3` 新增授权失败熔断和初始连接单飞：一次 reviewed start 只放行一次 Browser WebSocket 尝试，失败后业务工具不得自动重试。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件，因此 restart 以“旧进程退出 + 旧 endpoint 不可达 + 新 fingerprint 改变”为准。多 Profile 门禁因旧临时脚本错误地每约 1.5 秒重建连接而中止；该脚本已停止，后续必须在同一持久 runtime 内、无自动重试地执行。真实 Chrome 记录见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`，操作手册见 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md`。真实业务页和文件能力不进入本轮自动验收，生产数据导入仍须单独审批。
+当前结果：
+
+- **P0-A 至 P1-C：完成。** 代码、自动测试、工具最小化、ownership、claim、emergency detach 和日志脱敏均已收口。
+- **P1-D：部分完成，不能写成“全部完成”。** 临时 Chrome Auto Connect、dedicated 全回归、1030/1030 仿真、最终 `0.2.3` 单次 Allow 已完成；真实 Chrome 历史门禁已覆盖 Deny/Allow、restart generation、旧 claim、DevTools 共存、多 tab、后台点击、SPA 和 detach/reattach。
+- **P1-D 剩余版本级门禁：** 最终 `0.2.3` Deny/latch/第二次调用不弹框/ reviewed recovery；连接成功后的断线或 Chrome restart 不隐式重连；HanaAgent 对话与 Reviewer 完整 E2E；Multi Profile；真实业务页小批量只读/可撤销准入。
+- **P2、P3：延后。** 精确窗口/Profile/tab 授权、上传/下载和文件语义不属于当前 P0 交付。
+- **生产任务：未执行。** 下载并导入 2026-06-01 至 2026-07-18 的追溯码不是插件自动验收的一部分，必须作为独立业务任务并在最终提交前再次获得人工审批。
+
+真实 Chrome 记录见 `docs/REAL_CHROME_ACCEPTANCE_2026-07-18.md`，剩余门禁见 `docs/REAL_CHROME_MANUAL_GATES_RUNBOOK.md`。任何后续门禁都不得使用 retry loop，也不得由插件关闭用户 Chrome。

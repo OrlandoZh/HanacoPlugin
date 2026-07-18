@@ -1,10 +1,10 @@
-# Hana Browser Bridge：真实 Chrome 剩余人工门禁操作手册
+# Hana Browser Bridge：真实 Chrome 人工门禁操作手册与状态
 
 - 日期：2026-07-18
 - 当前平台：macOS
 - Hana 插件：`hana-browser-bridge 0.2.3`
 - Browser Bridge：`browser-bridge 3.1.3`
-- 适用范围：`existing-chrome` 的 Deny、Chrome restart、endpoint generation、多 Profile、debugger conflict
+- 适用范围：`existing-chrome` 的 Deny、Chrome restart/reconnect、HanaAgent UI/Reviewer、Multi Profile、debugger conflict
 
 ## 1. 安全规则
 
@@ -68,6 +68,8 @@ node scripts/real-chrome-manual-gates.mjs snapshot \
 
 ## 3. Chrome restart / endpoint generation 门禁
 
+> 状态：历史真实 Chrome generation/旧 claim 门禁已通过；最终 `0.2.3` 的“断线后不隐式重连、重新 reviewed start 才恢复”仍需按本节补验。整轮只能建立一次新连接，不得自动重试。
+
 ### 3.1 restart 前
 
 1. 保存 Chrome 中全部工作。
@@ -117,6 +119,8 @@ node scripts/real-chrome-manual-gates.mjs compare \
 
 ## 4. Deny 门禁
 
+> 状态：真实 Chrome 曾观察到 Deny/HTTP 403，但最终 `0.2.3` 发布包的 latch、第二次调用不弹框和 reviewed recovery 尚未做版本级真机闭环。本节仍是待执行门禁。
+
 Deny 必须在一个会显示新授权对话框的授权周期内执行。
 
 ```bash
@@ -146,6 +150,8 @@ Chrome 显示远程调试授权对话框时，用户选择“取消”或 Deny�
 
 ## 5. Allow 恢复门禁
 
+> 状态：最终 `0.2.3` 的单次 Allow 已通过；Deny 后的 reviewed recovery 仍需与第 4 节同轮闭环。
+
 Deny 完成后，确认用户已准备处理下一次提示，再手工重新发起一次：
 
 ```bash
@@ -174,6 +180,8 @@ node scripts/real-chrome-manual-gates.mjs probe --expect allow
 
 ## 6. DevTools / 其他 debugger 冲突
 
+> 状态：真实 Chrome 的 DevTools-first 与 Hana-first 均已观察到 `COEXIST`。除非底层 attach/session 实现变化，否则不要求每个补丁版本重复执行。
+
 只使用本地验收页：
 
 1. 启动临时 `127.0.0.1` fixture。
@@ -195,6 +203,8 @@ node scripts/real-chrome-manual-gates.mjs probe --expect allow
 - 最终关闭验收 tab，用户 Chrome 保持运行。
 
 ## 7. 多 Profile 门禁
+
+> 状态：未完成。旧临时脚本因定时重建连接导致重复授权提示，其结果无效且脚本已停用。只能使用同一持久 runtime、一次授权、零自动重试。
 
 Auto Connect 不承诺按 Profile 名精确选择，因此只记录 Chrome 的实际行为：
 
@@ -270,4 +280,34 @@ file mode=0600
 
 fingerprint 仅保存在临时文件中，不写入仓库。
 
-截至 2026-07-18，restart generation、Deny/Allow 和 DevTools 共存门禁均已完成。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；通过条件已调整为旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变。多 Profile 门禁曾因临时脚本每约 1.5 秒自动重建连接而重复触发授权框，该脚本已停止并清理；不得再次使用该 retry loop。
+截至 2026-07-18，真实 Chrome 历史门禁已覆盖 restart generation、旧 claim、Deny/Allow 和 DevTools 共存；最终 `0.2.3` 已完成一次单次 Allow，不得将这些合并表述为“最终版本所有真实门禁完成”。Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 仍以旧主进程退出、旧 endpoint 不可达、新 fingerprint 改变为准。多 Profile 旧 retry-loop 结果无效，脚本已停止并清理，不得再次使用。
+
+## 10. 审查后剩余门禁清单
+
+按优先级执行；任何一项开始前都要先确认用户已准备处理**最多一次** Chrome 授权提示。
+
+| 优先级 | 门禁 | 完成标准 |
+|---|---|---|
+| P0 | 最终 `0.2.3` Deny/latch/recovery | 一次 Deny；状态进入 `consent-denied`；第二次业务调用不触发提示；新的 reviewed start 后一次 Allow 恢复 |
+| P0 | 最终 `0.2.3` 断线/reconnect | 已连接后 Chrome restart/socket close；业务工具不得隐式重连；重新 reviewed start 后才允许一次新握手；用户 Chrome 不由插件关闭 |
+| P0 | HanaAgent UI/Reviewer E2E | HanaAgent 对话 -> Reviewer -> `browser_bridge_start` -> 一次只读工具 -> 一次 Allow；只记录安全状态，不记录 tab 内容 |
+| P1 | Multi Profile | 两个本地验收页、同一 runtime、一次授权、零自动重试；记录 Chrome 实际可见范围，不推断 Profile 名称 |
+| P1 | 真实业务页准入 | 小批量、只读/可撤销、用户在场；先证明定位和计数正确，不点击生产提交 |
+
+### 10.1 HanaAgent UI/Reviewer E2E 最小步骤
+
+1. 确认安装版本为 `0.2.3`，连接模式为 `existing-chrome`。
+2. 从 HanaAgent 对话发起 `browser_bridge_start`，在 Reviewer 中人工批准。
+3. 只发起一次 `browser_list_tabs`；Chrome 出现提示时只处理一次。
+4. 仅记录 `mode=existing-chrome`、`ownsBrowser=false`、工具数、tab 数和安全 latch 状态，不记录标题、URL、正文或 endpoint。
+5. 调用 stop/emergency detach，确认 `browserStopped=false`，用户 Chrome 保持运行。
+
+### 10.2 生产业务边界
+
+本手册不授权生产导入。下载并导入 **2026-06-01 至 2026-07-18** 的追溯码仍是独立业务任务：真实业务页准入通过后，下载、导入预览、最终提交必须分别确认；最终提交必须由用户再次人工审批。1030 条 fixture 验收不能替代该审批。
+
+### 10.3 明确延后
+
+- Hana 自有 MV3 Extension + Native Host 的精确窗口/Profile/tab 授权；
+- 上传、下载和更高层文件语义；
+- Windows/Linux 真机门禁。

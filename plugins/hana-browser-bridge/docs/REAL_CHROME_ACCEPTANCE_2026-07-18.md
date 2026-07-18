@@ -165,7 +165,7 @@ Deny、Chrome restart/endpoint 变化、DevTools/其他 debugger 冲突通常需
 
 ## 10. 后续真实 Chrome 门禁收口
 
-在 Browser Bridge `3.1.3`（commit `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`）和 Hana 插件 `0.2.3` 上补充完成：
+在演进到 Browser Bridge `3.1.3` / Hana 插件 `0.2.3` 的过程中补充了以下真实 Chrome 历史门禁。它们证明底层行为曾被观察，但除第 12 节的单次 Allow 外，不应视为最终发布 zip 的逐项版本级复验：
 
 - Deny 原始证据：`expected=deny`、`observed=deny`、`passed=true`、`responseClass=HTTP_403`；
 - Allow 恢复通过，Stage 2 全部 phase 通过；
@@ -206,7 +206,7 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 
 ## 12. `0.2.3` 最终单次真实授权验证
 
-2026-07-18 使用已安装副本执行最终门禁。测试严格限制为：一次 reviewed start、一次只读 `browser_list_tabs`、零自动重试，响应仅记录安全计数，不输出标签页标题、URL、正文或 endpoint 信息。
+2026-07-18 使用已安装副本的插件模块执行最终门禁。该调用直接进入插件模块，不是从 HanaAgent 对话 UI/Reviewer 发起。测试严格限制为：一次 reviewed start、一次只读 `browser_list_tabs`、零自动重试，响应仅记录安全计数，不输出标签页标题、URL、正文或 endpoint 信息。
 
 ```json
 {"phase":"reviewed-start","ok":true,"mode":"existing-chrome","ownsBrowser":false,"toolCount":15}
@@ -221,4 +221,34 @@ Hana 插件 `0.2.3` 增加以下硬门禁：
 {"orphanBridgeProcesses":0,"chromeAlive":true,"tempScriptRemoved":true}
 ```
 
-结论：MCP 启动阶段没有提前消费 Chrome 授权；唯一一次业务调用触发并完成 Allow；连接成功后 latch 未误触发；测试没有重试循环，清理后无孤立 bridge 进程，用户 Chrome 保持运行。重复授权提示问题的最终真实 Chrome 门禁通过。
+结论：MCP 启动阶段没有提前消费 Chrome 授权；唯一一次业务调用触发并完成 Allow；连接成功后 latch 未误触发；测试没有重试循环，清理后无孤立 bridge 进程，用户 Chrome 保持运行。**“单次 Allow 不重复弹框”这一最终真实 Chrome 门禁通过；该结论不自动覆盖 Deny、断线重连、Multi Profile 或 HanaAgent UI/Reviewer 宿主链路。**
+
+## 13. 审查后的交付边界
+
+### 13.1 已有充分证据
+
+| 项目 | 证据级别 | 结论 |
+|---|---|---|
+| `0.2.3` 单次 Allow | 最终安装副本 + 真实 Chrome | 通过；一次 reviewed start、一次只读工具、零重试 |
+| 自动回归 | 最终源码/发布基线 | Hana 27/27 + 2/2；核心 258/258 + 8/8；Phase 7 1030/1030 |
+| Deny/Allow、restart、DevTools、claim、多 tab 等 | 真实 Chrome 历史门禁 | 行为已观察，但部分证据早于最终 `0.2.3` 熔断/reconnect 改造 |
+| 发布包 | 构建产物 | `hana-browser-bridge-0.2.3.zip` SHA256 为 `434dad05291a1db9809b292104a01e95fb5a560f6a95454b1026569bab8a8f9e`，内置核心 `3.1.3` / `ed0a2028e2fde57f0d7b25335d80d6011cf35b57` / `dirty=false` |
+
+### 13.2 仍需补验
+
+1. **最终 `0.2.3` Deny/latch/recovery**：只触发一次 Deny；确认 `retryBlocked=true`；第二次业务调用直接返回 `BROWSER_CONNECT_REVIEW_REQUIRED` 且不出现新提示；重新 reviewed start 后只允许一次恢复尝试。
+2. **最终 `0.2.3` 断线/reconnect**：先成功连接，再由用户正常重启 Chrome 或制造 socket close；确认旧连接失效后不会由业务工具隐式重建 Browser WebSocket，必须重新 reviewed start。
+3. **HanaAgent UI/Reviewer E2E**：从 HanaAgent 对话调用 Reviewer 审批的 `browser_bridge_start`，随后只调用一次只读工具并完成一次 Allow。当前最终证据只覆盖已安装模块，不覆盖宿主 UI 调度。
+4. **Multi Profile**：只在本地验收页上记录实际可见范围；同一持久 runtime、一次授权、零自动重试，不根据 `browserContextId` 推断 Profile 名称。
+5. **真实业务页准入**：小批量、只读或可撤销、用户在场；在准入通过前不进行生产写入。
+
+本次审查仅复跑不会连接用户 Chrome 的自动测试，没有主动执行以上门禁，以免再次出现授权提示。
+
+### 13.3 明确不在本验收范围
+
+- Hana 自有 MV3 Extension + Native Host 的精确窗口/Profile/tab 授权；
+- 上传、下载和更高层文件语义；
+- Windows/Linux 真机兼容；
+- 下载并导入 **2026-06-01 至 2026-07-18** 的真实追溯码。该生产任务尚未执行，且最终提交必须再次人工审批。
+
+`1030/1030` 是隔离 fixture 的自动验收证据，不是生产追溯码下载或导入完成证明。

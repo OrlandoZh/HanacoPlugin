@@ -150,13 +150,36 @@ dist/hana-browser-bridge-0.2.3.zip.sha256
 - 不记录 DevTools browser path、sessionId、Cookie、Authorization、输入明文或 CDP result。
 - 真实业务页上线前仍需单独完成只读准入和人工确认。
 
-## 当前改造验证状态（2026-07-18）
+## 当前交付边界（2026-07-18 审查更新）
 
-- Hana 插件 `0.2.3`：`npm test` 27/27，existing/dedicated 集成 2/2；新增 Deny/连接失败熔断和并发单飞保护。
-- Browser Bridge 核心 `3.1.3`：`npm run check` 通过，单元测试 258/258，集成 8/8 spec 文件，Phase 7 1030/1030 通过。
-- 核心提交为 `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`，`BUNDLED_VERSION.json` 为 `dirty: false`；发布脚本继续拒绝 dirty 核心。
-- 真实 Chrome 已通过 Deny（HTTP 403）、Allow 恢复、restart generation、旧 claim 失效、两种 DevTools attach 顺序 `COEXIST`、claim、多 tab、后台原生点击、SPA、detach/reattach 和 emergency detach。
-- Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 的通过条件是旧 Chrome 主进程退出、旧 endpoint 不可达、新 endpoint fingerprint 改变，而不是要求该文件消失。
-- 多 Profile 门禁尚未完成。旧临时脚本因每约 1.5 秒重建连接而重复触发授权框，已停止并清理；后续只能在同一持久 runtime 中执行，且不得自动重试。
-- `0.2.3` 已完成最终单次真实授权验证：一次 reviewed start + 一次只读工具调用观察到 Allow，连接成功，零自动重试；清理后孤立 bridge 进程为 0，用户 Chrome 保持运行。
-- 真实业务页仍需单独完成只读准入和人工确认；生产数据导入仍须单独审批。
+### 已完成
+
+| 项目 | 证据 |
+|---|---|
+| Hana 插件 `0.2.3` | `npm test` 27/27、`npm run test:integration` 2/2；已安装副本版本与发布包一致 |
+| Browser Bridge 核心 `3.1.3` | `npm run check`、258/258 单元测试、8/8 集成 spec、Phase 7 1030/1030 全部通过 |
+| 构建可追溯性 | 核心提交 `ed0a2028e2fde57f0d7b25335d80d6011cf35b57`，`BUNDLED_VERSION.json` 为 `dirty: false` |
+| 最终版本单次 Allow | 已安装 `0.2.3` 副本完成一次 reviewed start + 一次只读 `browser_list_tabs`；只出现一次授权、零自动重试，清理后无孤立 bridge 进程且用户 Chrome 保持运行 |
+| 历史真实 Chrome 行为 | 已观察 Deny（HTTP 403）/Allow 恢复、restart generation、旧 claim `NO_SESSION`、两种 DevTools attach 顺序 `COEXIST`、后台原生点击、SPA、detach/reattach 和 emergency detach |
+
+Chrome 150 正常退出后可能保留 stale `DevToolsActivePort` 文件；restart 的判定标准是旧 Chrome 主进程退出、旧 endpoint 不可达、新 endpoint fingerprint 改变，而不是要求该文件消失。
+
+### 待完成的真实门禁
+
+1. **最终 `0.2.3` Deny/latch/recovery**：在同一发布包上只触发一次 Deny，确认 latch 被设置、第二次业务调用不再触发提示，并在新的 reviewed start 后单次恢复。
+2. **最终 `0.2.3` 断线/reconnect**：连接建立后重启 Chrome 或断开 socket，确认返回 `EXPLICIT_RECONNECT_REQUIRED`/受控错误且绝不隐式重连；新的 reviewed start 才允许下一次尝试。
+3. **HanaAgent 宿主级 E2E**：目前最终 Allow 证据是直接调用已安装插件模块；仍需从 HanaAgent 对话 -> Reviewer -> `browser_bridge_start` -> 一次只读业务工具完整跑通。
+4. **Multi Profile**：仍需在同一持久 runtime、一次授权、零自动重试条件下，仅用本地验收页记录 Chrome 实际可见范围；不得根据 `browserContextId` 猜测 Profile 名称。
+5. **真实业务页准入**：需先做小批量只读/可撤销验收和人工确认，不能用 1030 条隔离仿真替代。
+
+以上门禁均不得使用定时重连或 retry loop；为避免再次弹出 Chrome 授权框，本次文档审查没有主动执行这些真机门禁。
+
+### 明确延后
+
+- 精确窗口/Profile/tab 授权：Hana 自有 MV3 Extension + Native Host（Phase 2）。
+- 上传、下载及更高层文件语义（Phase 3）。
+- Windows/Linux 的安装、发现和真机兼容验证。
+
+### 不属于插件交付完成项
+
+“下载 **2026-06-01 至 2026-07-18** 的最新追溯码并导入生产系统”是独立业务任务，尚未执行。它需要业务数据获取、真实页面准入和生产提交三次独立确认；任何最终提交都必须再次人工审批。`1030/1030` 只证明隔离 fixture 上的分批、续跑、弹窗取消和提交护栏，不代表生产导入完成。
