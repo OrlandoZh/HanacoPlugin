@@ -1,0 +1,88 @@
+{
+  "manifestVersion": 1,
+  "id": "paper2gal",
+  "name": "Paper2Galgame",
+  "version": "0.1.0",
+  "description": "Turn academic papers into interactive visual novel dialogues with anime-style character narration, quizzes, and choices.",
+  "minAppVersion": "0.407.15",
+  "trust": "full-access",
+  "capabilities": [
+    "resource.read",
+    "resource.materialize",
+    "provider.read",
+    "provider.credentials.read"
+  ],
+  "contributes": {
+    "tools": [
+      { "source": "tools/paper2gal_parse.js" },
+      { "source": "tools/paper2gal_generate.js" }
+    ],
+    "configuration": {
+      "properties": {
+        "defaultReadingMode": {
+          "type": "string",
+          "enum": ["fast", "detailed"],
+          "default": "detailed",
+          "title": "Default reading mode",
+          "description": "fast = only Abstract/Method/Experiment; detailed = all chapters.",
+          "ui": { "control": "select" }
+        },
+        "chunkSize": {
+          "type": "number",
+          "minimum": 1,
+          "default": 1400,
+          "title": "Chunk size (characters)",
+          "description": "Maximum characters per text chunk for non-section-split PDFs.",
+          "ui": { "control": "number" }
+        },
+        "chunkOverlap": {
+          "type": "number",
+          "minimum": 0,
+          "default": 180,
+          "title": "Chunk overlap (characters)",
+          "description": "Overlap between adjacent chunks to preserve context.",
+          "ui": { "control": "number" }
+        },
+        "maxReturnedChunks": {
+          "type": "number",
+          "minimum": 0,
+          "default": 30,
+          "title": "Max returned chunks",
+          "description": "Safety limit to avoid returning too many chunks in one call.",
+          "ui": { "control": "number" }
+        },
+        "defaultCharacter": {
+          "type": "string",
+          "enum": ["奈奈", "玲娜贝儿", "蜡笔小新"],
+          "default": "奈奈",
+          "title": "Default character",
+          "description": "Default character for script generation.",
+          "ui": { "control": "select" }
+        },
+        "defaultProviderId": {
+          "type": "string",
+          "default": "",
+          "title": "Default LLM provider",
+          "description": "Preferred LLM provider for script generation (e.g. deepseek, openai). Leave empty to auto-detect.",
+          "ui": { "control": "text" }
+        },
+        "defaultModel": {
+          "type": "string",
+          "default": "",
+          "title": "Default LLM model",
+          "description": "Preferred model name (e.g. deepseek-chat, gpt-4o-mini). Leave empty to auto-detect.",
+          "ui": { "control": "text" }
+        },
+        "llmTemperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 2,
+          "default": 0.7,
+          "title": "LLM temperature",
+          "description": "Temperature for script generation (0=deterministic, 2=creative).",
+          "ui": { "control": "number" }
+        }
+      }
+    }
+  }
+}

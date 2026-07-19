@@ -1,0 +1,16 @@
+{
+  "name": "paper2gal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "HanaAgent plugin: turn academic papers into interactive visual novel dialogues.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^4.9.155"
+  }
+}

@@ -1,0 +1,517 @@
+<!--
+  Paper2Galgame Card Template
+  Used by show_card to render visual novel style dialogue cards.
+
+  The Agent generates a JSON script (array of items), then renders items
+  one by one into this template. JavaScript at the bottom handles
+  item navigation, quiz/choice interactions, and emotion mapping.
+
+  CSS variables from Hana design system are pre-injected by the host.
+  This template adds its own Galgame-specific styles on top.
+-->
+<div id="p2g-app">
+  <!-- Progress bar -->
+  <div class="p2g-progress-wrap">
+    <div class="p2g-progress-fill" id="p2g-progress" style="width:0%"></div>
+  </div>
+
+  <!-- Section badge (top left) -->
+  <div class="p2g-section-badge" id="p2g-section-badge">Chapter 1</div>
+
+  <!-- Debug badge (top right) -->
+  <div class="p2g-debug-badge" id="p2g-debug">pdfjs</div>
+
+  <!-- Character sprite area (right side) -->
+  <div class="p2g-char-area" id="p2g-char">
+    <div class="p2g-char-emoji" id="p2g-char-emoji">😺</div>
+  </div>
+
+  <!-- Chapter title card (for sub_head items) -->
+  <div class="p2g-chapter-card" id="p2g-chapter-card" style="display:none;">
+    <div class="p2g-chapter-label">CHAPTER</div>
+    <div class="p2g-chapter-title" id="p2g-chapter-title"></div>
+  </div>
+
+  <!-- Figure reference card (for show_image items) -->
+  <div class="p2g-figure-card" id="p2g-figure-card" style="display:none;">
+    <div class="p2g-figure-label">FIGURE</div>
+    <div class="p2g-figure-id" id="p2g-figure-id"></div>
+    <div class="p2g-figure-caption" id="p2g-figure-caption"></div>
+  </div>
+
+  <!-- Speaker nameplate -->
+  <div class="p2g-nameplate" id="p2g-nameplate">奈奈</div>
+
+  <!-- Dialogue box -->
+  <div class="p2g-dialogue" id="p2g-dialogue-box">
+    <div class="p2g-text" id="p2g-dialogue-text"></div>
+    <div class="p2g-feedback" id="p2g-feedback" style="display:none;"></div>
+    <div class="p2g-explanation" id="p2g-explanation" style="display:none;">
+      <span class="p2g-explanation-label">解析</span>
+      <span id="p2g-explanation-text"></span>
+    </div>
+    <div class="p2g-next-arrow" id="p2g-next-arrow">▼</div>
+  </div>
+
+  <!-- Options panel (for quiz/choice) -->
+  <div class="p2g-options" id="p2g-options" style="display:none;">
+    <div class="p2g-options-label">CHOOSE YOUR ANSWER</div>
+    <div id="p2g-options-list"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="p2g-controls">
+    <button class="p2g-btn p2g-btn-continue" id="p2g-btn-continue" onclick="p2g.next()">继续 ▶</button>
+  </div>
+</div>
+
+<style>
+/* ── Layout ── */
+#p2g-app {
+  position: relative;
+  width: 100%;
+  min-height: 480px;
+  background: linear-gradient(180deg, #1a0e2e 0%, #0d0719 100%);
+  border-radius: 12px;
+  overflow: hidden;
+  font-family: "Yu Gothic UI", "Noto Sans CJK SC", "PingFang SC", system-ui, sans-serif;
+  color: rgba(252,248,255,0.96);
+}
+
+/* ── Progress bar ── */
+.p2g-progress-wrap {
+  position: absolute; top: 0; left: 0; right: 0; height: 4px;
+  background: rgba(255,255,255,0.08); z-index: 200;
+}
+.p2g-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7b4fff 0%, #e066ff 100%);
+  transition: width 0.55s ease;
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 12px rgba(160,80,255,0.6);
+}
+
+/* ── Section badge ── */
+.p2g-section-badge {
+  position: absolute; top: 10px; left: 16px;
+  background: rgba(8,6,18,0.72); backdrop-filter: blur(10px);
+  border: 1px solid rgba(130,90,230,0.35); border-radius: 20px;
+  padding: 4px 14px;
+  color: rgba(195,170,255,0.85);
+  font-size: 12px; letter-spacing: 1.5px; z-index: 150;
+}
+
+/* ── Debug badge ── */
+.p2g-debug-badge {
+  position: absolute; top: 10px; right: 14px;
+  font-size: 10px; color: rgba(255,255,255,0.22);
+  z-index: 150; pointer-events: none;
+}
+
+/* ── Character sprite ── */
+.p2g-char-area {
+  position: absolute;
+  right: 24px; top: 40px;
+  width: 180px; height: 240px;
+  display: flex; align-items: flex-end; justify-content: center;
+  z-index: 40; pointer-events: none;
+  filter: drop-shadow(0 12px 24px rgba(0,0,0,0.5));
+  transition: opacity 0.35s ease;
+}
+.p2g-char-emoji {
+  font-size: 120px;
+  line-height: 1;
+}
+
+/* ── Emotion styles ── */
+.p2g-char-emoji.char_normal { filter: none; }
+.p2g-char-emoji.char_happy { filter: hue-rotate(15deg) saturate(1.3); transform: scale(1.05); }
+.p2g-char-emoji.char_angry { filter: hue-rotate(-20deg) saturate(1.5); transform: scale(0.95) rotate(-3deg); }
+.p2g-char-emoji.char_shy { filter: brightness(0.9) hue-rotate(-10deg); opacity: 0.85; transform: scale(0.92); }
+
+/* ── Chapter card ── */
+.p2g-chapter-card {
+  position: absolute; left: 50%; top: 38%;
+  transform: translate(-50%, -50%);
+  background: rgba(7,5,18,0.91); backdrop-filter: blur(18px);
+  border: 1px solid rgba(140,95,255,0.6); border-radius: 18px;
+  padding: 32px 64px; text-align: center; z-index: 45;
+  box-shadow: 0 0 70px rgba(100,55,200,0.35);
+  min-width: 320px;
+}
+.p2g-chapter-label {
+  font-size: 11px; letter-spacing: 5px;
+  color: rgba(175,145,255,0.6); text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.p2g-chapter-title {
+  color: #ead8ff; font-size: 22px; font-weight: 700;
+  letter-spacing: 2px;
+  text-shadow: 0 0 24px rgba(180,120,255,0.45);
+}
+
+/* ── Figure card ── */
+.p2g-figure-card {
+  position: absolute; left: 50%; top: 35%;
+  transform: translate(-50%, -50%);
+  background: rgba(7,5,18,0.92); backdrop-filter: blur(18px);
+  border: 1px solid rgba(140,95,255,0.55); border-radius: 16px;
+  padding: 16px 20px; text-align: center; z-index: 46;
+  box-shadow: 0 0 60px rgba(100,55,200,0.35);
+  max-width: 420px;
+}
+.p2g-figure-label {
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: rgba(175,145,255,0.55); margin-bottom: 6px;
+}
+.p2g-figure-id {
+  font-size: 16px; font-weight: 700; color: #ead8ff;
+}
+.p2g-figure-caption {
+  margin-top: 8px;
+  color: rgba(215,198,255,0.85);
+  font-size: 13px; line-height: 1.55;
+}
+
+/* ── Nameplate ── */
+.p2g-nameplate {
+  position: absolute; left: 5%; bottom: 180px;
+  background: linear-gradient(135deg, rgba(100,55,200,0.92) 0%, rgba(58,28,135,0.92) 100%);
+  color: #fff; font-weight: 800; font-size: 14px;
+  padding: 4px 24px 4px 14px;
+  border-radius: 8px 8px 0 0; z-index: 35;
+  letter-spacing: 2.5px;
+  clip-path: polygon(0 0, 100% 0, 92% 100%, 0 100%);
+  box-shadow: 0 -4px 20px rgba(100,55,200,0.35);
+}
+
+/* ── Dialogue box ── */
+.p2g-dialogue {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  min-height: 170px; z-index: 30;
+  padding: 18px 280px 24px 5%;
+  background: rgba(8,5,20,0.85);
+  border-top: 2px solid rgba(120,75,220,0.55);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 -8px 48px rgba(0,0,0,0.55);
+  cursor: pointer;
+}
+.p2g-text {
+  color: rgba(252,248,255,0.96);
+  font-size: 15px; line-height: 1.82; white-space: pre-wrap;
+}
+.p2g-feedback {
+  margin-top: 8px; font-size: 13px; font-weight: 600;
+  color: rgba(200,180,255,0.8);
+}
+.p2g-feedback.correct { color: #7bffaa; }
+.p2g-feedback.wrong { color: #ff8080; }
+.p2g-explanation {
+  margin-top: 8px; padding: 8px 14px;
+  background: rgba(110,70,200,0.13);
+  border-left: 3px solid rgba(140,100,255,0.5);
+  border-radius: 0 8px 8px 0;
+  font-size: 12px; line-height: 1.72;
+  color: rgba(220,205,255,0.88);
+}
+.p2g-explanation-label {
+  font-size: 10px; letter-spacing: 2.5px;
+  color: rgba(175,145,255,0.6);
+  display: block; margin-bottom: 4px;
+}
+.p2g-next-arrow {
+  position: absolute; right: 24px; bottom: 16px;
+  color: rgba(160,120,255,0.75); font-size: 14px; font-weight: 700;
+  animation: p2g-bounce 1.3s ease infinite;
+}
+@keyframes p2g-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.75; }
+  50% { transform: translateY(4px); opacity: 1; }
+}
+
+/* ── Options ── */
+.p2g-options {
+  position: absolute; left: 50%; bottom: 190px;
+  transform: translateX(-50%);
+  width: 80%; max-width: 500px; z-index: 50;
+}
+.p2g-options-label {
+  text-align: center; color: rgba(195,170,255,0.7);
+  font-size: 11px; letter-spacing: 4px; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.p2g-option-btn {
+  display: block; width: 100%; text-align: left;
+  padding: 10px 16px; margin: 6px 0;
+  border-radius: 10px;
+  border: 1px solid rgba(120,80,220,0.42);
+  background: rgba(10,7,22,0.78);
+  color: rgba(238,228,255,0.94);
+  font-size: 14px; cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: all 0.18s ease;
+  font-family: inherit;
+}
+.p2g-option-btn:hover {
+  border-color: rgba(160,115,255,0.9);
+  background: rgba(65,32,140,0.62);
+  color: #fff;
+  transform: translateX(6px);
+  box-shadow: 0 4px 20px rgba(100,55,200,0.32);
+}
+.p2g-option-btn:active {
+  transform: translateX(2px) scale(0.98);
+}
+.p2g-option-btn.correct {
+  border-color: rgba(120,230,170,0.6);
+  background: rgba(20,60,40,0.5);
+  color: #7bffaa;
+}
+.p2g-option-btn.wrong {
+  border-color: rgba(230,120,120,0.6);
+  background: rgba(60,20,20,0.5);
+  color: #ff8080;
+}
+
+/* ── Controls ── */
+.p2g-controls {
+  position: absolute; right: 16px; bottom: 190px;
+  z-index: 60;
+}
+.p2g-btn {
+  padding: 8px 20px;
+  border-radius: 10px;
+  border: 1px solid rgba(120,80,220,0.42);
+  background: rgba(10,7,22,0.78);
+  color: rgba(238,228,255,0.94);
+  font-size: 13px; cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: all 0.18s ease;
+  font-family: inherit;
+  font-weight: 600;
+}
+.p2g-btn:hover {
+  border-color: rgba(160,115,255,0.9);
+  background: rgba(65,32,140,0.62);
+  color: #fff;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .p2g-char-area {
+    width: 120px; height: 160px; right: 8px;
+  }
+  .p2g-char-emoji { font-size: 80px; }
+  .p2g-dialogue { padding: 14px 130px 16px 4%; min-height: 140px; }
+  .p2g-nameplate { bottom: 150px; font-size: 12px; }
+  .p2g-options { width: 90%; bottom: 160px; }
+  .p2g-controls { bottom: 160px; }
+}
+</style>
+
+<script>
+// ── Paper2Galgame Card Engine ──
+// The Agent injects items into window.__p2g_items before this script runs.
+
+const CHARACTER_EMOJIS = {
+  "奈奈": { normal: "😺", happy: "😸", angry: "😾", shy: "😺" },
+  "玲娜贝儿": { normal: "🦊", happy: "🦊", angry: "🦊", shy: "🦊" },
+  "蜡笔小新": { normal: "👦", happy: "👦", angry: "👦", shy: "👦" },
+  "default": { normal: "📚", happy: "📖", angry: "📚", shy: "📚" },
+};
+
+const EMOTION_MAP = {
+  char_normal: "normal",
+  char_happy: "happy",
+  char_angry: "angry",
+  char_shy: "shy",
+};
+
+const P2G = {
+  items: [],
+  currentIdx: 0,
+  chapterTitle: "",
+
+  init() {
+    this.items = window.__p2g_items || [];
+    if (this.items.length === 0) {
+      document.getElementById("p2g-dialogue-text").textContent = "暂无剧本内容。请先解析论文并生成剧本。";
+      return;
+    }
+    this.show(0);
+  },
+
+  show(idx) {
+    this.currentIdx = idx;
+    const item = this.items[idx];
+    if (!item) return;
+
+    // Reset UI
+    this.hideAllCards();
+    document.getElementById("p2g-feedback").style.display = "none";
+    document.getElementById("p2g-explanation").style.display = "none";
+    document.getElementById("p2g-options").style.display = "none";
+    document.getElementById("p2g-btn-continue").style.display = "block";
+    document.getElementById("p2g-next-arrow").style.display = "block";
+
+    // Update progress
+    const progress = ((idx + 1) / this.items.length) * 100;
+    document.getElementById("p2g-progress").style.width = progress + "%";
+
+    // Handle item types
+    switch (item.type) {
+      case "sub_head":
+        this.showChapterCard(item.title);
+        setTimeout(() => this.next(), 1500);
+        break;
+
+      case "show_image":
+        this.showFigureCard(item.figure_id, item.caption);
+        setTimeout(() => this.next(), 1500);
+        break;
+
+      case "dialogue":
+        this.showDialogue(item);
+        break;
+
+      case "quiz":
+        this.showDialogue({ ...item, text: item.question, emotion: item.emotion || "char_normal" });
+        this.showQuiz(item);
+        break;
+
+      case "choice":
+        this.showDialogue({ ...item, text: item.prompt, emotion: item.emotion || "char_normal" });
+        this.showChoice(item);
+        break;
+
+      default:
+        document.getElementById("p2g-dialogue-text").textContent = JSON.stringify(item);
+    }
+  },
+
+  showDialogue(item) {
+    const speaker = item.speaker || "角色";
+    const emotion = item.emotion || "char_normal";
+    const emotionKey = EMOTION_MAP[emotion] || "normal";
+
+    document.getElementById("p2g-nameplate").textContent = speaker;
+    document.getElementById("p2g-dialogue-text").textContent = item.text || "";
+
+    // Update character emoji
+    const charSet = CHARACTER_EMOJIS[speaker] || CHARACTER_EMOJIS.default;
+    const emojiEl = document.getElementById("p2g-char-emoji");
+    emojiEl.textContent = charSet[emotionKey] || charSet.normal;
+    emojiEl.className = "p2g-char-emoji " + emotion;
+  },
+
+  showQuiz(item) {
+    this.showOptions(item.options, (selectedIdx, btnEl) => {
+      const selected = item.options[selectedIdx];
+      const isCorrect = selected === item.correct_answer;
+
+      const feedbackEl = document.getElementById("p2g-feedback");
+      feedbackEl.style.display = "block";
+      feedbackEl.className = "p2g-feedback " + (isCorrect ? "correct" : "wrong");
+      feedbackEl.textContent = isCorrect ? item.feedback_correct : item.feedback_wrong;
+
+      if (isCorrect) {
+        btnEl.classList.add("correct");
+      } else {
+        btnEl.classList.add("wrong");
+        // Also highlight correct answer
+        const buttons = document.querySelectorAll(".p2g-option-btn");
+        item.options.forEach((opt, i) => {
+          if (opt === item.correct_answer) buttons[i]?.classList.add("correct");
+        });
+      }
+
+      // Show explanation
+      if (item.explanation) {
+        const explEl = document.getElementById("p2g-explanation");
+        explEl.style.display = "block";
+        document.getElementById("p2g-explanation-text").textContent = item.explanation;
+      }
+
+      document.getElementById("p2g-btn-continue").textContent = "继续 ▶";
+    });
+  },
+
+  showChoice(item) {
+    this.showOptions(item.options, (selectedIdx, btnEl) => {
+      if (item.explanation) {
+        const explEl = document.getElementById("p2g-explanation");
+        explEl.style.display = "block";
+        document.getElementById("p2g-explanation-text").textContent = item.explanation;
+      }
+      btnEl.classList.add("correct");
+      document.getElementById("p2g-btn-continue").textContent = "继续 ▶";
+    });
+  },
+
+  showOptions(options, callback) {
+    const listEl = document.getElementById("p2g-options-list");
+    const containerEl = document.getElementById("p2g-options");
+    listEl.innerHTML = "";
+    containerEl.style.display = "block";
+    document.getElementById("p2g-btn-continue").style.display = "none";
+    document.getElementById("p2g-next-arrow").style.display = "none";
+
+    options.forEach((opt, i) => {
+      const btn = document.createElement("button");
+      btn.className = "p2g-option-btn";
+      btn.textContent = opt;
+      btn.onclick = () => {
+        // Disable all buttons after selection
+        document.querySelectorAll(".p2g-option-btn").forEach(b => b.style.pointerEvents = "none");
+        callback(i, btn);
+      };
+      listEl.appendChild(btn);
+    });
+  },
+
+  showChapterCard(title) {
+    const card = document.getElementById("p2g-chapter-card");
+    document.getElementById("p2g-chapter-title").textContent = title;
+    document.getElementById("p2g-section-badge").textContent = title;
+    card.style.display = "block";
+  },
+
+  showFigureCard(figureId, caption) {
+    const card = document.getElementById("p2g-figure-card");
+    document.getElementById("p2g-figure-id").textContent = figureId;
+    document.getElementById("p2g-figure-caption").textContent = caption || "";
+    card.style.display = "block";
+  },
+
+  hideAllCards() {
+    document.getElementById("p2g-chapter-card").style.display = "none";
+    document.getElementById("p2g-figure-card").style.display = "none";
+  },
+
+  next() {
+    if (this.currentIdx + 1 < this.items.length) {
+      this.show(this.currentIdx + 1);
+    } else {
+      // End of script
+      this.hideAllCards();
+      document.getElementById("p2g-options").style.display = "none";
+      document.getElementById("p2g-nameplate").textContent = "END";
+      document.getElementById("p2g-dialogue-text").textContent = "📖 本章读完啦！";
+      document.getElementById("p2g-btn-continue").style.display = "none";
+      document.getElementById("p2g-next-arrow").style.display = "none";
+      document.getElementById("p2g-progress").style.width = "100%";
+    }
+  },
+};
+
+// Click dialogue box to advance
+document.getElementById("p2g-dialogue-box")?.addEventListener("click", () => {
+  if (document.getElementById("p2g-options").style.display === "none") {
+    P2G.next();
+  }
+});
+
+// Initialize when items are available
+window.P2G = P2G;
+P2G.init();
+</script>
