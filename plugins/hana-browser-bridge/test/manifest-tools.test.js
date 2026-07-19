@@ -28,7 +28,9 @@ const requiredByTool = new Map([
 
 test("manifest is full-access, workflow-only, and has maintenance UI", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(pluginDir, "manifest.json"), "utf8"));
+  const pkg = JSON.parse(fs.readFileSync(path.join(pluginDir, "package.json"), "utf8"));
   assert.equal(manifest.id, "hana-browser-bridge");
+  assert.equal(manifest.version, pkg.version);
   assert.equal(manifest.trust, "full-access");
   assert.deepEqual(manifest.contributes.configuration.properties.toolProfile.enum, ["workflow"]);
   assert.deepEqual(manifest.contributes.configuration.properties.connectionMode.enum, ["dedicated", "existing-chrome"]);
@@ -72,7 +74,7 @@ test("all workflow adapters are generated and side effects require review", asyn
 
 test("private MCP connect primitive is not contributed as a HanaAgent tool", () => {
   assert.deepEqual(INTERNAL_MCP_TOOL_NAMES, ["browser_connect"]);
-  assert.equal(EXISTING_CHROME_CONNECT_TIMEOUT_MS, 30000);
+  assert.equal(EXISTING_CHROME_CONNECT_TIMEOUT_MS, 180000);
   assert.equal(fs.existsSync(path.join(pluginDir, "vendor/browser-bridge/tools/browser_connect.js")), true);
   assert.equal(fs.existsSync(path.join(pluginDir, "tools/browser_connect.js")), false);
 });

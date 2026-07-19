@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "hana-browser-bridge",
   "name": "Browser Bridge for HanaAgent",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "将 browser-bridge MCP 封装为 HanaAgent 原生插件，提供 15 个受控工作流工具、Page-Agent-inspired Observe/Act/Verify、专用 Chrome 与用户现有 Chrome 双连接模式。",
   "minAppVersion": "0.397.15",
   "trust": "full-access",

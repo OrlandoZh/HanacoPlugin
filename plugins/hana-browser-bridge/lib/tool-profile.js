@@ -21,7 +21,7 @@ export const PUBLIC_WORKFLOW_TOOL_NAMES = Object.freeze([
 // itself consume the single Chrome consent attempt without reading tab metadata.
 export const INTERNAL_MCP_TOOL_NAMES = Object.freeze(["browser_connect"]);
 
-export const EXISTING_CHROME_CONNECT_TIMEOUT_MS = 30000;
+export const EXISTING_CHROME_CONNECT_TIMEOUT_MS = 180000;
 
 export const MCP_ALLOWLIST_TOOL_NAMES = Object.freeze([
   ...PUBLIC_WORKFLOW_TOOL_NAMES,
