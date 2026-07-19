@@ -74,7 +74,7 @@ test("all workflow adapters are generated and side effects require review", asyn
 
 test("private MCP connect primitive is not contributed as a HanaAgent tool", () => {
   assert.deepEqual(INTERNAL_MCP_TOOL_NAMES, ["browser_connect"]);
-  assert.equal(EXISTING_CHROME_CONNECT_TIMEOUT_MS, 180000);
+  assert.equal(EXISTING_CHROME_CONNECT_TIMEOUT_MS, 120000);
   assert.equal(fs.existsSync(path.join(pluginDir, "vendor/browser-bridge/tools/browser_connect.js")), true);
   assert.equal(fs.existsSync(path.join(pluginDir, "tools/browser_connect.js")), false);
 });
