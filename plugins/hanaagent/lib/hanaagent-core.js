@@ -8,450 +8,15 @@ import {
   saveAgentProfile
 } from "./agent-profile-store.js";
 
-const TEMPLATE_LIBRARY = [
-  {
-    id: "orchestrate",
-    label: "任务编排",
-    summary: "拆解目标、分配角色、给出检查点和交付标准。",
-    prompt: [
-      "你是 Hanaco 智能体工作台的编排者。",
-      "请把下面目标拆解成可执行任务，标注负责人角色、输入、输出、风险和检查点。",
-      "输出格式：任务列表、执行顺序、需要用户确认的问题、下一步行动。"
-    ].join("\n")
-  },
-  {
-    id: "research",
-    label: "资料研究",
-    summary: "整理背景、检索线索、形成可追踪研究结论。",
-    prompt: [
-      "你是 Hanaco 研究智能体。",
-      "请围绕目标建立研究计划，区分事实、推断和待验证问题。",
-      "输出格式：研究问题、来源计划、阶段结论、下一步。"
-    ].join("\n")
-  },
-  {
-    id: "build",
-    label: "构建实现",
-    summary: "面向代码/文档交付，要求给出修改计划和验证步骤。",
-    prompt: [
-      "你是 Hanaco 构建智能体。",
-      "请基于目标制定实现方案，优先沿用现有项目结构，并列出验证命令。",
-      "输出格式：变更计划、文件边界、验证方式、风险。"
-    ].join("\n")
-  },
-  {
-    id: "review",
-    label: "审查复核",
-    summary: "检查结果质量、风险、遗漏和回归测试。",
-    prompt: [
-      "你是 Hanaco 审查智能体。",
-      "请审查目标相关工作，优先指出缺陷、风险、遗漏测试和可操作修复建议。",
-      "输出格式：严重问题、一般问题、开放问题、建议结论。"
-    ].join("\n")
-  }
-];
-
-const CHECKPOINT_CONTRACT = [
-  "STATE: DONE | BLOCKED | NEEDS_INPUT | HANDOFF | IN_PROGRESS | NEEDS_REVIEW",
-  "FILES_CHANGED: exact paths or none",
-  "COMMANDS_RUN: exact commands or none",
-  "RESULT: concrete result/proof",
-  "BLOCKER: blocker or none",
-  "NEXT_ACTION: exact recommended next action"
-];
-
-const PARITY_STATUSES = [
-  "plugin-implemented",
-  "host-provided",
-  "capability-gated",
-  "out-of-scope-for-plugin",
-  "missing"
-];
-
-const HERMES_PARITY_MATRIX = [
-  {
-    id: "frontend-screens",
-    label: "Frontend screens and workbench surfaces",
-    items: [
-      {
-        id: "conductor-chat-agent-view",
-        label: "Chat, Agent View, Research Card, tabbed/collapsible Inspector panel, scroll-to-bottom, empty state, smooth streaming, typing indicator, Markdown/code/thinking message rendering, expandable tool-call details, session list filtering, session fork, aliases, tombstones, live events, history, and tool traces",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/workbench researchCardPanel embedded display with buildResearchCard(), copyResearchCard(), saveResearchCardToMemory(), recordResearchCardArtifact(); smoothStreamTick(), streaming-indicator, streaming-cursor, and streaming-skeleton for live text_delta reveal; inspectorPanel with inspector-tabs, inspector-tab, inspectorCollapseBtn, and toggleInspectorCollapsed() for Activity/Context/Tools/Knowledge/Worker panes; workerOutputScrollBtn scroll-to-bottom control, chat-empty-state onboarding actions, message-preview renderer with safe Markdown/code blocks/copy/thinking/tool pills and expandable message-tool-detail panels for tool calls, tool results, commands, files, checkpoints, and errors; local session sidebar filter, /api/session-fork, /api/sessions with sessionAliases/sessionTombstones, /api/session-history plus key/sessionKey alias, /api/session-send, /api/session-events, buildToolTrace(); tool-artifact-store.js mirrors Hermes artifact-backed tool outputs by externalizing >4KB session:history tool results to stable toolout_* records with summary/preview/pointer"
-      },
-      {
-        id: "dashboard-overview",
-        label: "Dashboard overview and runtime aggregator",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/overview sections for agents, sessions, missions, tasks, usage plus mission/assignment/session attribution, workers, incidents"
-      },
-      {
-        id: "agenda-calendar",
-        label: "Agenda and Calendar views for attention, active missions, due tasks, upcoming jobs, approvals, and dated work",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/agenda aggregates Hermes AgendaView-style attention/active/tasks/upcoming/recent/agent sections from missions, tasks, jobs, approvals, failures, and host agents; /workbench renders Agenda attention/active/tasks/upcoming/completed/agents as collapsible sections with counts and Hide/Show state, and each row can open its mission, task editor, worker drilldown, approval queue item, Run Console record, job detail, or agenda detail; /api/calendar aggregates Hermes CalendarView-style day/week/month events from mission starts, task due dates, pending approvals, and recurring jobs expanded from daily/weekly/monthly/5-field cron schedules, including cron step/range/list syntax for minutes, hours, weekdays, and month days; Calendar supports local/UTC/IANA timezone selection via query or workbenchSettings.calendarTimezone and returns dayKey/localTime/timezone so recurring jobs expand on the selected wall-clock time; /workbench renders Calendar controls with day/week/month mode, previous/today/next navigation, timezone display, month/week grids, day hour axis, event open, copy summary, and type-aware drilldown into missions, tasks, approvals, and jobs"
-      },
-      {
-        id: "files-editor-preview",
-        label: "Files browser, project metadata, upload, preview, download, diff, patch review, write, rename, delete",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/paths and /api/files?action=list|read|download plus POST /api/files provide Hermes Files API aliases over workspaceRoots; /api/workspace-files, /api/workspace-file/upload, /api/workspace-file, /api/workspace-file/diff, /api/workspace-file/patch-review accept/reject, workspaceRoots sandbox; worker-ide files.project reads package.json scripts and .git/HEAD branch only inside authorized workspace roots"
-      },
-      {
-        id: "terminal-surface",
-        label: "Terminal attach, read, write, close, status, and xterm-style TUI controls",
-        status: "capability-gated",
-        owner: "openhanako + hanaagent",
-        evidence: "/api/terminals proxies terminal:list/start/read/write/close; /api/terminal-stream, /api/terminal-input, /api/terminal-resize, and /api/terminal-close provide Hermes terminal aliases over OpenHanako host-managed terminals; /workbench terminalFrame, terminal-screen ANSI renderer, command history, quick commands, clear, copy, auto-read status",
-        notes: "Plugin renders and controls the surface; PTY creation remains a host responsibility."
-      },
-      {
-        id: "memory-browser",
-        label: "Memory list, read, search/edit fallback",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/memory, /api/memory/:memoryId, local memory store fallback"
-      },
-      {
-        id: "skills-browser",
-        label: "Skills browser and skill inventory",
-        status: "capability-gated",
-        owner: "openhanako + hanaagent",
-        evidence: "/api/agent-skills, /api/agents/:agentId/skills, /api/integrations",
-        notes: "Install/enable flows depend on host skill registry handlers."
-      },
-      {
-        id: "jobs-automation",
-        label: "Jobs, schedules, background automation, and upcoming schedule visibility",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/jobs, job scheduler, autopilot schedule/tick, /api/agenda upcomingJobs, /api/calendar job events"
-      },
-      {
-        id: "settings-provider-config",
-        label: "Provider/settings configuration, inline model chooser, 8-theme system, and local workbench preferences",
-        status: "plugin-implemented",
-        owner: "openhanako + hanaagent",
-        evidence: "OpenHanako model/provider settings plus hanaagent capability/readiness panels and /workbench modelChooserBackdrop inline provider/model chooser; workbenchSettings via /api/defaults for themePreset covering Hermes/Claude Official/Classic/Slate/Mono light+dark variants, accent/editor/usage threshold/system metrics/mobile nav/calendar timezone"
-      }
-    ]
-  },
-  {
-    id: "backend-apis",
-    label: "Backend API endpoints",
-    items: [
-      {
-        id: "chat-sessions-api",
-        label: "Chat, session create/list/status/send/history/abort",
-        status: "capability-gated",
-        owner: "openhanako + hanaagent",
-        evidence: "session:* bus probes and /api/sessions, /api/dispatch, /api/session-* routes; /api/send, /api/send-stream, /api/history, /api/events, and /api/chat-events provide Hermes Chat/Messaging aliases over OpenHanako session:send/session:history/session-events; /api/session-send maps Hermes ControlSuite sessionKey/message into OpenHanako session:send"
-      },
-      {
-        id: "mission-task-checkpoint-api",
-        label: "Missions, assignments, filtered/editable/reorderable/batch task board with saved views, WIP limits, shortcuts, checkpoints, checkpoint reminders, review gate",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/missions, /api/tasks, board search/assignee/priority filters, savedBoardViews and boardWipLimits in /api/defaults, focused task keyboard shortcuts, drag/drop reorder via /api/tasks/:taskId/move, batch move/update/delete via /api/tasks/batch, full task editor via PATCH /api/tasks/:taskId, Hermes /api/claude-tasks and /api/hermes-tasks aliases with launch action, /api/checkpoints, /api/checkpoint-reminders, /api/checkpoints/:checkpointId/reminder, /api/review-gate, /api/inbox"
-      },
-      {
-        id: "files-memory-skills-api",
-        label: "Files, memory, skills, integrations",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/workspace-*, /api/memory*, /api/agent-skills, /api/integrations"
-      },
-      {
-        id: "terminal-api",
-        label: "Terminal session API",
-        status: "capability-gated",
-        owner: "openhanako + hanaagent",
-        evidence: "/api/terminals routes proxy host terminal:* capabilities; Hermes /api/terminal-stream/input/resize/close aliases are provided without plugin-owned PTY spawning"
-      },
-      {
-        id: "auth-security-api",
-        label: "Authentication, authorization, plugin token enforcement",
-        status: "host-provided",
-        owner: "openhanako",
-        evidence: "OpenHanako plugin route token/auth boundary; plugin path checks for file/memory operations"
-      }
-    ]
-  },
-  {
-    id: "orchestration",
-    label: "Conductor, Swarm, and worker IDE",
-    items: [
-      {
-        id: "swarm-conductor",
-        label: "Conductor mission planning, SwarmBrief contracts, compact Swarm Hub, dispatch, roster-aware broadcast, stop, complete, continue",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "mission-store, /api/conductor-spawn, /api/conductor-stop, /api/missions/:id/briefs, /api/missions/:id/assignments/:assignmentId/brief, /api/missions/:id/dispatch|broadcast|stop|complete|continue; dispatch and broadcast prompts include Hermes-style SwarmBrief YAML plus checkpoint contract; /api/missions/:id/broadcast respects assignment.roster.acceptsBroadcast by default, records broadcast mission events, and sends checkpoint-bearing follow-up prompts through OpenHanako session:send; /api/missions/:id/continue creates continuation mission/tasks and by default reuses or creates a worker session before sending the continuation brief through OpenHanako session:send, with dispatch:false for plan-only continuation; /workbench officeView swarm-hub-card with main agent identity, swarm/active/room/blocker metrics, lane wires, and routing/autopilot/inbox/refresh controls"
-      },
-      {
-        id: "hermes-swarm-api-compat",
-        label: "Hermes Swarm API compatibility aliases for roster, dispatch, missions, checkpoint, runtime, health, chat, decomposition, Kanban, memory, reports, project, environment, lifecycle, terminal, direct chat, orchestrator loop, and runtime reset",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/swarm-roster GET/POST maps Hermes roster workers into Operations profiles; /api/swarm-dispatch accepts workerIds+prompt or assignments[] and creates/dispatches HanaAgent missions with SwarmBrief output; /api/swarm-missions lists, reports, and cancels missions or assignments; /api/swarm-checkpoint accepts worker runtime checkpoint shape and writes checkpoint/mission/task/host-task state through existing OpenHanako-safe stores; /api/swarm-runtime, /api/swarm-health, and /api/swarm-chat expose worker observability from OpenHanako sessions, assignments, tasks, checkpoints, run records, and session history; /api/swarm-decompose returns deterministic fallback assignments plus Hermes JSON-only orchestratorPrompt/rosterText and can dispatch that prompt through OpenHanako session:send; /api/swarm-kanban, /api/swarm-memory, /api/swarm-reports, /api/swarm-project, /api/swarm-environment, /api/swarm-lifecycle, /api/swarm-tmux-start|stop|scroll, /api/swarm-direct-chat, /api/swarm-orchestrator-loop, and /api/swarm-runtime/reset provide OpenHanako-safe aliases for the remaining Hermes swarm-* surfaces without directly manipulating Hermes tmux/profile files"
-      },
-      {
-        id: "worker-cards-ide",
-        label: "Worker cards, tabbed multi-pane Worker IDE, preview-to-fix task capture, patch review handoff, lifecycle controls, and durable handoff memory",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/workers, /api/workers/:workerId, /api/workers/:workerId/lifecycle, /api/workers/:workerId/handoff, /api/handoffs, /api/handoffs/:workerId, worker-ide.js, worker-lifecycle.js, handoff-store.js; /workbench worker-ide-shell with hub, lane map, Worker IDE panes for Overview/Chat/Queue/Terminal/Preview/Files/Evidence; Project Metadata and Dev Scripts cards show projectName/cwd/branch/package scripts from files.project; worker-visual-picker and createPreviewFixTask() create backlog tasks from preview URL, selector, issue, worker, session, mission, and assignment evidence; Files panel can turn diffs into approval records and accept/reject patch reviews; lifecycle state exposes healthy/watch/handoff_required/renew_required and can dispatch strict STATE: HANDOFF prompts; HANDOFF checkpoints materialize latest/archive markdown under memory/handoffs/swarm and appear in Memory plus Worker Evidence"
-      },
-      {
-        id: "run-console-records",
-        label: "Artifacts, approvals queue/history, categorized learnings, run comparison, and materialized files",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/run-records, /api/run-learnings, /api/run-compare, /api/approvals, /api/gateway/approvals, /api/approvals/:approvalId/:action, /api/gateway/approvals/:approvalId/:action, /api/artifacts, /api/artifacts/:artifactId, /api/missions/:id/report-artifact, /api/missions/:id/assignments/:assignmentId/brief/artifact, materializeRunRecordFile(), SessionFile staging; /api/artifacts merges Run Console artifacts with Hermes Tool Output Artifacts from dataDir/tool-artifacts, lists metadata/preview only, preserves terminal_log/file_read/diff/skill_doc/tool_output kinds, and lazy-loads full content through /api/artifacts/:artifactId; /workbench Run Console mirrors Hermes RunLearnings success/failure/optimization filters and RunCompare side-by-side status/duration/token/cost/agent/artifact/approval/learning metrics; Mission Report and SwarmBrief can be recorded as versioned Run artifacts with materialized files and preview; approvalsPanel mirrors Hermes Approvals Page/Bell queue with pending/history, risk labels, open, approve, deny, copy, and mission/worker drilldown"
-      },
-      {
-        id: "autopilot-routing",
-        label: "Autopilot routing, stale scans, review requests, escalation, scheduler",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/autopilot, /api/autopilot/tick, /api/missions/:id/autopilot"
-      },
-      {
-        id: "operations-profiles",
-        label: "Operations presets, readiness, dynamic roster lanes, profile missions, and Hermes swarm roster import/export",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/operations, /api/operations/presets, /api/operations/profiles, /api/operations/profiles/:profileId/swarm-roster, /api/operations/swarm-roster/import; operation-profiles.js preserves Hermes swarm.yaml worker metadata including specialty/model/mission/profile/modes/tools/skills/capabilities/preferredTaskTypes/greenlightRequiredFor/maxConcurrentTasks/acceptsBroadcast/plugins/pluginToolsets/mcpServers/wrapper/defaultCwd; mission-store.js builds dynamic assignments from imported roster lanes and keeps assignment.roster for worker tools/skills/greenlight evidence"
-      }
-    ]
-  },
-  {
-    id: "architecture-integrations",
-    label: "Architecture and integrations",
-    items: [
-      {
-        id: "gateway-capability-probes",
-        label: "Gateway/capability probing and degraded-mode UI",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "hasBusCapability(), computeHostGaps(), /api/state capabilities, Setup Doctor with structured repair actions, setup-repair buttons for Provider Setup/Model Chooser/session/files/terminal/context/operations, connectionBanner health banner, backend-unavailable/degraded/blocked states"
-      },
-      {
-        id: "event-bus-runtime",
-        label: "Event bus and live session feed",
-        status: "capability-gated",
-        owner: "openhanako + hanaagent",
-        evidence: "ctx.bus.request probes plus /api/session-events SSE"
-      },
-      {
-        id: "run-store-persistence",
-        label: "Run/task/mission/job persistence",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "dataDir JSON stores for missions, tasks, checkpoints, jobs, profiles, run records"
-      },
-      {
-        id: "mcp-provider-catalog",
-        label: "MCP, providers, plugins, capabilities integration catalog",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "integration-catalog.js, /api/integrations, /api/integrations/action, plus Hermes infra aliases /api/auth, /api/auth-check, /api/ping, /api/workspace, /api/plugins, /api/mcp, /api/skills, /api/local-providers, /api/provider-usage, /api/system-metrics, /api/connection-settings, /api/config-patch, /api/gateway-reprobe, /api/start-agent, /api/start-claude, /api/claude-update, /api/crew-status, /api/oauth/device-code, /api/oauth/poll-token, /api/media, /api/preview-file, /api/transcribe, /api/playground-admin, /api/playground-npc, /api/vt-capital, plus nested profiles/knowledge/mcp/sessions/skills/update/dashboard aliases; recursive Hermes API alias diff is zero for the plugin-safe compatibility scope"
-      },
-      {
-        id: "workspace-agents-checkpoints",
-        label: "Workspace agents and file checkpoints",
-        status: "capability-gated",
-        owner: "openhanako + hanaagent",
-        evidence: "agent:list, checkpoint:list, checkpoint:find-by-session-since proxies"
-      }
-    ]
-  },
-  {
-    id: "ux-security-deployment",
-    label: "UX, security, mobile, and deployment",
-    items: [
-      {
-        id: "command-center-search-export",
-        label: "Command palette, search, slash commands, voice input, file attachments, session history search, rich message preview, reports, Markdown/batch/zip export, session fork, context usage meter, session title suggestions",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/search with session:history scanning, message-preview safe Markdown/code/thinking/tool-pill renderer, mission reports/export, /api/session-export and /api/session-export/batch with Markdown/JSON/Text/HTML/CSV/ZIP bundle formats, /api/session-fork, /api/context-usage, /api/session-title, Hermes-style Command Palette via ⌘K with executable workbench commands, command center UI, Mission slash command menu, browser Web Speech voice input, browser FileReader attachment context"
-      },
-      {
-        id: "smart-model-suggestions",
-        label: "Smart model suggestions, inline model chooser, model metadata, draggable pinned model/session management, saved workbench modes, toast notifications, and onboarding tour",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/api/model-suggestions, modelChooserBackdrop aggregating smart suggestions/pinned/modelMetadata/current/session models with search/source filter/apply/pin/copy actions, modelMetadata context/price data, pinnedModels, pinnedSessions, workbenchModes + activeWorkbenchModeId + workbenchNotifications + workbenchOnboarding via /api/defaults, Pinned panel select/default/up-down reorder/drag-drop reorder/apply/remove actions, Modes panel save/apply/rename/delete/drift, in-app toastStack/error toast/model suggestion toast, Web Audio notification sounds, browser Notification option, navigator.vibrate haptics, onboarding tour modal with setup/mission/board/runtime/files/run-console steps, Setup Doctor repair actions that open Provider Setup/Model Chooser and other runtime panels, Agent Runtime suggestion panel"
-      },
-      {
-        id: "path-security-validation",
-        label: "Path traversal, symlink boundary, input validation",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "workspace-files.js and memory-store.js path guards"
-      },
-      {
-        id: "responsive-plugin-ui",
-        label: "Responsive OpenHanako iframe workbench UI with mobile header, hamburger menu, sessions panel, and tab bar",
-        status: "plugin-implemented",
-        owner: "hanaagent",
-        evidence: "/workbench single-page responsive layout, mobilePageHeader, mobileSessionsDrawer/mobileSessionsPanel, mobile hamburger trigger, mobileTabBar bottom navigation, mobileChatNavMode dock/integrated/scroll-hide, section jump targets for control/conductor/board/runtime/files/terminal"
-      },
-      {
-        id: "pwa-electron-docker",
-        label: "Hermes standalone PWA/Electron/Docker deployment",
-        status: "out-of-scope-for-plugin",
-        owner: "openhanako deployment",
-        evidence: "HanaAgent ships as an OpenHanako plugin zip/manifest instead of a standalone app"
-      },
-      {
-        id: "standalone-hermes-installer",
-        label: "Hermes Agent installer and gateway auto-start",
-        status: "out-of-scope-for-plugin",
-        owner: "openhanako deployment",
-        evidence: "OpenHanako owns process/model lifecycle; HanaAgent probes capabilities after install"
-      }
-    ]
-  }
-];
-
-function cloneParityItem(item) {
-  return { ...item };
-}
-
-function summarizeParityMatrix(categories) {
-  const summary = {
-    total: 0,
-    pluginImplemented: 0,
-    hostProvided: 0,
-    capabilityGated: 0,
-    outOfScopeForPlugin: 0,
-    missing: 0,
-    inPluginScopeMissing: 0,
-    completeForPluginScope: true
-  };
-  for (const category of categories) {
-    for (const item of category.items || []) {
-      summary.total += 1;
-      if (item.status === "plugin-implemented") summary.pluginImplemented += 1;
-      else if (item.status === "host-provided") summary.hostProvided += 1;
-      else if (item.status === "capability-gated") summary.capabilityGated += 1;
-      else if (item.status === "out-of-scope-for-plugin") summary.outOfScopeForPlugin += 1;
-      else if (item.status === "missing") summary.missing += 1;
-      if (item.status === "missing" && item.owner !== "openhanako deployment") summary.inPluginScopeMissing += 1;
-    }
-  }
-  summary.completeForPluginScope = summary.inPluginScopeMissing === 0;
-  return summary;
-}
-
-const WORKBENCH_BLUEPRINT = {
-  reference: "reference/hermes-workspace-main",
-  thesis: "HanaAgent should evolve from a prompt dispatcher into a capability-gated control plane for agent sessions, tasks, checkpoints, and worker cards.",
-  currentCoverage: [
-    { id: "agent-session-probe", label: "Agent/session probe", status: "implemented" },
-    { id: "mission-dispatch", label: "Mission dispatch to existing session", status: "implemented" },
-    { id: "workflow-templates", label: "Workflow prompt templates", status: "implemented" },
-    { id: "persistent-task-board", label: "Persistent task board with saved views, WIP limits, keyboard shortcuts, search, assignee/priority filters, drag/drop ordering, batch actions, and full card editing", status: "implemented" },
-    { id: "capability-overview", label: "Capability overview", status: "implemented" },
-    { id: "checkpoint-inbox", label: "Checkpoint inbox with conflict resolution and due reminders", status: "implemented" },
-    { id: "worker-cards", label: "Worker cards from sessions/tasks/checkpoints", status: "implemented" },
-    { id: "tool-call-rendering", label: "Tool calls, tool results, commands, files, checkpoints, error trace rendering, expandable details, copy actions, and safe Markdown/code/thinking message preview", status: "implemented" },
-    { id: "live-session-events", label: "Live session event stream with smooth text reveal, typing indicator, Agent View feed, and Inspector activity summary", status: "implemented" },
-    { id: "agent-runtime-profile", label: "Agent config/runtime profile", status: "implemented" },
-    { id: "usage-ledger", label: "Usage/cost ledger with mission and assignment attribution", status: "implemented" },
-    { id: "host-task-runtime", label: "Host task/job runtime", status: "implemented" },
-    { id: "agenda-calendar", label: "Agenda / Calendar aggregation for active missions, due tasks, recurring jobs, approvals, and dated work", status: "implemented" },
-    { id: "run-console-records", label: "Artifacts, lazy tool-output artifacts, approvals, categorized learnings, run comparison, Mission Report artifacts, and SwarmBrief artifacts", status: "implemented" },
-    { id: "artifact-files", label: "Artifact file materialization and SessionFile staging", status: "implemented" },
-    { id: "batch-session-export", label: "Batch, pinned, HTML, CSV, and ZIP session export bundles", status: "implemented" },
-    { id: "autopilot-routing", label: "Autopilot routing suggestions, dispatch, stale-worker scan, escalation, and scheduler", status: "implemented" },
-    { id: "operations-profile-presets", label: "Operations profile presets, readiness dashboard, dynamic roster dispatch, and Hermes swarm roster import/export", status: "implemented" },
-    { id: "integration-catalog", label: "MCP, skills, plugin, and capability integration catalog", status: "implemented" },
-    { id: "skills-memory-readonly", label: "Host skills, host memory, and local editable memory surfaces", status: "implemented" },
-    { id: "worker-session-lifecycle", label: "Dedicated worker session create/status", status: "implemented" },
-    { id: "continuation-worker-dispatch", label: "Continuation missions create tasks and auto-dispatch worker briefs through OpenHanako sessions", status: "implemented" },
-    { id: "worker-context-lifecycle", label: "Swarm2 worker lifecycle context policy, handoff_required/renew_required states, strict handoff prompt dispatch, and durable handoff files", status: "implemented" },
-    { id: "session-alias-rename", label: "Session alias rename overlay for Hermes-style sidebar titles", status: "implemented" },
-    { id: "session-sidebar-filter", label: "Session sidebar local filtering by title, alias, path, agent, cwd, and model", status: "implemented" },
-    { id: "session-tombstones", label: "Session tombstones for workbench delete/hide cleanup", status: "implemented" },
-    { id: "session-fork", label: "Session fork/duplicate workflow with continuation prompt", status: "implemented" },
-    { id: "session-history-search", label: "Session search across recent host history", status: "implemented" },
-    { id: "research-card", label: "Embedded Research Card generated from mission, notes, session history, tool trace, memory, and worker output", status: "implemented" },
-    { id: "command-palette", label: "Hermes-style Command Palette with searchable executable workbench commands", status: "implemented" },
-    { id: "context-usage-meter", label: "Context usage meter with model metadata context windows and threshold alerts", status: "implemented" },
-    { id: "terminal-surface", label: "Host-managed terminal attach, xterm-style TUI screen, live read, write, close, history, quick commands, copy, and status surface", status: "implemented" },
-    { id: "files-editor-preview", label: "Workspace files upload, editor, preview, diff, patch review accept/reject, and save surfaces", status: "implemented" },
-    { id: "auto-session-titles", label: "Auto-generated session title suggestions from history", status: "implemented" },
-    { id: "pinned-management", label: "Pinned session/model select, default, drag/drop reorder, apply, and remove actions", status: "implemented" },
-    { id: "smart-model-suggestions", label: "Smart model suggestions and inline model/provider chooser from mission profile, pinned models, current session, and model metadata", status: "implemented" },
-    { id: "eight-theme-system", label: "Hermes-style theme presets for Claude Official, Classic, Slate, Mono, and light variants", status: "implemented" },
-    { id: "toast-system", label: "Hermes-style toast, error-toast, and model-suggestion-toast stack", status: "implemented" },
-    { id: "mobile-tabbar", label: "Mobile page header, hamburger sessions panel, mobile tab bar, and mobile chat nav modes for workbench section jumps", status: "implemented" },
-    { id: "connection-health-banner", label: "Connection overlay, health banner, and backend unavailable state", status: "implemented" },
-    { id: "onboarding-tour", label: "Hermes-style onboarding tour with persisted completion/dismiss state and executable Setup Doctor repair actions", status: "implemented" }
-  ],
-  phases: [
-    {
-      id: "phase-1",
-      label: "稳定工作台骨架",
-      summary: "Expose blueprint, capabilities, workflow templates, route smoke tests, and visible gaps."
-    },
-    {
-      id: "phase-2",
-      label: "持久任务与 overview 聚合",
-      summary: "Move tasks from localStorage to ctx.dataDir and add a server-side overview aggregator."
-    },
-    {
-      id: "phase-3",
-      label: "Mission / Checkpoint 闭环",
-      summary: "Inject checkpoint contracts, parse worker checkpoints, route status into inbox and board lanes, and notify due checkpoint reminders."
-    },
-    {
-      id: "phase-4",
-      label: "Worker cards",
-      summary: "Show real agent/session state, current task, queue, recent messages, quick actions, and a tabbed multi-pane Worker IDE per worker."
-    },
-    {
-      id: "phase-5",
-      label: "IDE surfaces",
-      summary: "Gate and attach memory, skills, files, previews, and terminal only through stable Hana host APIs."
-    },
-    {
-      id: "phase-6",
-      label: "Autopilot",
-      summary: "Add auditable routing suggestions, stale-worker detection, blocked escalation, and review gates."
-    }
-  ],
-  hostRequests: [
-    "session:create",
-    "session:history",
-    "session:status",
-    "session:abort",
-    "agent:config",
-    "agent:skills",
-    "usage:list",
-    "checkpoint:list",
-    "checkpoint:find-by-session-since",
-    "deferred:register",
-    "deferred:query",
-    "deferred:list-pending",
-    "deferred:resolve",
-    "deferred:fail",
-    "deferred:abort",
-    "memory:list",
-    "memory:read",
-    "task:list",
-    "task:register",
-    "task:query",
-    "task:update"
-  ]
-};
+import {
+  TEMPLATE_LIBRARY,
+  CHECKPOINT_CONTRACT,
+  PARITY_STATUSES,
+  HERMES_PARITY_MATRIX,
+  WORKBENCH_BLUEPRINT,
+  cloneParityItem,
+  summarizeParityMatrix
+} from "./blueprint-data.js";
 
 export function getTemplates() {
   return TEMPLATE_LIBRARY.map((item) => ({ ...item }));
@@ -511,7 +76,7 @@ export function buildModelSuggestions(input = {}) {
       tier: targetTier,
       source: "setup",
       score: 0,
-      reason: "No configured or pinned model is available. Configure an OpenHanako model or pin a preferred model first.",
+      reason: "无可用已配置或固定模型。请先配置一个 OpenHanako 模型或固定一个首选模型。",
       action: "configure-model"
     });
   }
@@ -521,8 +86,8 @@ export function buildModelSuggestions(input = {}) {
     signals,
     recommendations,
     toast: recommendations[0]?.model
-      ? `Suggested ${recommendations[0].model} for ${targetTier} work.`
-      : "Configure a model before running real workers."
+      ? `建议为 ${targetTier} 工作使用 ${recommendations[0].model}。`
+      : "在运行真实 Worker 前请先配置模型。"
   };
 }
 
@@ -554,7 +119,7 @@ export function buildSessionTitleSuggestion(input = {}) {
   const ranked = dedupeTitleCandidates(candidates)
     .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
     .slice(0, 5);
-  const title = ranked[0]?.title || "HanaAgent Session";
+  const title = ranked[0]?.title || "HanaAgent 会话";
   return {
     ok: true,
     sessionPath,
@@ -672,17 +237,17 @@ function scoreModelCandidate(candidate, context) {
 
 function modelSuggestionReason(candidate, context, flags) {
   if (context.targetTier === "high-capability") {
-    if (flags.isReasoning) return "Best fit for complex coding, review, or long-context mission work.";
-    if (flags.isPremium) return "Strong fit for higher-stakes mission execution.";
-    return "Usable fallback, but a stronger reasoning model may perform better.";
+    if (flags.isReasoning) return "最契合复杂编码、复核或长上下文任务（mission）工作。";
+    if (flags.isPremium) return "很适合较高风险的任务（mission）执行。";
+    return "可用作兜底，但更强的推理模型可能表现更好。";
   }
   if (context.targetTier === "fast") {
-    if (flags.isFast) return "Good fit for quick, low-cost drafts or small routing tasks.";
-    return "Available model; consider a mini/flash model for lower-cost quick work.";
+    if (flags.isFast) return "适合快速、低成本的草稿或小型路由任务。";
+    return "可用模型；考虑用 mini/flash 模型完成更低成本的快速工作。";
   }
   return candidate.source === "pinned"
-    ? "Pinned model that matches the current balanced work profile."
-    : "Current model from the selected agent profile.";
+    ? "与当前均衡工作档案匹配的固定模型。"
+    : "所选 Agent 档案的当前模型。";
 }
 
 function titleSourceText(message = {}) {
@@ -883,7 +448,7 @@ export async function dispatchMission(ctx, input = {}) {
   } catch (error) {
     return {
       ok: false,
-      error: error.message || "mission_dispatch_failed",
+      ...sessionSendFailure(error, "mission_dispatch_failed"),
       stderr: error.stack || error.message,
       sessionPath,
       templateId: template.id,
@@ -913,7 +478,7 @@ export async function sendSessionMessage(ctx, input = {}) {
   } catch (error) {
     return {
       ok: false,
-      error: error.message || "session_send_failed",
+      ...sessionSendFailure(error, "session_send_failed"),
       stderr: error.stack || error.message,
       sessionPath,
       text
@@ -1607,7 +1172,7 @@ export async function startTerminal(ctx, input = {}) {
       sessionPath,
       cwd,
       command: clean(input.command),
-      label: clean(input.label) || "HanaAgent Terminal",
+      label: clean(input.label) || "HanaAgent 终端",
       cols: clampInt(input.cols, 40, 240, 120),
       rows: clampInt(input.rows, 10, 80, 28)
     });
@@ -2220,4 +1785,14 @@ function safeConfig(ctx) {
 
 function clean(value) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function sessionSendFailure(error, fallback) {
+  const message = clean(error?.code) || clean(error?.message) || fallback;
+  const normalized = message.toLowerCase().replace(/[-\s]+/g, "_");
+  const errorCode = normalized === "session_busy" ? "session_busy" : message || fallback;
+  return {
+    error: errorCode,
+    ...(errorCode === "session_busy" ? { retryable: true } : {})
+  };
 }

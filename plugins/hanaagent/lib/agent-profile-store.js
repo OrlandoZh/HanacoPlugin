@@ -142,7 +142,9 @@ function readStore(dataDir) {
 function writeStore(dataDir, store) {
   const file = storePath(dataDir);
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, JSON.stringify({ profiles: store.profiles || [] }, null, 2), "utf8");
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ profiles: store.profiles || [] }, null, 2), "utf8");
+  fs.renameSync(tmp, file);
 }
 
 function storePath(dataDir) {

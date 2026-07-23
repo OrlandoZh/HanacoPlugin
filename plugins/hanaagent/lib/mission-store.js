@@ -7,6 +7,21 @@ const VALID_MISSION_PHASES = new Set(["home", "preview", "active", "complete"]);
 const VALID_ASSIGNMENT_STATES = new Set(["queued", "running", "checkpointed", "blocked", "review", "done", "cancelled"]);
 const MAX_MISSION_WORKERS = 24;
 
+let writeChain = Promise.resolve();
+
+function withWriteLock(work) {
+  let result;
+  let error;
+  try {
+    result = work();
+  } catch (e) {
+    error = e;
+  }
+  writeChain = writeChain.then(() => {}).catch(() => {});
+  if (error) throw error;
+  return result;
+}
+
 const ROSTER_METADATA_FIELDS = [
   "specialty",
   "model",
@@ -99,6 +114,9 @@ export function createMission(dataDir, input = {}) {
     state: index === 0 ? "running" : "queued",
     taskId: null,
     sessionPath: clean(resolveLaneValue(input, role, index, "sessionPath") || input.sessionPath) || null,
+    sessionBindingKind: clean(resolveLaneValue(input, role, index, "sessionPath") || input.sessionPath) ? "shared" : null,
+    sessionBoundAt: clean(resolveLaneValue(input, role, index, "sessionPath") || input.sessionPath) ? now : null,
+    sessionOriginAssignmentId: clean(resolveLaneValue(input, role, index, "sessionPath") || input.sessionPath) ? `${missionId}-${role.id}` : null,
     agentId: clean(resolveLaneValue(input, role, index, "agentId") || input.agentId) || null,
     cwd: clean(resolveLaneValue(input, role, index, "cwd") || input.cwd || input.defaultCwd) || null,
     priority: role.priority,
@@ -110,7 +128,7 @@ export function createMission(dataDir, input = {}) {
 
   const mission = normalizeMission({
     id: missionId,
-    title: title || "Untitled mission",
+    title: title || "未命名任务",
     goal,
     notes: clean(input.notes),
     mode: clean(input.mode) || "dispatch",
@@ -129,138 +147,153 @@ export function createMission(dataDir, input = {}) {
     agentId: clean(input.agentId) || null,
     assignments,
     events: [
-      event("mission_created", "Mission created", { mode: clean(input.mode) || "dispatch" }),
-      event("assignments_planned", `${assignments.length} assignments planned`, {
+      event("mission_created", "任务已创建", { mode: clean(input.mode) || "dispatch" }),
+      event("assignments_planned", `已规划 ${assignments.length} 个任务分派`, {
         assignmentIds: assignments.map((assignment) => assignment.id)
       })
     ]
   });
 
-  const file = readMissionFile(dataDir);
-  file.missions.push(mission);
-  writeMissionFile(dataDir, { missions: file.missions.map(normalizeMission).filter(Boolean) });
-  return { ok: true, mission };
+  return withWriteLock(() => {
+    const file = readMissionFile(dataDir);
+    file.missions.push(mission);
+    writeMissionFile(dataDir, { missions: file.missions.map(normalizeMission).filter(Boolean) });
+    return { ok: true, mission };
+  });
 }
 
 export function updateMission(dataDir, missionId, updates = {}) {
-  const file = readMissionFile(dataDir);
-  const index = file.missions.findIndex((mission) => normalizeMission(mission)?.id === missionId);
-  if (index === -1) return { ok: false, error: "mission_not_found" };
+  return withWriteLock(() => {
+    const file = readMissionFile(dataDir);
+    const index = file.missions.findIndex((mission) => normalizeMission(mission)?.id === missionId);
+    if (index === -1) return { ok: false, error: "mission_not_found" };
 
-  const current = normalizeMission(file.missions[index]);
-  const next = normalizeMission({
-    ...current,
-    ...(typeof updates.title === "string" ? { title: updates.title } : {}),
-    ...(typeof updates.goal === "string" || typeof updates.mission === "string" ? { goal: updates.goal || updates.mission } : {}),
-    ...(typeof updates.notes === "string" ? { notes: updates.notes } : {}),
-    ...(typeof updates.state === "string" ? { state: updates.state } : {}),
-    ...(typeof updates.phase === "string" ? { phase: updates.phase } : {}),
-    ...(typeof updates.summary === "string" ? { summary: updates.summary } : {}),
-    ...(Number.isFinite(Number(updates.totalTokens)) ? { totalTokens: Number(updates.totalTokens) } : {}),
-    ...(typeof updates.sessionPath === "string" ? { sessionPath: updates.sessionPath } : {}),
-    ...(typeof updates.agentId === "string" ? { agentId: updates.agentId } : {}),
-    updatedAt: new Date().toISOString()
+    const current = normalizeMission(file.missions[index]);
+    const next = normalizeMission({
+      ...current,
+      ...(typeof updates.title === "string" ? { title: updates.title } : {}),
+      ...(typeof updates.goal === "string" || typeof updates.mission === "string" ? { goal: updates.goal || updates.mission } : {}),
+      ...(typeof updates.notes === "string" ? { notes: updates.notes } : {}),
+      ...(typeof updates.state === "string" ? { state: updates.state } : {}),
+      ...(typeof updates.phase === "string" ? { phase: updates.phase } : {}),
+      ...(typeof updates.summary === "string" ? { summary: updates.summary } : {}),
+      ...(Number.isFinite(Number(updates.totalTokens)) ? { totalTokens: Number(updates.totalTokens) } : {}),
+      ...(typeof updates.sessionPath === "string" ? { sessionPath: updates.sessionPath } : {}),
+      ...(typeof updates.agentId === "string" ? { agentId: updates.agentId } : {}),
+      updatedAt: new Date().toISOString()
+    });
+    file.missions[index] = next;
+    writeMissionFile(dataDir, { missions: file.missions.map(normalizeMission).filter(Boolean) });
+    return { ok: true, mission: next };
   });
-  file.missions[index] = next;
-  writeMissionFile(dataDir, { missions: file.missions.map(normalizeMission).filter(Boolean) });
-  return { ok: true, mission: next };
 }
 
 export function updateMissionAssignment(dataDir, missionId, assignmentId, updates = {}) {
-  const file = readMissionFile(dataDir);
-  const missions = file.missions.map(normalizeMission).filter(Boolean);
-  const mission = missions.find((item) => item.id === missionId);
-  if (!mission) return { ok: false, error: "mission_not_found" };
-  const assignment = mission.assignments.find((item) => item.id === assignmentId);
-  if (!assignment) return { ok: false, error: "assignment_not_found" };
+  return withWriteLock(() => {
+    const file = readMissionFile(dataDir);
+    const missions = file.missions.map(normalizeMission).filter(Boolean);
+    const mission = missions.find((item) => item.id === missionId);
+    if (!mission) return { ok: false, error: "mission_not_found" };
+    const assignment = mission.assignments.find((item) => item.id === assignmentId);
+    if (!assignment) return { ok: false, error: "assignment_not_found" };
 
-  const previousState = assignment.state;
-  if (typeof updates.state === "string") assignment.state = normalizeAssignmentState(updates.state);
-  if (typeof updates.output === "string") assignment.output = clean(updates.output);
-  if (typeof updates.result === "string") assignment.result = clean(updates.result);
-  if (typeof updates.blocker === "string") assignment.blocker = clean(updates.blocker);
-  if (typeof updates.nextAction === "string") assignment.nextAction = clean(updates.nextAction);
-  if (Number.isFinite(Number(updates.tokenCount))) assignment.tokenCount = Math.max(0, Math.round(Number(updates.tokenCount)));
-  if (typeof updates.sessionPath === "string") assignment.sessionPath = clean(updates.sessionPath) || null;
-  if (typeof updates.agentId === "string") assignment.agentId = clean(updates.agentId) || null;
+    const previousState = assignment.state;
+    if (typeof updates.state === "string") assignment.state = normalizeAssignmentState(updates.state);
+    if (typeof updates.output === "string") assignment.output = clean(updates.output);
+    if (typeof updates.result === "string") assignment.result = clean(updates.result);
+    if (typeof updates.blocker === "string") assignment.blocker = clean(updates.blocker);
+    if (typeof updates.nextAction === "string") assignment.nextAction = clean(updates.nextAction);
+    if (Number.isFinite(Number(updates.tokenCount))) assignment.tokenCount = Math.max(0, Math.round(Number(updates.tokenCount)));
+    if (typeof updates.sessionPath === "string") assignment.sessionPath = clean(updates.sessionPath) || null;
+    if (typeof updates.sessionBindingKind === "string") assignment.sessionBindingKind = normalizeSessionBindingKind(updates.sessionBindingKind);
+    if (typeof updates.sessionBoundAt === "string") assignment.sessionBoundAt = clean(updates.sessionBoundAt) || null;
+    if (typeof updates.sessionOriginAssignmentId === "string") assignment.sessionOriginAssignmentId = clean(updates.sessionOriginAssignmentId) || null;
+    if (typeof updates.agentId === "string") assignment.agentId = clean(updates.agentId) || null;
 
-  const now = new Date().toISOString();
-  assignment.updatedAt = now;
-  mission.updatedAt = now;
-  mission.state = deriveMissionState(mission.assignments);
-  mission.phase = deriveMissionPhase(mission);
-  mission.totalTokens = sumAssignmentTokens(mission.assignments);
-  if (mission.state === "complete" && !mission.completedAt) {
-    mission.completedAt = now;
-    mission.summary = mission.summary || buildMissionSummary(mission);
-    mission.events.push(event("mission_completed", "Mission completed", { totalTokens: mission.totalTokens }));
-  }
-  mission.events.push(event("assignment_updated", `${assignment.label}: ${previousState} -> ${assignment.state}`, {
-    assignmentId,
-    previousState,
-    state: assignment.state
-  }));
-  writeMissionFile(dataDir, { missions: upsertMission(missions, mission) });
-  return { ok: true, mission, assignment };
+    const now = new Date().toISOString();
+    assignment.updatedAt = now;
+    mission.updatedAt = now;
+    mission.state = deriveMissionState(mission.assignments);
+    mission.phase = deriveMissionPhase(mission);
+    mission.totalTokens = sumAssignmentTokens(mission.assignments);
+    if (mission.state === "complete" && !mission.completedAt) {
+      mission.completedAt = now;
+      mission.summary = mission.summary || buildMissionSummary(mission);
+      mission.events.push(event("mission_completed", "任务已完成", { totalTokens: mission.totalTokens }));
+    }
+    mission.events.push(event("assignment_updated", `${assignment.label}：${previousState} → ${assignment.state}`, {
+      assignmentId,
+      previousState,
+      state: assignment.state
+    }));
+    writeMissionFile(dataDir, { missions: upsertMission(missions, mission) });
+    return { ok: true, mission, assignment };
+  });
 }
 
 export function stopMission(dataDir, missionId, input = {}) {
-  const file = readMissionFile(dataDir);
-  const missions = file.missions.map(normalizeMission).filter(Boolean);
-  const mission = missions.find((item) => item.id === missionId);
-  if (!mission) return { ok: false, error: "mission_not_found" };
-  const now = new Date().toISOString();
-  for (const assignment of mission.assignments) {
-    if (!["done", "cancelled"].includes(assignment.state)) {
-      assignment.state = "cancelled";
-      assignment.updatedAt = now;
+  return withWriteLock(() => {
+    const file = readMissionFile(dataDir);
+    const missions = file.missions.map(normalizeMission).filter(Boolean);
+    const mission = missions.find((item) => item.id === missionId);
+    if (!mission) return { ok: false, error: "mission_not_found" };
+    const now = new Date().toISOString();
+    for (const assignment of mission.assignments) {
+      if (!["done", "cancelled"].includes(assignment.state)) {
+        assignment.state = "cancelled";
+        assignment.updatedAt = now;
+      }
     }
-  }
-  mission.state = "cancelled";
-  mission.phase = "complete";
-  mission.completedAt = mission.completedAt || now;
-  mission.updatedAt = now;
-  mission.summary = mission.summary || buildMissionSummary(mission);
-  mission.events.push(event("mission_stopped", clean(input.reason) || "Mission stopped", { reason: clean(input.reason) }));
-  writeMissionFile(dataDir, { missions: upsertMission(missions, mission) });
-  return { ok: true, mission };
+    mission.state = "cancelled";
+    mission.phase = "complete";
+    mission.completedAt = mission.completedAt || now;
+    mission.updatedAt = now;
+    mission.summary = mission.summary || buildMissionSummary(mission);
+    mission.events.push(event("mission_stopped", clean(input.reason) || "任务已停止", { reason: clean(input.reason) }));
+    writeMissionFile(dataDir, { missions: upsertMission(missions, mission) });
+    return { ok: true, mission };
+  });
 }
 
 export function completeMission(dataDir, missionId, input = {}) {
-  const file = readMissionFile(dataDir);
-  const missions = file.missions.map(normalizeMission).filter(Boolean);
-  const mission = missions.find((item) => item.id === missionId);
-  if (!mission) return { ok: false, error: "mission_not_found" };
-  const now = new Date().toISOString();
-  for (const assignment of mission.assignments) {
-    if (!["done", "cancelled"].includes(assignment.state)) {
-      assignment.state = "done";
-      assignment.updatedAt = now;
+  return withWriteLock(() => {
+    const file = readMissionFile(dataDir);
+    const missions = file.missions.map(normalizeMission).filter(Boolean);
+    const mission = missions.find((item) => item.id === missionId);
+    if (!mission) return { ok: false, error: "mission_not_found" };
+    const now = new Date().toISOString();
+    for (const assignment of mission.assignments) {
+      if (!["done", "cancelled"].includes(assignment.state)) {
+        assignment.state = "done";
+        assignment.updatedAt = now;
+      }
     }
-  }
-  mission.state = "complete";
-  mission.phase = "complete";
-  mission.completedAt = mission.completedAt || now;
-  mission.updatedAt = now;
-  mission.totalTokens = sumAssignmentTokens(mission.assignments);
-  mission.summary = clean(input.summary) || mission.summary || buildMissionSummary(mission);
-  mission.events.push(event("mission_completed", "Mission marked complete", { totalTokens: mission.totalTokens }));
-  writeMissionFile(dataDir, { missions: upsertMission(missions, mission) });
-  return { ok: true, mission };
+    mission.state = "complete";
+    mission.phase = "complete";
+    mission.completedAt = mission.completedAt || now;
+    mission.updatedAt = now;
+    mission.totalTokens = sumAssignmentTokens(mission.assignments);
+    mission.summary = clean(input.summary) || mission.summary || buildMissionSummary(mission);
+    mission.events.push(event("mission_completed", "任务已标记完成", { totalTokens: mission.totalTokens }));
+    writeMissionFile(dataDir, { missions: upsertMission(missions, mission) });
+    return { ok: true, mission };
+  });
 }
 
 export function linkMissionAssignmentTask(dataDir, missionId, assignmentId, taskId) {
-  const file = readMissionFile(dataDir);
-  const mission = file.missions.map(normalizeMission).filter(Boolean).find((item) => item.id === missionId);
-  if (!mission) return { ok: false, error: "mission_not_found" };
-  const assignment = mission.assignments.find((item) => item.id === assignmentId);
-  if (!assignment) return { ok: false, error: "assignment_not_found" };
-  assignment.taskId = clean(taskId) || null;
-  assignment.updatedAt = new Date().toISOString();
-  mission.updatedAt = assignment.updatedAt;
-  mission.events.push(event("assignment_linked", `Linked ${assignment.label} to task`, { assignmentId, taskId: assignment.taskId }));
-  writeMissionFile(dataDir, { missions: upsertMission(file.missions, mission) });
-  return { ok: true, mission, assignment };
+  return withWriteLock(() => {
+    const file = readMissionFile(dataDir);
+    const mission = file.missions.map(normalizeMission).filter(Boolean).find((item) => item.id === missionId);
+    if (!mission) return { ok: false, error: "mission_not_found" };
+    const assignment = mission.assignments.find((item) => item.id === assignmentId);
+    if (!assignment) return { ok: false, error: "assignment_not_found" };
+    assignment.taskId = clean(taskId) || null;
+    assignment.updatedAt = new Date().toISOString();
+    mission.updatedAt = assignment.updatedAt;
+    mission.events.push(event("assignment_linked", `已将 ${assignment.label} 关联到任务`, { assignmentId, taskId: assignment.taskId }));
+    writeMissionFile(dataDir, { missions: upsertMission(file.missions, mission) });
+    return { ok: true, mission, assignment };
+  });
 }
 
 export function updateMissionFromCheckpoint(dataDir, input = {}) {
@@ -268,49 +301,53 @@ export function updateMissionFromCheckpoint(dataDir, input = {}) {
   const state = clean(input.state).toUpperCase();
   if (!taskId || !state) return { ok: false, error: "taskId_state_required" };
 
-  const file = readMissionFile(dataDir);
-  const missions = file.missions.map(normalizeMission).filter(Boolean);
-  const mission = missions.find((item) => item.assignments.some((assignment) => assignment.taskId === taskId));
-  if (!mission) return { ok: false, error: "mission_not_found" };
-  const assignment = mission.assignments.find((item) => item.taskId === taskId);
-  if (!assignment) return { ok: false, error: "assignment_not_found" };
+  return withWriteLock(() => {
+    const file = readMissionFile(dataDir);
+    const missions = file.missions.map(normalizeMission).filter(Boolean);
+    const mission = missions.find((item) => item.assignments.some((assignment) => assignment.taskId === taskId));
+    if (!mission) return { ok: false, error: "mission_not_found" };
+    const assignment = mission.assignments.find((item) => item.taskId === taskId);
+    if (!assignment) return { ok: false, error: "assignment_not_found" };
 
-  assignment.state = checkpointStateToAssignmentState(state);
-  assignment.result = clean(input.result) || assignment.result;
-  assignment.blocker = clean(input.blocker) || assignment.blocker;
-  assignment.nextAction = clean(input.nextAction) || assignment.nextAction;
-  assignment.output = clean(input.rawText || input.output) || assignment.output;
-  if (Number.isFinite(Number(input.tokenCount))) assignment.tokenCount = Math.max(0, Math.round(Number(input.tokenCount)));
-  assignment.updatedAt = new Date().toISOString();
-  mission.updatedAt = assignment.updatedAt;
-  mission.events.push(event("checkpoint", `${assignment.label}: ${state}`, {
-    assignmentId: assignment.id,
-    taskId,
-    state,
-    result: clean(input.result),
-    blocker: clean(input.blocker),
-    nextAction: clean(input.nextAction)
-  }));
-  mission.state = deriveMissionState(mission.assignments);
-  mission.phase = deriveMissionPhase(mission);
-  mission.totalTokens = sumAssignmentTokens(mission.assignments);
-  if (mission.state === "complete") {
-    mission.completedAt = mission.completedAt || assignment.updatedAt;
-    mission.summary = mission.summary || buildMissionSummary(mission);
-    mission.events.push(event("mission_completed", "Mission completed", { totalTokens: mission.totalTokens }));
-  }
-  writeMissionFile(dataDir, { missions: upsertMission(missions, mission) });
-  return { ok: true, mission, assignment };
+    assignment.state = checkpointStateToAssignmentState(state);
+    assignment.result = clean(input.result) || assignment.result;
+    assignment.blocker = clean(input.blocker) || assignment.blocker;
+    assignment.nextAction = clean(input.nextAction) || assignment.nextAction;
+    assignment.output = clean(input.rawText || input.output) || assignment.output;
+    if (Number.isFinite(Number(input.tokenCount))) assignment.tokenCount = Math.max(0, Math.round(Number(input.tokenCount)));
+    assignment.updatedAt = new Date().toISOString();
+    mission.updatedAt = assignment.updatedAt;
+    mission.events.push(event("checkpoint", `${assignment.label}: ${state}`, {
+      assignmentId: assignment.id,
+      taskId,
+      state,
+      result: clean(input.result),
+      blocker: clean(input.blocker),
+      nextAction: clean(input.nextAction)
+    }));
+    mission.state = deriveMissionState(mission.assignments);
+    mission.phase = deriveMissionPhase(mission);
+    mission.totalTokens = sumAssignmentTokens(mission.assignments);
+    if (mission.state === "complete") {
+      mission.completedAt = mission.completedAt || assignment.updatedAt;
+      mission.summary = mission.summary || buildMissionSummary(mission);
+      mission.events.push(event("mission_completed", "任务已完成", { totalTokens: mission.totalTokens }));
+    }
+    writeMissionFile(dataDir, { missions: upsertMission(missions, mission) });
+    return { ok: true, mission, assignment };
+  });
 }
 
 export function appendMissionEvent(dataDir, missionId, input = {}) {
-  const file = readMissionFile(dataDir);
-  const mission = file.missions.map(normalizeMission).filter(Boolean).find((item) => item.id === missionId);
-  if (!mission) return { ok: false, error: "mission_not_found" };
-  mission.events.push(event(clean(input.type) || "note", clean(input.label) || clean(input.message) || "Mission event", input.meta || {}));
-  mission.updatedAt = new Date().toISOString();
-  writeMissionFile(dataDir, { missions: upsertMission(file.missions, mission) });
-  return { ok: true, mission };
+  return withWriteLock(() => {
+    const file = readMissionFile(dataDir);
+    const mission = file.missions.map(normalizeMission).filter(Boolean).find((item) => item.id === missionId);
+    if (!mission) return { ok: false, error: "mission_not_found" };
+    mission.events.push(event(clean(input.type) || "note", clean(input.label) || clean(input.message) || "任务事件", input.meta || {}));
+    mission.updatedAt = new Date().toISOString();
+    writeMissionFile(dataDir, { missions: upsertMission(file.missions, mission) });
+    return { ok: true, mission };
+  });
 }
 
 export function buildConductorPrompt({ mission, assignment, checkpointContract = [] }) {
@@ -353,7 +390,7 @@ export function buildConductorPrompt({ mission, assignment, checkpointContract =
     "- 输出具体证据，包括文件、命令、结果或需要用户确认的问题。",
     "- 回复末尾必须附带 checkpoint 合约块。",
     "",
-    "Checkpoint 合约：",
+    "Checkpoint 合约.",
     ...contract
   );
   return lines.join("\n");
@@ -459,7 +496,7 @@ export function buildMissionReport(mission) {
     "# Mission Report",
     "",
     `**Goal:** ${normalized.goal}`,
-    `**Status:** ${normalized.state}`,
+    `**Status:** ${reportStateLabel(normalized.state)}`,
     `**Team:** ${normalized.assignments.length}-worker team`,
     `**Started:** ${formatDate(normalized.startedAt)}`,
     `**Completed:** ${formatDate(normalized.completedAt || normalized.updatedAt)}`,
@@ -484,7 +521,7 @@ export function buildMissionReport(mission) {
   } else {
     for (const assignment of normalized.assignments) {
       lines.push(`### ${assignment.label}`);
-      lines.push(`- State: ${assignment.state}`);
+      lines.push(`- State: ${reportStateLabel(assignment.state)}`);
       if (assignment.task) lines.push(`- Task: ${firstLine(assignment.task)}`);
       if (assignment.result) lines.push(`- Result: ${assignment.result}`);
       if (assignment.blocker) lines.push(`- Blocker: ${assignment.blocker}`);
@@ -518,7 +555,7 @@ export function buildMissionExport(mission) {
     name: normalized.title,
     goal: normalized.goal,
     status: normalized.state,
-    teamName: `${normalized.assignments.length}-worker team`,
+    teamName: `${normalized.assignments.length} 个执行智能体`,
     startedAt: normalized.startedAt,
     completedAt: normalized.completedAt,
     durationMs: Math.max(0, new Date(normalized.completedAt || normalized.updatedAt || normalized.createdAt).getTime() - new Date(normalized.startedAt || normalized.createdAt).getTime()),
@@ -690,20 +727,39 @@ function sumAssignmentTokens(assignments) {
   return assignments.reduce((sum, assignment) => sum + (Number.isFinite(Number(assignment.tokenCount)) ? Number(assignment.tokenCount) : 0), 0);
 }
 
+function reportStateLabel(value) {
+  const labels = {
+    draft: "草稿",
+    planning: "规划中",
+    active: "活动中",
+    paused: "已暂停",
+    complete: "已完成",
+    cancelled: "已取消",
+    blocked: "阻塞",
+    queued: "排队中",
+    running: "运行中",
+    checkpointed: "已提交检查点",
+    review: "待复核",
+    done: "已完成"
+  };
+  const state = clean(value).toLowerCase();
+  return labels[state] || value || "未知";
+}
+
 function buildMissionSummary(mission) {
   const done = mission.assignments.filter((assignment) => assignment.state === "done").length;
   const blocked = mission.assignments.filter((assignment) => assignment.state === "blocked").length;
   const cancelled = mission.assignments.filter((assignment) => assignment.state === "cancelled").length;
   const lines = [
-    `Mission: ${mission.title}`,
-    `Status: ${mission.state}`,
-    `Assignments: ${done}/${mission.assignments.length} done${blocked ? `, ${blocked} blocked` : ""}${cancelled ? `, ${cancelled} cancelled` : ""}`
+    `任务：${mission.title}`,
+    `状态：${reportStateLabel(mission.state)}`,
+    `任务分派：${done}/${mission.assignments.length} 已完成${blocked ? `，${blocked} 个阻塞` : ""}${cancelled ? `，${cancelled} 个已取消` : ""}`
   ];
   const outputs = mission.assignments
     .filter((assignment) => assignment.result || assignment.output || assignment.nextAction)
     .slice(0, 8)
     .map((assignment) => `- ${assignment.label}: ${assignment.result || assignment.output || assignment.nextAction}`);
-  if (outputs.length) lines.push("Worker outputs:", ...outputs);
+  if (outputs.length) lines.push("执行智能体输出：", ...outputs);
   return lines.join("\n");
 }
 
@@ -719,10 +775,10 @@ function missionStats(mission) {
 }
 
 function missionOutcome(mission, stats) {
-  if (mission.state === "complete" || (stats.total > 0 && stats.done >= stats.total)) return "Complete";
-  if (mission.state === "cancelled") return "Stopped";
-  if (stats.blocked > 0) return "Blocked";
-  return "Partial";
+  if (mission.state === "complete" || (stats.total > 0 && stats.done >= stats.total)) return "完成";
+  if (mission.state === "cancelled") return "已停止";
+  if (stats.blocked > 0) return "阻塞";
+  return "部分完成";
 }
 
 function estimateMissionCost(tokens) {
@@ -889,7 +945,7 @@ function normalizeMission(value) {
   const assignments = Array.isArray(value.assignments) ? value.assignments.map(normalizeAssignment).filter(Boolean) : [];
   return {
     id,
-    title: clean(value.title || value.name) || clip(goal, 80) || "Untitled mission",
+    title: clean(value.title || value.name) || clip(goal, 80) || "未命名任务",
     goal,
     notes: clean(value.notes),
     mode: clean(value.mode) || "dispatch",
@@ -929,6 +985,9 @@ function normalizeAssignment(value) {
     state: normalizeAssignmentState(value.state),
     taskId: clean(value.taskId || value.task_id) || null,
     sessionPath: clean(value.sessionPath || value.session_id) || null,
+    sessionBindingKind: normalizeSessionBindingKind(value.sessionBindingKind || value.session_binding_kind),
+    sessionBoundAt: clean(value.sessionBoundAt || value.session_bound_at) || null,
+    sessionOriginAssignmentId: clean(value.sessionOriginAssignmentId || value.session_origin_assignment_id) || null,
     agentId: clean(value.agentId || value.agent_id) || null,
     cwd: clean(value.cwd) || null,
     priority: clean(value.priority) || "medium",
@@ -986,6 +1045,11 @@ function normalizeAssignmentState(value) {
   const state = clean(value).toLowerCase();
   if (state === "in_progress") return "running";
   return VALID_ASSIGNMENT_STATES.has(state) ? state : "queued";
+}
+
+function normalizeSessionBindingKind(value) {
+  const kind = clean(value).toLowerCase();
+  return ["dedicated", "shared"].includes(kind) ? kind : null;
 }
 
 function normalizeRosterMetadata(value) {

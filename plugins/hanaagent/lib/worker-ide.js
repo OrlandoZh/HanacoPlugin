@@ -23,7 +23,7 @@ export function buildWorkerIdeSnapshot(input = {}) {
   return {
     ok: true,
     id: clean(worker.id) || clean(assignment?.id) || agentId || "worker",
-    title: clean(worker.name) || clean(assignment?.label) || clean(agent?.name) || "Worker",
+    title: clean(worker.name) || clean(assignment?.label) || clean(agent?.name) || "工作器（Worker）",
     status: deriveStatus({ worker, assignment, checkpoints, tasks }),
     health: buildHealth({ assignment, checkpoints, tasks, hostTasks, deferredTasks }),
     identity: {
@@ -259,7 +259,7 @@ function buildEditorActions({ primaryRoot, changedFiles, assignment }) {
   return [
     {
       id: "open-worker-root",
-      label: "Open Project",
+      label: "打开项目（Open Project）",
       enabled: Boolean(primaryRoot),
       rootId: primaryRoot?.id || "",
       path: assignment?.cwd && primaryRoot ? toRelativePath(assignment.cwd, primaryRoot.path) : ".",
@@ -267,7 +267,7 @@ function buildEditorActions({ primaryRoot, changedFiles, assignment }) {
     },
     {
       id: "open-changed-file",
-      label: "Open Changed File",
+      label: "打开变更文件（Open Changed File）",
       enabled: Boolean(firstFile),
       rootId: firstFile?.rootId || "",
       path: firstFile?.relativePath || "",
@@ -275,7 +275,7 @@ function buildEditorActions({ primaryRoot, changedFiles, assignment }) {
     },
     {
       id: "diff-changed-file",
-      label: "Diff Changed File",
+      label: "对比变更文件（Diff Changed File）",
       enabled: Boolean(firstFile),
       rootId: firstFile?.rootId || "",
       path: firstFile?.relativePath || "",
@@ -283,7 +283,7 @@ function buildEditorActions({ primaryRoot, changedFiles, assignment }) {
     },
     {
       id: "save-changed-file",
-      label: "Save File",
+      label: "保存文件（Save File）",
       enabled: Boolean(firstFile),
       rootId: firstFile?.rootId || "",
       path: firstFile?.relativePath || "",
@@ -391,16 +391,16 @@ export function isEmbeddablePreviewUrl(url) {
 
 function buildQuickActions({ sessionPath, assignment, terminalAvailable, workspaceRoots, previews, lifecycle }) {
   return [
-    { id: "ensure-session", label: "Create Session", enabled: Boolean(assignment?.id), target: assignment?.id || "" },
-    { id: "open-chat", label: "Open Chat", enabled: Boolean(sessionPath), target: sessionPath },
-    { id: "sync-history", label: "Sync History", enabled: Boolean(sessionPath), target: sessionPath },
-    { id: "request-handoff", label: "Request Handoff", enabled: Boolean(sessionPath && lifecycle?.canRequestHandoff), target: sessionPath },
-    { id: "abort-session", label: "Abort Session", enabled: Boolean(sessionPath), target: sessionPath },
-    { id: "attach-terminal", label: "Attach Terminal", enabled: Boolean(terminalAvailable && sessionPath), target: sessionPath },
-    { id: "open-preview", label: "Open Preview", enabled: Boolean(previews?.[0]?.url), target: previews?.[0]?.url || "" },
-    { id: "open-files", label: "Open Files", enabled: workspaceRoots.length > 0, target: assignment?.cwd || "" },
-    { id: "mark-done", label: "Mark Done", enabled: Boolean(assignment?.id), target: assignment?.id || "" },
-    { id: "mark-blocked", label: "Mark Blocked", enabled: Boolean(assignment?.id), target: assignment?.id || "" }
+    { id: "ensure-session", label: "创建会话（Create Session）", enabled: Boolean(assignment?.id), target: assignment?.id || "" },
+    { id: "open-chat", label: "打开对话（Open Chat）", enabled: Boolean(sessionPath), target: sessionPath },
+    { id: "sync-history", label: "同步历史（Sync History）", enabled: Boolean(sessionPath), target: sessionPath },
+    { id: "request-handoff", label: "请求交接（Request Handoff）", enabled: Boolean(sessionPath && lifecycle?.canRequestHandoff), target: sessionPath },
+    { id: "abort-session", label: "中止会话（Abort Session）", enabled: Boolean(sessionPath), target: sessionPath },
+    { id: "attach-terminal", label: "附加终端（Attach Terminal）", enabled: Boolean(terminalAvailable && sessionPath), target: sessionPath },
+    { id: "open-preview", label: "打开预览（Open Preview）", enabled: Boolean(previews?.[0]?.url), target: previews?.[0]?.url || "" },
+    { id: "open-files", label: "打开文件（Open Files）", enabled: workspaceRoots.length > 0, target: assignment?.cwd || "" },
+    { id: "mark-done", label: "标记完成（Mark Done）", enabled: Boolean(assignment?.id), target: assignment?.id || "" },
+    { id: "mark-blocked", label: "标记阻塞（Mark Blocked）", enabled: Boolean(assignment?.id), target: assignment?.id || "" }
   ];
 }
 

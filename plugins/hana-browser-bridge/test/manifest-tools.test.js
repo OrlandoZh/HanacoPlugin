@@ -26,7 +26,7 @@ const requiredByTool = new Map([
   ["browser_type_text", ["targetId", "selector", "value"]],
 ]);
 
-test("manifest is full-access, workflow-only, and has maintenance UI", () => {
+test("manifest is full-access, workflow-only, and has no toolbar page tab", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(pluginDir, "manifest.json"), "utf8"));
   const pkg = JSON.parse(fs.readFileSync(path.join(pluginDir, "package.json"), "utf8"));
   assert.equal(manifest.id, "hana-browser-bridge");
@@ -36,10 +36,10 @@ test("manifest is full-access, workflow-only, and has maintenance UI", () => {
   assert.deepEqual(manifest.contributes.configuration.properties.connectionMode.enum, ["dedicated", "existing-chrome"]);
   assert.deepEqual(manifest.contributes.configuration.properties.existingChromeChannel.enum, ["stable", "beta", "dev", "canary"]);
   assert.deepEqual(manifest.contributes.configuration.properties.existingChromeRequireExplicitStart.enum, [true]);
-  assert.equal(manifest.contributes.page.route, "/page");
+  assert.equal(manifest.contributes.page, undefined);
   assert.deepEqual(manifest.ui.hostCapabilities, ["clipboard.writeText"]);
-  const panel = fs.readFileSync(path.join(pluginDir, "assets/panel.js"), "utf8");
-  assert.doesNotMatch(panel, /toast\.show/);
+  assert.equal(fs.existsSync(path.join(pluginDir, "routes")), false, "routes/ directory should not exist after page removal");
+  assert.equal(fs.existsSync(path.join(pluginDir, "assets")), false, "assets/ directory should not exist after page removal");
 });
 
 test("all workflow adapters are generated and side effects require review", async () => {

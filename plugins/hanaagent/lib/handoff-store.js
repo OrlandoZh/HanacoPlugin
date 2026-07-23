@@ -19,13 +19,17 @@ export function materializeHandoff(dataDir, input = {}) {
   fs.mkdirSync(dir, { recursive: true });
   const latest = path.join(dir, `${workerId}-latest.md`);
   const archive = path.join(dir, `${workerId}-${timestampId(now)}.md`);
-  fs.writeFileSync(latest, content, "utf8");
-  fs.writeFileSync(archive, content, "utf8");
+  const latestTmp = `${latest}.${process.pid}.${Date.now()}.tmp`;
+  const archiveTmp = `${archive}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(latestTmp, content, "utf8");
+  fs.renameSync(latestTmp, latest);
+  fs.writeFileSync(archiveTmp, content, "utf8");
+  fs.renameSync(archiveTmp, archive);
   return {
     ok: true,
     handoff: {
       workerId,
-      title: `Handoff: ${workerId}`,
+      title: `交接：${workerId}`,
       latestPath: latest,
       archivePath: archive,
       memoryPath: `memory/handoffs/swarm/${workerId}-latest.md`,
@@ -36,7 +40,7 @@ export function materializeHandoff(dataDir, input = {}) {
       sessionPath: checkpoint.sessionPath || "",
       taskId: checkpoint.taskId || "",
       agentId: checkpoint.agentId || "",
-      summary: checkpoint.result || checkpoint.nextAction || "Worker handoff"
+      summary: checkpoint.result || checkpoint.nextAction || "执行智能体交接"
     }
   };
 }
@@ -114,7 +118,7 @@ function parseHandoff(workerId, filePath, content, stat) {
   const meta = parseFrontmatter(content);
   return {
     workerId,
-    title: `Handoff: ${workerId}`,
+    title: `交接：${workerId}`,
     memoryId: `handoff-${workerId}`,
     kind: "worker-handoff",
     source: "hanaagent:handoff",

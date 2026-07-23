@@ -7,6 +7,14 @@ source_type: {{TYPE}}
 source_path: {{RAW_PATH}}
 images: 0
 image_paths: []
+# ── 生命周期 ──
+confidence_score: 0.70
+last_confirmed: {{DATE}}
+evidence_count: 1
+contradicted_by: []
+supersedes: []
+superseded_by: null
+retention_class: active
 ---
 
 # {{SOURCE_TITLE}}

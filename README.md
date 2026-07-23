@@ -2,42 +2,61 @@
 
 自用 OpenHanako 扩展仓库，用来集中维护我创建和整理的 skills、plugins，以及它们依赖的可复用参考实现。
 
-当前仓库重点收纳 Obsidian + LLM Wiki 工作流：
+当前仓库重点收纳知识管理、智能体协作、浏览器接入和代码架构可视化工作流：
 
 - `skills/obsidian-wiki-manager`：Obsidian wiki 总控 skill，统一调度 vault 写入、CLI 查询、Markdown、Canvas、Bases、LLM Wiki 初始化/ingest/query/graph 等能力。
 - `plugins/llm-wiki-viewer`：OpenHanako 插件，用于在 OpenHanako 页面内生成和查看 LLM Wiki 交互式知识图谱。
+- `plugins/hanaagent`：OpenHanako 智能体工作台插件，提供 Mission 指挥台、worker assignment、事件流、agent/session 探测、可视化工作流和本地任务看板。
+- `plugins/hana-code-atlas`：代码架构分析与可视化插件，支持项目登记、图谱构建、架构概览和审查工作流。
+- `plugins/hana-browser-bridge`：连接 OpenHanako 与浏览器自动化 MCP 服务的安全桥接插件。
+- `plugins/obsidian-connector`：以 Obsidian Local REST API 为主、CLI 为诊断后备的 Vault 操作连接器。
+- `plugins/starmap-os-0.8.0`：把 Hanako 对话整理为可审核、可搜索、可复用知识与项目记忆的星图插件。
+- `docs/hanaagent/HERMES_WORKSPACE_ANALYSIS.md`：基于 Hermes Workspace 的 Hanaco 智能体工作台系统性完善分析与阶段路线图。
+- `docs/hanaagent/IMPLEMENTATION_AUDIT.md`：逐项盘点 HanaAgent 对 Hermes Workspace 功能的模仿完成度、证据和下一步。
 
 ## 目录结构
 
 ```text
 HanacoPlugin/
+├── docs/
 ├── skills/
 │   └── obsidian-wiki-manager/
 └── plugins/
-    └── llm-wiki-viewer/
+    ├── hana-browser-bridge/
+    ├── hana-code-atlas/
+    ├── hanaagent/
+    ├── llm-wiki-viewer/
+    ├── obsidian-connector/
+    └── starmap-os-0.8.0/
 ```
 
 ## 使用方式
 
-安装到本机 OpenHanako 时，可以把目录复制或同步到对应位置：
+安装到本机 OpenHanako 时，插件建议走 OpenHanako 设置页安装，方式与 `llm-wiki-viewer` 一致：直接拖入插件文件夹，或拖入打包后的 zip。
 
 ```bash
 mkdir -p ~/.hanako/skills ~/.hanako/plugins
 rsync -a skills/obsidian-wiki-manager/ ~/.hanako/skills/obsidian-wiki-manager/
-rsync -a plugins/llm-wiki-viewer/ ~/.hanako/plugins/llm-wiki-viewer/
+
+cd plugins/llm-wiki-viewer && npm test
+cd ../hanaagent && npm test && npm run pack:plugin
+cd ../hana-code-atlas && npm run test:all
 ```
+
+`plugins/hanaagent` 当前版本为 `0.2.0`，运行打包命令后会在 `dist/plugins/` 生成对应版本的 zip，可在 OpenHanako 设置 -> 插件中拖入安装。安装 full-access 社区插件前，需要在 OpenHanako 插件设置里开启全权插件开关。
 
 然后按自己的环境修改：
 
 - `skills/obsidian-wiki-manager/SKILL.md` 里的 vault 名称与路径示例。
 - `plugins/llm-wiki-viewer` 的配置项 `defaultWikiRoot`，或通过环境变量 `LLM_WIKI_DEFAULT_ROOT` 指向默认 wiki 根目录。
+- `plugins/hanaagent` 的配置项 `defaultAgentId` / `defaultSessionPath`，用于预选智能体和会话投递目标。
 - 如 skill 不安装在 `~/.hanako/skills/obsidian-wiki-manager/references/llm-wiki`，可用环境变量 `LLM_WIKI_SKILL_ROOT` 指向 LLM Wiki 参考实现目录。
 
 ## 设计说明
 
 `obsidian-wiki-manager` 是一个总控 skill：日常 Obsidian 写入、搜索、Canvas、Bases 等请求由它分流到对应 reference skill；当任务涉及 LLM Wiki 初始化、素材消化、查询、digest、lint、status 或图谱生成时，再进入 `references/llm-wiki`。
 
-`llm-wiki-viewer` 当前收口到 v1.14 只读预检与参考回归补齐版。它不运行上游安装脚本，也不把 ingest、query、digest、delete、crystallize 做成插件 GUI；这些内容生成工作流仍由 skill/agent 主导。插件侧只提供可验证的辅助能力：
+`llm-wiki-viewer` 当前插件版本为 `0.1.17`。它不运行上游安装脚本，也不把 ingest、query、digest、delete、crystallize 做成插件 GUI；这些内容生成工作流仍由 skill/agent 主导。插件侧只提供可验证的辅助能力：
 
 - `wiki/graph-data.json`
 - `wiki/knowledge-graph.html`
@@ -51,7 +70,7 @@ rsync -a plugins/llm-wiki-viewer/ ~/.hanako/plugins/llm-wiki-viewer/
 
 参考项目路径以仓库根目录的 `reference/llm-wiki-skill-main` 为准；插件测试会迁移其中对 Hana 集成有价值且无外部依赖的回归契约。
 
-## v1.14 验收清单
+## LLM Wiki Viewer 验收清单
 
 - 在 `plugins/llm-wiki-viewer` 运行 `npm test`，要求 Node 内置测试全绿。
 - 测试套件会在存在 `reference/openhanako-main` 时用 OpenHanako `PluginManager` 做宿主 loader smoke，验证 `/viewer` 和全部 Agent tools 可被发现。

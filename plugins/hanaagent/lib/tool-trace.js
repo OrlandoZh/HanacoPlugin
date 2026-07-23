@@ -34,7 +34,7 @@ export function traceFromMessage(message = {}) {
     ...toolCallsFromContentBlocks(raw.content)
   ];
   for (const call of toolCalls) {
-    const name = clean(call.name || call.toolName || call.function?.name || call.tool_use_id || call.tool_call_id || call.type) || "tool";
+    const name = clean(call.name || call.toolName || call.function?.name || call.tool_use_id || call.tool_call_id || call.type) || "工具（tool）";
     const args = call.arguments || call.args || call.input || call.function?.arguments || call.params || call.content || call.output || call.result || "";
     const kind = isToolResult(call) ? "tool-result" : "tool";
     items.push(traceItem({
@@ -53,7 +53,7 @@ export function traceFromMessage(message = {}) {
       id: `${sourceId}-checkpoint`,
       kind: "checkpoint",
       status: checkpointStatus(text),
-      title: "Checkpoint",
+      title: "检查点（Checkpoint）",
       detail: firstLine(fieldValue(text, "RESULT") || text),
       at,
       source: "session-history",
@@ -113,7 +113,7 @@ export function traceFromMessage(message = {}) {
       id: `${sourceId}-error`,
       kind: "error",
       status: "error",
-      title: "Error signal",
+      title: "错误信号（Error signal）",
       detail: firstLine(text).slice(0, 500),
       at,
       source: "session-history",
@@ -158,7 +158,7 @@ export function traceFromEvent(event = {}) {
       id,
       kind: "error",
       status: "error",
-      title: clean(payload.error || payload.message) || "Error",
+      title: clean(payload.error || payload.message) || "错误（Error）",
       detail: stringify(payload).slice(0, 500),
       at,
       source: "session-event",
@@ -170,7 +170,7 @@ export function traceFromEvent(event = {}) {
       id,
       kind: "turn",
       status: "done",
-      title: "Turn ended",
+      title: "回合结束（Turn ended）",
       detail: clean(event.sessionPath),
       at,
       source: "session-event",
@@ -185,7 +185,7 @@ function traceItem(input) {
     id: input.id,
     kind: input.kind || "event",
     status: input.status || "observed",
-    title: input.title || "Trace item",
+    title: input.title || "追踪项（Trace item）",
     detail: input.detail || "",
     at: input.at || new Date().toISOString(),
     source: input.source || "unknown",
@@ -246,7 +246,7 @@ function extractShellCommands(text) {
     if (fenceCommand) continue;
     const prompt = trimmed.match(/^(?:[$>]|\w+@\S+[$#])\s+(.+)$/);
     if (prompt?.[1]) commands.push(prompt[1]);
-    const inline = trimmed.match(/\b(?:run|ran|command|命令)[:：]\s*`?([^`]+?)`?$/i);
+    const inline = trimmed.match(/(?:\b(?:run|ran|command)|命令)[:：]\s*`?([^`]+?)`?$/i);
     if (inline?.[1]) commands.push(inline[1]);
   }
   return unique(commands.map(clean).filter(Boolean)).slice(0, 20);

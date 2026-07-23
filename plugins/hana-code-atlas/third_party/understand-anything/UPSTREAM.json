@@ -1,0 +1,32 @@
+{
+  "name": "Understand Anything Viewer",
+  "upstream": "https://github.com/Egonex-AI/Understand-Anything",
+  "version": "2.9.0",
+  "commit": "f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8",
+  "tag": "v2.9.0",
+  "license": "MIT",
+  "licenseFile": "LICENSE",
+  "copyright": "Copyright (c) 2026 Yuxiang Lin, Infinite Universe, Inc.",
+  "description": "Interactive knowledge graph viewer for code architecture. Used in this plugin with Human Layout patch applied and served through a host-side HTML wrapper / fetch shim instead of a second source patch.",
+  "patches": [
+    {
+      "id": "human-layout",
+      "file": "human-layout.patch",
+      "description": "Human Layout improvements: bypass containers for ≤20 nodes, compact ELK, hover dimming, keyboard focus, dark contrast",
+      "sha256": "4db4e22a717126cc16169c8af9f0b63e0d3da8fb846d8356019c3ba2a2fbdc58"
+    },
+    {
+      "id": "hana-plugin-adapter",
+      "file": "hana-plugin-adapter.patch",
+      "description": "SUPERSEDED. Hana plugin integration is now performed at runtime by routes/viewer.js and assets/app.js: HTML wrapper rewrites asset URLs, injects a fetch shim for the six UA data requests, adds the pluginSurfaceSession header, and seeds sessionStorage to skip TokenGate. The standalone adapter patch is kept as a historical placeholder only and must not be applied to the source.",
+      "sha256": "TBD",
+      "status": "superseded",
+      "supersededBy": "plugins/hana-code-atlas/routes/viewer.js + assets/app.js fetch shim"
+    }
+  ],
+  "distSha256": "ed1318e82bf4e9b9dc2a9086c2826b8e536201296259d6285c25f5270e1f020e",
+  "distSha256Description": "Deterministic SHA-256 over the entire locked asset set (sorted path|size|sha256 lines), stored as manifest.assetSetSha256. Not just index.html.",
+  "distPath": "assets/ua/viewer",
+  "distManifest": "assets/ua/viewer/manifest.json",
+  "upgradePolicy": "Evaluate upstream releases for schema/API changes. Regenerate assets/ua/viewer/manifest.json with scripts/pack-ua-assets.mjs after repacking and update this distSha256 to match manifest.assetSetSha256. If the Human Layout patch can apply cleanly and the wrapper/shim contract still holds, upgrade; otherwise freeze at this version."
+}

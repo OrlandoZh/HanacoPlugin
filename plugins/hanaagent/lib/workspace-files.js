@@ -278,7 +278,7 @@ function configuredWorkspaceRoots(ctx) {
   }
   const dataRoot = normalizeRoot(ctx?.dataDir, {
     id: "plugin-data",
-    label: "Plugin Data",
+    label: "插件数据（Plugin Data）",
     writable: true
   });
   if (dataRoot) roots.push(dataRoot);
@@ -452,7 +452,7 @@ function buildUnifiedDiff(before, after, input = {}) {
     return [
       `--- ${input.from || "a/file"}`,
       `+++ ${input.to || "b/file"}`,
-      "@@ no changes @@"
+      "@@ 无变更 @@"
     ].join("\n");
   }
   return [

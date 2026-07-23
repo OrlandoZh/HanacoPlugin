@@ -56,7 +56,10 @@ export function writeLocalMemory(dataDir, input = {}) {
   const size = Buffer.byteLength(body, "utf8");
   if (size > MAX_MEMORY_BYTES) return { ok: false, error: "memory_too_large", size, maxBytes: MAX_MEMORY_BYTES };
   ensureMemoryDir(dataDir);
-  fs.writeFileSync(memoryFilePath(dataDir, id), body, "utf8");
+  const file = memoryFilePath(dataDir, id);
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, body, "utf8");
+  fs.renameSync(tmp, file);
   return readLocalMemory(dataDir, id);
 }
 

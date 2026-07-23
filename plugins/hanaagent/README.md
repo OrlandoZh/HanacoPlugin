@@ -1,6 +1,6 @@
 # HanaAgent Workbench
 
-Hanaco 智能体工作台插件，参考 `reference/hermes-workspace-main` 的多智能体控制台思路，做成适合 OpenHanako 插件系统的轻量单页工作台。
+Hanaco 智能体工作台插件，参考 `reference/hermes-workspace-main` 的多智能体控制台思路，并吸收 `reference/open-agent-builder-main` 的 MIT-licensed workflow builder 模型和可视化交互方式，做成适合 OpenHanako 插件系统的轻量单页工作台。
 
 系统性分析和后续路线图见：
 
@@ -13,6 +13,10 @@ docs/hanaagent/IMPLEMENTATION_AUDIT.md
 
 - 在页面内探测 Hana `agent:list`、`agent:config`、`agent:skills`、`memory:*`、`session:list/create/status/send/history/abort`、`usage:list`、`checkpoint:*`、`task:*`、`deferred:*`、`terminal:*` 能力。
 - 选择已有智能体和会话，把任务投递到目标 session。
+- 支持 Open Agent Builder 风格 Workflow Builder：工作台内置左侧节点库、中间可拖拽 SVG/HTML 画布、右侧属性/连接/校验面板和 Preview 面板；支持 Start、Agent、MCP、Transform、If/Else、While、User Approval、Set State、End、Note 节点。
+- 支持 Workflow 模板库和本地持久化：Simple Agent Workflow、Research With Approval、Mission Dispatch Pipeline 等模板保存在插件逻辑中，用户创建的 workflow 保存在插件 `dataDir/workflows.json`。
+- 支持 Workflow CRUD / Preview / Execute / Mission 编译 API：`/api/workflow-templates`、`/api/workflows`、`/api/workflows/:workflowId`、`/api/workflows/:workflowId/preview`、`/api/workflows/:workflowId/execute`、`/api/workflows/:workflowId/execute-stream` 和 `/api/workflows/:workflowId/mission`；Preview 会给出安全执行路径和节点结果，Execute 默认走安全 Preview，`mode:"mission"` 会把 Agent 节点映射为 HanaAgent 原生 assignments/tasks，stream 版返回 SSE 节点状态事件。
+- 支持 `/workflows` 和 `/workflows/:workflowId` 页面入口兼容层：打开后跳到 HanaAgent 原生 workflow canvas，而不是加载参考项目的 Next/React Flow 应用。
 - Conductor 指挥台：输入 Mission 后自动生成 mission、worker assignments、事件流和办公室式 live view。
 - 支持 Hermes SwarmBrief 风格任务契约：`/api/missions/:missionId/briefs` 和 `/api/missions/:missionId/assignments/:assignmentId/brief` 会为每个 assignment 生成 `brief_id / worker / project / goal / why_now / scope / deliverables / test_or_proof / constraints / checkpoint_contract / escalation / budget`，dispatch 与 broadcast prompt 会携带同一份 YAML brief；工作台 assignment 卡可直接查看并复制 Brief。
 - 支持 Hermes Swarm API 兼容路由：`/api/swarm-roster`、`/api/swarm-dispatch`、`/api/swarm-missions`、`/api/swarm-checkpoint`、`/api/swarm-runtime`、`/api/swarm-health`、`/api/swarm-chat`、`/api/swarm-decompose`、`/api/swarm-kanban`、`/api/swarm-memory`、`/api/swarm-reports`、`/api/swarm-project`、`/api/swarm-environment`、`/api/swarm-lifecycle`、`/api/swarm-tmux-start|stop|scroll`、`/api/swarm-direct-chat`、`/api/swarm-orchestrator-loop`、`/api/swarm-runtime/reset` 映射到 OpenHanako 插件内 Operations profile、mission、dispatch、checkpoint、task board、memory/handoff、reports、worker observability、worker lifecycle、host-managed terminal/session 和 session history 能力，方便迁移 Hermes 风格脚本/调用。
@@ -26,7 +30,8 @@ docs/hanaagent/IMPLEMENTATION_AUDIT.md
 - 支持 Hermes Command Palette 风格 `⌘K` 面板：可搜索并执行刷新工作台、聚焦全局搜索、打开引导/快捷键、创建/派发 mission、生成报告、同步 checkpoint、刷新 integrations、建议模型、启动 terminal、导出 pinned sessions、运行 Autopilot tick、保存默认值等工作台动作。
 - 支持 Hermes Sound Notification / Haptic Feedback 风格本地反馈：工作台可配置声音开关、音量、浏览器通知和移动端触觉反馈；使用 Web Audio API 合成 spawned/complete/failed/chat/alert 等提示音，不依赖音频文件。
 - 支持 Hermes Toast / Error Toast / Model Suggestion Toast 风格页面内提示：右上角 `toastStack` 会显示普通日志、失败、提醒、完成、模型建议等短消息，可手动关闭并自动过期。
-- 支持 Hermes Settings / Theme / Editor 偏好：工作台可配置 Hermes/Claude Official/Claude Official Light/Claude Classic/Classic Light/Slate/Slate Light/Mono/Mono Light 主题预设、system/light/dark、accent color、编辑器字号、换行、minimap、context usage 阈值、系统指标页脚、移动端导航模式和 Calendar timezone；主题预设、强调色、编辑器字号/换行、usage threshold 和日历时区会即时影响页面。
+- 支持 Hermes Settings / Theme / Editor 偏好：工作台可配置 Hermes/星图观测站（Starmap）/Claude Official/Claude Official Light/Claude Classic/Classic Light/Slate/Slate Light/Mono/Mono Light 主题预设、system/light/dark、accent color、编辑器字号、换行、minimap、context usage 阈值、系统指标页脚、移动端导航模式和 Calendar timezone；主题预设、强调色、编辑器字号/换行、usage threshold 和日历时区会即时影响页面。
+- 知识区域吸收星图的“候选卡片 → 人工确认 → 记忆/来源产物”工作流：现有 Research Card 入口以“知识候选卡片”呈现，确认后保存到 HanaAgent Memory，仍保留原始 Session、Mission 和 Artifact 作为来源，不建立第二套知识事实源。
 - 支持 Hermes Mobile Header / Hamburger / Sessions Panel / Tab Bar 风格移动端导航：小屏显示顶部 `mobilePageHeader`、汉堡按钮和 `mobileSessionsDrawer` 会话抽屉，可搜索、选择、Pin 前的目标会话；底部 `mobileTabBar` 可快速跳到控制台、Conductor、看板、运行、文件和终端，并响应 `dock / integrated / scroll-hide` 三种移动导航模式。
 - 支持 Hermes Onboarding Tour / Setup Doctor 风格首次引导：顶部“引导”按钮和 Setup Doctor 均可打开步骤式工作台引导，覆盖 setup、mission、board、runtime、files、run console、modes/notifications 等关键区域，并把 completed/dismissed/lastStep 状态保存到插件配置；Setup Doctor 每个检查项带结构化 repair action，页面 `setup-repair` 按钮可打开 Provider Setup / Model Chooser、刷新 sessions/state、创建 worker session、同步 checkpoint、跳转 Files/Terminal/Memory/Operations，缺模型时直接给出 Provider Setup + Model Chooser 路径。
 - 支持 Hermes 式 mission phase：`home / preview / active / complete`，并显示任务进度、活动 worker、估算 token 成本。
@@ -123,6 +128,7 @@ docs/hanaagent/IMPLEMENTATION_AUDIT.md
 - `/api/swarm-roster`、`/api/swarm-dispatch`、`/api/swarm-missions`、`/api/swarm-checkpoint`、`/api/swarm-runtime`、`/api/swarm-health`、`/api/swarm-chat` 提供 Hermes Swarm 兼容 API alias：roster upsert/list、legacy `workerIds + prompt` 或 `assignments[]` dispatch、mission list/report/cancel、worker runtime checkpoint 写入、worker runtime/health/chat observability。
 - `/api/swarm-decompose`、`/api/swarm-kanban`、`/api/swarm-memory`、`/api/swarm-reports`、`/api/swarm-project`、`/api/swarm-environment`、`/api/swarm-lifecycle`、`/api/swarm-tmux-start`、`/api/swarm-tmux-stop`、`/api/swarm-tmux-scroll`、`/api/swarm-direct-chat`、`/api/swarm-orchestrator-loop`、`/api/swarm-runtime/reset` 补齐 Hermes Swarm2 同名 API 的 OpenHanako-safe alias：任务拆解会返回确定性 roster fallback，同时暴露 Hermes JSON-only `orchestratorPrompt`、`rosterText`，并可用 `dispatchToSession=true` 交给 OpenHanako session 生成模型驱动拆解；看板映射到 HanaAgent task store，memory 映射到本地/宿主 memory 与 handoff store，project/environment/lifecycle 来自 Worker IDE 和 overview，tmux/direct-chat/orchestrator/reset 走宿主管理 session、terminal 和 mission 状态，不直接操作 Hermes tmux/profile 文件。
 - `/api/operations/profiles/:profileId/export` 和 `/api/operations/profiles/import` 提供 Operations profile 的 portable JSON bundle 导出/导入，并保留 visibility、permissions、sharedWith 等共享治理元数据。
+- `/api/workflow-templates`、`/api/workflows`、`/api/workflows/:workflowId/preview`、`/api/workflows/:workflowId/execute`、`/api/workflows/:workflowId/execute-stream`、`/api/workflows/:workflowId/mission` 提供 Open Agent Builder 风格工作流模板、CRUD、安全预览、SSE 节点事件和 HanaAgent mission 编译能力。
 - `/api/setup-doctor` 提供安装后 readiness 诊断，帮助确认 OpenHanako 模型、会话、文件根目录和 runtime capability 是否足以执行真实 worker。
 - `/api/model-suggestions` 提供基于任务画像、pinned models 和 `modelMetadata` 的模型建议。
 - `/api/defaults` 持久化 `workbenchOnboarding`，用于工作台首次引导、完成/稍后状态和上次步骤恢复。
@@ -142,42 +148,78 @@ docs/hanaagent/IMPLEMENTATION_AUDIT.md
 - `/api/autopilot/schedule`、`/api/autopilot/tick` 和 `/api/autopilot/loop` 提供后台 Autopilot 配置、状态、手动 tick、可暂停/恢复的多轮自治 loop 和升级阈值记录。
 - `/api/workers/:workerId` 返回 worker drilldown 和 `ide` 快照，供 Swarm2 Worker IDE 面板使用。
 
+## Open Agent Builder 吸收范围
+
+`reference/open-agent-builder-main` 在 README 中声明 MIT License。HanaAgent 当前吸收的是对插件价值最高、且适合 OpenHanako 插件沙盒的部分：
+
+- 已吸收：workflow/node/edge/execution result 数据形状、8 个核心节点类型、模板思路、节点校验、自动布局思路、左侧节点库 + 中间画布 + 右侧执行/配置面板的交互形态。
+- 已本地化：Convex 持久化改为插件 `dataDir/workflows.json`；React Flow 画布改为无依赖 HTML/SVG；LangGraph 实时执行改为安全 Preview、SSE Preview 事件和 HanaAgent Mission 编译；MCP 节点先保留工具/参数配置和预览，不在插件内直接调用外部工具。
+- 安全边界：Transform 节点不执行任意 JavaScript，只记录映射/脚本意图并在 Preview 中展示；真实 agent 执行通过 OpenHanako `session:*` / HanaAgent mission dispatch 体系完成。
+- 未直接搬入：Next.js、React、Tailwind、React Flow、Convex、Clerk、LangGraph、Firecrawl/E2B 运行时和项目级部署链路。后续如需要真实逐节点 streaming executor，可以在当前 workflow store 和 mission 编译层上继续接。
+
 ## 文件结构
 
 ```text
 plugins/hanaagent/
 ├── manifest.json
 ├── index.js
+├── lib/agent-profile-store.js
 ├── lib/autopilot-scheduler.js
 ├── lib/autopilot-store.js
+├── lib/blueprint-data.js
 ├── lib/checkpoint-store.js
 ├── lib/hanaagent-core.js
+├── lib/handoff-store.js
 ├── lib/integration-catalog.js
+├── lib/job-scheduler.js
+├── lib/job-store.js
+├── lib/memory-store.js
 ├── lib/mission-inbox.js
 ├── lib/mission-store.js
 ├── lib/operations-profile.js
 ├── lib/review-gate.js
 ├── lib/run-store.js
+├── lib/session-projector.js
 ├── lib/task-store.js
+├── lib/tool-artifact-store.js
 ├── lib/tool-trace.js
 ├── lib/worker-ide.js
+├── lib/worker-lifecycle.js
+├── lib/workflow-store.js
 ├── lib/workspace-files.js
-├── routes/workbench.js
+├── routes/
+│   ├── workbench.js
+│   ├── workbench-render.js
+│   ├── workbench-overview.js
+│   ├── workbench-utils.js
+│   ├── workbench-routes-core.js
+│   ├── workbench-routes-missions.js
+│   ├── workbench-routes-sessions.js
+│   └── workbench-routes-swarm.js
 └── tests/
     ├── autopilot-scheduler.test.js
     ├── autopilot-store.test.js
     ├── checkpoint-store.test.js
     ├── hanaagent-core.test.js
+    ├── handoff-store.test.js
+    ├── index.test.js
     ├── integration-catalog.test.js
+    ├── job-scheduler.test.js
+    ├── job-store.test.js
+    ├── memory-store.test.js
     ├── mission-inbox.test.js
-    ├── review-gate.test.js
+    ├── mission-store.test.js
     ├── operations-profile.test.js
+    ├── review-gate.test.js
     ├── run-store.test.js
+    ├── session-projector.test.js
     ├── task-store.test.js
     ├── tool-trace.test.js
     ├── worker-ide.test.js
-    ├── workspace-files.test.js
-    └── workbench-routes.test.js
+    ├── worker-lifecycle.test.js
+    ├── workflow-store.test.js
+    ├── workbench-routes.test.js
+    └── workspace-files.test.js
 ```
 
 ## 使用
@@ -214,6 +256,15 @@ Autopilot 后台调度默认关闭。如需启用，在插件配置里加入：
   "maxMissionsPerTick": 5
 }
 ```
+
+运行时闭环说明：
+
+- `session:send` 返回 `accepted` 只表示宿主已接受投递，不代表 Agent 回合已经完成。
+- 插件启动时会注册后台 Session Projector，在专用 Worker Session 收到 `turn_end`、`done` 或 `error` 后回读 `session:history`，解析 Checkpoint Contract，并归并 Assignment、Task 与 Mission 状态。
+- 通过 `session:create` 创建的 Worker 标记为 `dedicated`，可自动投影；复用已有会话或 `session:create` 不可用时标记为 `shared`，为避免跨任务历史污染，需要在工作台中手动同步历史检查点。
+- Autopilot 仍是恢复扫描和遗漏事件补偿机制，不是 `session:send` 的完成确认机制。
+- `session_busy` 会标记为可重试并保留为排队状态；插件不会在后台自动重复投递，需在会话空闲后由用户或明确的 Autopilot 操作重新派发。
+- 真实宿主验收至少要检查 Agent/Session 创建、投递、实时事件、历史回读、Checkpoint 回写、Review Gate、报告和 Continue/Fork。
 
 ## 验证
 

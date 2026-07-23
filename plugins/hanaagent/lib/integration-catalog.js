@@ -4,16 +4,16 @@ import path from "node:path";
 const BUILTIN_INTEGRATIONS = [
   {
     id: "mcp-connectors",
-    name: "MCP Connectors",
+    name: "MCP 连接器（MCP Connectors）",
     kind: "mcp",
-    category: "Tools",
-    description: "OpenHanako MCP connector runtime and per-agent tool enablement.",
+    category: "工具（Tools）",
+    description: "OpenHanako MCP 连接器运行时与按智能体（Agent）启用工具。",
     source: "openhanako-plugin:mcp",
     risk: "medium",
     actions: [
       {
         id: "mcp.global.enabled",
-        label: "Enable MCP",
+        label: "启用 MCP（Enable MCP）",
         payload: { enabled: true },
         risk: "medium"
       }
@@ -21,37 +21,37 @@ const BUILTIN_INTEGRATIONS = [
   },
   {
     id: "agent-skills",
-    name: "Agent Skills",
+    name: "智能体技能（Agent Skills）",
     kind: "skill",
-    category: "Skills",
-    description: "Skills exposed by the selected OpenHanako agent.",
+    category: "技能（Skills）",
+    description: "由所选 OpenHanako 智能体（Agent）暴露的技能。",
     source: "hana-bus:agent:skills",
     risk: "low"
   },
   {
     id: "skill-bundles",
-    name: "Skill Bundles",
+    name: "技能包（Skill Bundles）",
     kind: "skill-bundle",
-    category: "Skills",
-    description: "OpenHanako skill bundle import/export and agent bundle enablement.",
+    category: "技能（Skills）",
+    description: "OpenHanako 技能包的导入/导出与智能体（Agent）技能包启用。",
     source: "openhanako:skill-bundles",
     risk: "medium"
   },
   {
     id: "runtime-tasks",
-    name: "Runtime Tasks",
+    name: "运行时任务（Runtime Tasks）",
     kind: "runtime",
-    category: "Automation",
-    description: "Host task/deferred-task runtime used by HanaAgent missions and autopilot.",
+    category: "自动化（Automation）",
+    description: "HanaAgent 任务与自动巡航（Autopilot）使用的主机任务/延迟任务运行时。",
     source: "hana-bus:task/deferred",
     risk: "medium"
   },
   {
     id: "workspace-files",
-    name: "Workspace Files",
+    name: "工作区文件（Workspace Files）",
     kind: "workspace",
     category: "IDE",
-    description: "Controlled workspace roots for Files editor and artifact preview surfaces.",
+    description: "面向文件编辑器和产物预览面的受控工作区根目录。",
     source: "hanaagent:workspaceRoots",
     risk: "medium"
   }
@@ -138,8 +138,8 @@ async function applySkillToggle(ctx, input = {}) {
         status: "applied",
         action: "skill.toggle",
         key: `agent.${agentId}.skills.${skillId}`,
-        title: enabled ? "Skill enabled" : "Skill disabled",
-        summary: `${skillId} is ${enabled ? "enabled" : "disabled"} for ${agentId}.`,
+        title: enabled ? "技能已启用" : "技能已禁用",
+        summary: `${skillId} 已对智能体（Agent）${agentId}${enabled ? "启用" : "禁用"}。`,
         changes: [{ key: skillId, label: skillId, before: current.includes(skillId) ? "enabled" : "disabled", after: enabled ? "enabled" : "disabled" }]
       }
     };
@@ -228,7 +228,7 @@ function normalizeSkills(skills) {
     name: clean(skill.name || skill.id),
     description: clean(skill.description || skill.summary),
     enabled: skill.enabled !== false,
-    category: clean(skill.category) || "Skills",
+    category: clean(skill.category) || "技能（Skills）",
     source: clean(skill.source || skill.path || skill.baseDir)
   })).filter((skill) => skill.id);
 }
@@ -239,7 +239,7 @@ function connectorToItem(connector) {
     name: connector.name,
     kind: "mcp",
     category: "MCP",
-    description: connector.description || `${connector.transport || "mcp"} connector`,
+    description: connector.description || `${connector.transport || "mcp"} 连接器`,
     source: connector.source,
     status: connector.status,
     enabled: connector.enabled,
@@ -254,7 +254,7 @@ function skillToItem(skill) {
     id: `skill:${skill.id}`,
     name: skill.name,
     kind: "skill",
-    category: skill.category || "Skills",
+    category: skill.category || "技能（Skills）",
     description: skill.description,
     source: skill.source || "agent:skills",
     status: skill.enabled ? "enabled" : "disabled",
@@ -270,7 +270,7 @@ function pluginToItem(plugin) {
     id: `plugin:${plugin.id || plugin.name}`,
     name: plugin.name || plugin.id,
     kind: "plugin",
-    category: "Plugins",
+    category: "插件（Plugins）",
     description: plugin.description || "",
     source: plugin.manifestPath || "plugin",
     status: "installed",
@@ -285,8 +285,8 @@ function capabilityToItem(capability) {
     id: `capability:${capability.type}`,
     name: capability.type,
     kind: "capability",
-    category: "Host Capabilities",
-    description: capability.available === false ? "Unavailable host capability" : "Available host capability",
+    category: "主机能力（Host Capabilities）",
+    description: capability.available === false ? "主机能力不可用" : "主机能力可用",
     source: "hana-bus",
     status: capability.available === false ? "unavailable" : "available",
     enabled: capability.available !== false,
@@ -302,7 +302,7 @@ function normalizeItem(item) {
     id,
     name,
     kind: clean(item.kind) || "integration",
-    category: clean(item.category) || "Integrations",
+    category: clean(item.category) || "集成（Integrations）",
     description: clean(item.description),
     source: clean(item.source),
     status: clean(item.status) || (item.enabled === false ? "disabled" : "available"),
@@ -319,19 +319,19 @@ function buildMcpActions(connector) {
   return [
     {
       id: running ? "mcp.connector.stop" : "mcp.connector.start",
-      label: running ? "Stop" : "Start",
+      label: running ? "停止（Stop）" : "启动（Start）",
       payload: { connectorId },
       risk: "medium"
     },
     {
       id: "mcp.connector.refresh_tools",
-      label: "Refresh Tools",
+      label: "刷新工具（Refresh Tools）",
       payload: { connectorId },
       risk: "low"
     },
     {
       id: "mcp.agent.connector.enable",
-      label: connector.enabled === false ? "Enable For Agent" : "Disable For Agent",
+      label: connector.enabled === false ? "为智能体（Agent）启用" : "为智能体（Agent）禁用",
       payload: { connectorId, enabled: connector.enabled === false },
       risk: "medium"
     }
@@ -342,7 +342,7 @@ function buildSkillActions(skill) {
   return [
     {
       id: "skill.toggle",
-      label: skill.enabled ? "Disable" : "Enable",
+      label: skill.enabled ? "禁用（Disable）" : "启用（Enable）",
       payload: { skillId: skill.id, enabled: !skill.enabled },
       risk: "medium"
     }

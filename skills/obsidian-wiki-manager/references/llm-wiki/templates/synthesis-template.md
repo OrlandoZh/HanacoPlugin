@@ -1,3 +1,18 @@
+---
+tags: [结晶化, synthesis]
+created: {{DATE}}
+updated: {{DATE}}
+sources: []
+# ── 生命周期 ──
+confidence_score: 0.50
+last_confirmed: {{DATE}}
+evidence_count: 1
+contradicted_by: []
+supersedes: []
+superseded_by: null
+retention_class: active
+---
+
 # {{TOPIC}} 结晶化
 
 日期：{{DATE}}

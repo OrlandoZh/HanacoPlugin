@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-07-19T11:34:47.767Z",
+  "source": "Understand Anything Viewer 2.9.0 Human Layout dist",
+  "assetSetSha256": "ed1318e82bf4e9b9dc2a9086c2826b8e536201296259d6285c25f5270e1f020e",
+  "totalBytes": 2673087,
+  "fileCount": 18,
+  "files": [
+    {
+      "path": "assets/CodeViewer-CZFNCUld.js",
+      "sizeBytes": 91719,
+      "sha256": "c32808eb77e4088321c788621168d27d3642d5a6c46e8b50f5a3f9433360a38d"
+    },
+    {
+      "path": "assets/elk-CXeXGyKz.js",
+      "sizeBytes": 1438654,
+      "sha256": "088a025a149a6df5726cccede2073f06821ca2889b1f7ef4021b0a8914108d0c"
+    },
+    {
+      "path": "assets/graph-layout-7tFr_anw.js",
+      "sizeBytes": 55132,
+      "sha256": "1c71dbc25f845c9a1cb582d9e3521614b8a63a9e50a29b009ca626d52238f824"
+    },
+    {
+      "path": "assets/graphology-BgTy_cc3.js",
+      "sizeBytes": 92583,
+      "sha256": "46407899c98f5c2294fed653f6879a49d7e1cb85a1ed4ee278853de56dd305a3"
+    },
+    {
+      "path": "assets/index-B7Tthg6s.js",
+      "sizeBytes": 309049,
+      "sha256": "470e19aed79d750559b4d4cf0dfafb7f9624da47ed0aabcd691b0860c609e09d"
+    },
+    {
+      "path": "assets/index-DY_xk737.css",
+      "sizeBytes": 55974,
+      "sha256": "2eb4580dd58267112808aa3cd70d20b6780c614873af7e4954ae807ff2f164ce"
+    },
+    {
+      "path": "assets/KeyboardShortcutsHelp-BARxtCJ-.js",
+      "sizeBytes": 2193,
+      "sha256": "eb89039abe69bf809a7822ffe28aa57f150a5ea62101d7b3fa6038d0a6094e27"
+    },
+    {
+      "path": "assets/LearnPanel-DfTx10kt.js",
+      "sizeBytes": 5554,
+      "sha256": "9a7fcad689fdf666e9629bb53fc518f5a12e6a5374c7ad018faa51d663d78e98"
+    },
+    {
+      "path": "assets/markdown-DpllbSd9.js",
+      "sizeBytes": 117593,
+      "sha256": "c7ce349e4098e7cc39df85230eaf71c5a670872999c5a2a0aecb21df9bb8e467"
+    },
+    {
+      "path": "assets/OnboardingOverlay-C2U20sAN.js",
+      "sizeBytes": 3838,
+      "sha256": "ba18261ff6b59c6a3c50ea98c14fa816b38e8e18bc7af6c8c77ba32014c550ed"
+    },
+    {
+      "path": "assets/PathFinderModal-C_Ty3z7C.js",
+      "sizeBytes": 6364,
+      "sha256": "17259299152fe5da278d332c5ea1c6b6bef5cb4f2b70dd7790f8723d0ade0669"
+    },
+    {
+      "path": "assets/react-vendor-BVoutfaX.js",
+      "sizeBytes": 193957,
+      "sha256": "49174371f6cc70cd14273f029e1db3c9ef2cdd9ab7d0b196f6bb483386f35055"
+    },
+    {
+      "path": "assets/xyflow-BZV40eAE.css",
+      "sizeBytes": 15851,
+      "sha256": "77eb229e70c7949e1d9e4f542afdf7b38d85eccc656a7c3ee9b8429a339872be"
+    },
+    {
+      "path": "assets/xyflow-CYMCcsWN.js",
+      "sizeBytes": 181066,
+      "sha256": "c5b32652126d6df6c188bf907ecf76f2fcb0ad60253a8956b481bdd288c6103c"
+    },
+    {
+      "path": "favicon.ico",
+      "sizeBytes": 655,
+      "sha256": "09d2ac08d8cca9b6e1f90221f345a8c4dd0371c64a0dc52b6f96fc589b1e3d67"
+    },
+    {
+      "path": "favicon.svg",
+      "sizeBytes": 253,
+      "sha256": "6badfc6835c04a1b8128dca464ff79bd038edbb89cf68d985d2d94e7f08c9c61"
+    },
+    {
+      "path": "index.html",
+      "sizeBytes": 897,
+      "sha256": "9ebf3228193ff9d2df9522cbd594ef406eb727d6f4536177179ee5cb09850124"
+    },
+    {
+      "path": "knowledge-graph.json",
+      "sizeBytes": 101755,
+      "sha256": "fb14ed41052a1aba51e462f31f54ab5f1595af1e43b6e7268540de57c19d141a"
+    }
+  ]
+}

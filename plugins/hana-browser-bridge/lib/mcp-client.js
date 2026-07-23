@@ -19,15 +19,24 @@ import {
 const pluginMetadata = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 );
-const bundledMetadata = JSON.parse(
-  fs.readFileSync(
-    new URL("../vendor/browser-bridge/BUNDLED_VERSION.json", import.meta.url),
-    "utf8",
-  ),
-);
+
+// Load bundled bridge metadata with graceful fallback so the plugin can still
+// load when vendor/ is absent (e.g. fresh git clone without `npm run sync:bridge`).
+// CORE_VERSION returns "unavailable" instead of crashing the module import chain.
+let bundledMetadata = null;
+try {
+  bundledMetadata = JSON.parse(
+    fs.readFileSync(
+      new URL("../vendor/browser-bridge/BUNDLED_VERSION.json", import.meta.url),
+      "utf8",
+    ),
+  );
+} catch {
+  bundledMetadata = null;
+}
 
 export const PLUGIN_VERSION = pluginMetadata.version;
-export const CORE_VERSION = bundledMetadata.version;
+export const CORE_VERSION = bundledMetadata?.version ?? "unavailable";
 
 let runtime = null;
 let connectAttempt = null;
@@ -53,12 +62,29 @@ function runtimeKey(config) {
 
 export function sanitizeError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  return message
+  // Extract and preserve error classification tokens before sanitization/truncation
+  // so classifyBrowserConnectFailure can still match them after the slice.
+  const classificationTokens = [];
+  const classificationPattern = /\b(BROWSER_CONNECT_REVIEW_REQUIRED|BROWSER_CONNECTION_FAILED|BROWSER_CONNECT_ATTEMPT_IN_PROGRESS|CONSENT_DENIED|RUNTIME_START_CANCELLED|MCP_TOOL_CALL_FAILED)\b/g;
+  let match;
+  while ((match = classificationPattern.exec(message)) !== null) {
+    classificationTokens.push(match[1]);
+  }
+  const sanitized = message
     .replace(/wss?:\/\/[^\s"']+\/devtools\/browser\/[^\s"']+/gi, "[redacted-browser-endpoint]")
     .replace(/\/devtools\/browser\/[A-Za-z0-9._-]+/g, "/devtools/browser/[redacted]")
     .replace(/\b(authorization|cookie|set-cookie)\s*[:=]\s*.*?(?=\s+\b(?:authorization|cookie|set-cookie)\b\s*[:=]|$)/gi, "$1=[redacted]")
-    .replace(/[A-Fa-f0-9]{32,}/g, "[redacted]")
+    // Only redact 40+ char hex strings (SHA256=64, SHA1/git-commit=40).
+    // 32-char hex (UUID without dashes) is unlikely to be a secret and is
+    // useful for debugging DevToolsActivePort browser IDs.
+    .replace(/[A-Fa-f0-9]{40,}/g, "[redacted]")
     .slice(0, 1000);
+  // Append classification tokens if they were truncated away
+  const truncatedTokens = classificationTokens.filter((t) => !sanitized.includes(t));
+  if (truncatedTokens.length > 0) {
+    return `${sanitized} [classification: ${truncatedTokens.join(", ")}]`;
+  }
+  return sanitized;
 }
 
 function requiresExplicitStart(config) {
@@ -99,6 +125,11 @@ function attemptIsCurrent(attempt) {
 
 async function closeMcpResources(client, transport) {
   if (!client && !transport) return;
+  // Idempotency: prevent double-close when shutdownMcpRuntime and openRuntime's
+  // catch block both try to clean up the same resources concurrently.
+  if (client?._bbClosed && transport?._bbClosed) return;
+  if (client) client._bbClosed = true;
+  if (transport) transport._bbClosed = true;
   const pid = transport?.pid;
   let gracefulClose;
   try { gracefulClose = client?.close?.(); } catch { gracefulClose = null; }

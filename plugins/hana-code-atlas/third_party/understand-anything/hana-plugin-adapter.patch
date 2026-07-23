@@ -1,0 +1,21 @@
+# SUPERSEDED — Hana Plugin Adapter patch
+#
+# This patch is no longer applied to the upstream Understand-Anything Viewer
+# source. Its responsibilities have been moved to runtime integration in the
+# HanaAgent plugin:
+#
+#   - routes/viewer.js     : HTML wrapper, asset URL rewrite, fetch shim injection
+#   - assets/app.js        : control page, pluginSurfaceSession header helper,
+#                            Hana ready postMessage
+#
+# The fetch shim injected by /frame handles:
+#   1. Rewriting the six UA data requests to the plugin API
+#   2. Adding X-Hana-Plugin-Surface-Session header
+#   3. Seeding sessionStorage to skip the UA TokenGate
+#   4. Preserving projectId and bundle query parameters
+#
+# Do not apply this patch during the build. Apply only human-layout.patch and
+# run scripts/pack-ua-assets.mjs to materialize assets/ua/viewer/.
+#
+# Status: superseded
+# Superseded by: plugins/hana-code-atlas/routes/viewer.js + assets/app.js

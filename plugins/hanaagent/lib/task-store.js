@@ -5,6 +5,21 @@ import { randomUUID } from "node:crypto";
 const VALID_COLUMNS = new Set(["backlog", "running", "review", "blocked", "done"]);
 const VALID_PRIORITIES = new Set(["high", "medium", "low"]);
 
+let writeChain = Promise.resolve();
+
+function withWriteLock(work) {
+  let result;
+  let error;
+  try {
+    result = work();
+  } catch (e) {
+    error = e;
+  }
+  writeChain = writeChain.then(() => {}).catch(() => {});
+  if (error) throw error;
+  return result;
+}
+
 export function listTasks(dataDir, filters = {}) {
   let tasks = readTaskFile(dataDir).tasks.map(normalizeTask).filter(Boolean);
   if (!filters.includeDone) tasks = tasks.filter((task) => task.column !== "done");
@@ -22,37 +37,40 @@ export function createTask(dataDir, input = {}) {
   const title = clean(input.title);
   if (!title) return { ok: false, error: "title_required" };
 
-  const file = readTaskFile(dataDir);
-  const now = new Date().toISOString();
-  const task = normalizeTask({
-    id: clean(input.id) || randomUUID(),
-    title,
-    description: clean(input.description || input.notes),
-    column: normalizeColumn(input.column || input.lane),
-    priority: normalizePriority(input.priority),
-    assignee: clean(input.assignee) || null,
-    tags: normalizeTags(input.tags),
-    dueDate: clean(input.dueDate || input.due_date) || null,
-    position: Number.isFinite(Number(input.position)) ? Number(input.position) : file.tasks.length,
-    createdBy: clean(input.createdBy || input.created_by) || "user",
-    createdAt: now,
-    updatedAt: now,
-    sessionPath: clean(input.sessionPath || input.session_id) || null,
-    templateId: clean(input.templateId) || null,
-    templateLabel: clean(input.templateLabel) || null,
-    missionId: clean(input.missionId || input.mission_id) || null,
-    assignmentId: clean(input.assignmentId || input.assignment_id) || null,
-    mode: clean(input.mode) || "dispatch"
+  return withWriteLock(() => {
+    const file = readTaskFile(dataDir);
+    const now = new Date().toISOString();
+    const task = normalizeTask({
+      id: clean(input.id) || randomUUID(),
+      title,
+      description: clean(input.description || input.notes),
+      column: normalizeColumn(input.column || input.lane),
+      priority: normalizePriority(input.priority),
+      assignee: clean(input.assignee) || null,
+      tags: normalizeTags(input.tags),
+      dueDate: clean(input.dueDate || input.due_date) || null,
+      position: Number.isFinite(Number(input.position)) ? Number(input.position) : file.tasks.length,
+      createdBy: clean(input.createdBy || input.created_by) || "user",
+      createdAt: now,
+      updatedAt: now,
+      sessionPath: clean(input.sessionPath || input.session_id) || null,
+      templateId: clean(input.templateId) || null,
+      templateLabel: clean(input.templateLabel) || null,
+      missionId: clean(input.missionId || input.mission_id) || null,
+      assignmentId: clean(input.assignmentId || input.assignment_id) || null,
+      mode: clean(input.mode) || "dispatch"
+    });
+    file.tasks.push(task);
+    writeTaskFile(dataDir, { tasks: file.tasks.map(normalizeTask).filter(Boolean) });
+    return { ok: true, task };
   });
-  file.tasks.push(task);
-  writeTaskFile(dataDir, { tasks: file.tasks.map(normalizeTask).filter(Boolean) });
-  return { ok: true, task };
 }
 
 export function updateTask(dataDir, taskId, updates = {}) {
-  const file = readTaskFile(dataDir);
-  const index = file.tasks.findIndex((task) => normalizeTask(task)?.id === taskId);
-  if (index === -1) return { ok: false, error: "task_not_found" };
+  return withWriteLock(() => {
+    const file = readTaskFile(dataDir);
+    const index = file.tasks.findIndex((task) => normalizeTask(task)?.id === taskId);
+    if (index === -1) return { ok: false, error: "task_not_found" };
 
   const current = normalizeTask(file.tasks[index]);
   const next = normalizeTask({
@@ -73,9 +91,10 @@ export function updateTask(dataDir, taskId, updates = {}) {
     ...(typeof updates.mode === "string" ? { mode: clean(updates.mode) || "dispatch" } : {}),
     updatedAt: new Date().toISOString()
   });
-  file.tasks[index] = next;
-  writeTaskFile(dataDir, { tasks: file.tasks.map(normalizeTask).filter(Boolean) });
-  return { ok: true, task: next };
+    file.tasks[index] = next;
+    writeTaskFile(dataDir, { tasks: file.tasks.map(normalizeTask).filter(Boolean) });
+    return { ok: true, task: next };
+  });
 }
 
 export function moveTask(dataDir, taskId, column) {
@@ -84,10 +103,11 @@ export function moveTask(dataDir, taskId, column) {
 
 export function reorderTask(dataDir, taskId, input = {}) {
   const moveInput = typeof input === "string" ? { column: input } : input || {};
-  const file = readTaskFile(dataDir);
-  const tasks = file.tasks.map(normalizeTask).filter(Boolean);
-  const index = tasks.findIndex((task) => task.id === taskId);
-  if (index === -1) return { ok: false, error: "task_not_found" };
+  return withWriteLock(() => {
+    const file = readTaskFile(dataDir);
+    const tasks = file.tasks.map(normalizeTask).filter(Boolean);
+    const index = tasks.findIndex((task) => task.id === taskId);
+    if (index === -1) return { ok: false, error: "task_not_found" };
 
   const task = {
     ...tasks[index],
@@ -120,18 +140,21 @@ export function reorderTask(dataDir, taskId, input = {}) {
     });
   }
 
-  const nextTasks = tasks.map((item) => positionedById.get(item.id)).filter(Boolean);
-  writeTaskFile(dataDir, { tasks: nextTasks });
-  return { ok: true, task: positionedById.get(taskId), tasks: nextTasks.sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt)) };
+    const nextTasks = tasks.map((item) => positionedById.get(item.id)).filter(Boolean);
+    writeTaskFile(dataDir, { tasks: nextTasks });
+    return { ok: true, task: positionedById.get(taskId), tasks: nextTasks.sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt)) };
+  });
 }
 
 export function deleteTask(dataDir, taskId) {
-  const file = readTaskFile(dataDir);
-  const tasks = file.tasks.map(normalizeTask).filter(Boolean);
-  const nextTasks = tasks.filter((task) => task.id !== taskId);
-  if (nextTasks.length === tasks.length) return { ok: false, error: "task_not_found" };
-  writeTaskFile(dataDir, { tasks: nextTasks });
-  return { ok: true, removed: 1 };
+  return withWriteLock(() => {
+    const file = readTaskFile(dataDir);
+    const tasks = file.tasks.map(normalizeTask).filter(Boolean);
+    const nextTasks = tasks.filter((task) => task.id !== taskId);
+    if (nextTasks.length === tasks.length) return { ok: false, error: "task_not_found" };
+    writeTaskFile(dataDir, { tasks: nextTasks });
+    return { ok: true, removed: 1 };
+  });
 }
 
 export function batchUpdateTasks(dataDir, input = {}) {
@@ -172,10 +195,12 @@ export function batchUpdateTasks(dataDir, input = {}) {
 }
 
 export function clearDoneTasks(dataDir) {
-  const tasks = readTaskFile(dataDir).tasks.map(normalizeTask).filter(Boolean);
-  const nextTasks = tasks.filter((task) => task.column !== "done");
-  writeTaskFile(dataDir, { tasks: nextTasks });
-  return { ok: true, removed: tasks.length - nextTasks.length };
+  return withWriteLock(() => {
+    const tasks = readTaskFile(dataDir).tasks.map(normalizeTask).filter(Boolean);
+    const nextTasks = tasks.filter((task) => task.column !== "done");
+    writeTaskFile(dataDir, { tasks: nextTasks });
+    return { ok: true, removed: tasks.length - nextTasks.length };
+  });
 }
 
 function readTaskFile(dataDir) {

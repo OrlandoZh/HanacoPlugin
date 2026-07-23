@@ -3,6 +3,14 @@ tags: [实体]
 created: {{DATE}}
 updated: {{DATE}}
 sources: []
+# ── 生命周期 ──
+confidence_score:
+last_confirmed: {{DATE}}
+evidence_count: 0
+contradicted_by: []
+supersedes: []
+superseded_by: null
+retention_class: active
 ---
 
 # {{ENTITY_NAME}}

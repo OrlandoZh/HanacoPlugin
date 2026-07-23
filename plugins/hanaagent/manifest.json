@@ -1,9 +1,9 @@
 {
   "manifestVersion": 1,
   "id": "hanaagent",
-  "name": "HanaAgent Workbench",
-  "version": "0.1.0",
-  "description": "Hanaco intelligent agent workbench inspired by Hermes Workspace: agent/session probe, mission dispatch, task board, and workflow templates.",
+  "name": "HanaAgent 智能体工作台",
+  "version": "0.2.0",
+  "description": "受 Hermes Workspace 与 Open Agent Builder 启发的 Hanaco 智能体工作台：智能体/会话探针、可视化工作流（Workflow）、任务分派与任务看板。",
   "minAppVersion": "0.171.3",
   "trust": "full-access",
   "capabilities": ["agent", "session"],
@@ -21,36 +21,36 @@
       "properties": {
         "defaultAgentId": {
           "type": "string",
-          "title": "Default Agent ID",
-          "description": "Optional agent id to preselect in HanaAgent Workbench.",
+          "title": "默认智能体 ID（Default Agent ID）",
+          "description": "在 HanaAgent 工作台中预选的可选智能体（Agent）ID。",
           "default": "",
           "ui": { "control": "text" }
         },
         "defaultSessionPath": {
           "type": "string",
-          "title": "Default Session Path",
-          "description": "Optional existing session path used as the default dispatch target.",
+          "title": "默认会话路径（Default Session Path）",
+          "description": "用作默认分派目标的已有会话（Session）路径。",
           "default": "",
           "ui": { "control": "text" }
         },
         "workspaceRoots": {
           "type": "array",
-          "title": "Workspace Roots",
-          "description": "Optional directories exposed to HanaAgent Files. Entries may be strings or objects with path, label, and writable.",
+          "title": "工作区根目录（Workspace Roots）",
+          "description": "向 HanaAgent 文件暴露的可选目录。条目可以是字符串，或带有 path、label、writable 的对象。",
           "default": [],
           "ui": { "control": "json" }
         },
         "knowledgeSource": {
           "type": "string",
-          "title": "Knowledge Source",
-          "description": "Hermes knowledge API compatibility source label. HanaAgent maps knowledge pages to OpenHanako memory and local plugin memory.",
+          "title": "知识来源（Knowledge Source）",
+          "description": "Hermes 知识 API 兼容来源标签。HanaAgent 将知识页映射到 OpenHanako 记忆与本地插件记忆。",
           "default": "hanaagent-memory",
           "ui": { "control": "text" }
         },
         "autopilotSchedule": {
           "type": "object",
-          "title": "Autopilot Schedule",
-          "description": "Background autopilot tick settings. Example: { enabled, mode, intervalMinutes, runOnStartup, maxMissionsPerTick }.",
+          "title": "自动巡航计划（Autopilot Schedule）",
+          "description": "后台自动巡航（Autopilot）单次检查（tick）设置。示例：{ enabled, mode, intervalMinutes, runOnStartup, maxMissionsPerTick }。",
           "default": {
             "enabled": false,
             "mode": "preview",
@@ -62,8 +62,8 @@
         },
         "workerLifecyclePolicy": {
           "type": "object",
-          "title": "Worker Lifecycle Policy",
-          "description": "Swarm2-style worker context lifecycle thresholds for watch, handoff, renewal, and stale checkpoints.",
+          "title": "执行智能体生命周期策略（Worker Lifecycle Policy）",
+          "description": "Swarm2 风格的执行智能体（Worker）上下文生命周期阈值，用于观察、交接、续期和陈旧检查点（Checkpoint）。",
           "default": {
             "softLimit": 250000,
             "handoffLimit": 400000,
@@ -74,78 +74,78 @@
         },
         "savedMissions": {
           "type": "array",
-          "title": "Saved Mission Drafts",
-          "description": "Local mission drafts shown in the workbench.",
+          "title": "已保存任务草稿（Saved Mission Drafts）",
+          "description": "在工作台中展示的本地任务（Mission）草稿。",
           "default": [],
           "ui": { "control": "json" }
         },
         "pinnedSessions": {
           "type": "array",
-          "title": "Pinned Sessions",
-          "description": "Frequently used sessions shown as quick targets in HanaAgent Workbench.",
+          "title": "置顶会话（Pinned Sessions）",
+          "description": "在 HanaAgent 工作台中作为快捷目标展示的常用会话（Session）。",
           "default": [],
           "ui": { "control": "json" }
         },
         "pinnedModels": {
           "type": "array",
-          "title": "Pinned Models",
-          "description": "Preferred models shown as quick selections in HanaAgent Workbench.",
+          "title": "置顶模型（Pinned Models）",
+          "description": "在 HanaAgent 工作台中作为快捷选项展示的首选模型。",
           "default": [],
           "ui": { "control": "json" }
         },
         "modelMetadata": {
           "type": "array",
-          "title": "Model Metadata",
-          "description": "Optional model context and price metadata for HanaAgent recommendations. Entries may include model, provider, contextWindow, inputCostPer1M, outputCostPer1M.",
+          "title": "模型元数据（Model Metadata）",
+          "description": "用于 HanaAgent 推荐的可选模型上下文与价格元数据。条目可包含 model、provider、contextWindow、inputCostPer1M、outputCostPer1M。",
           "default": [],
           "ui": { "control": "json" }
         },
         "savedBoardViews": {
           "type": "array",
-          "title": "Saved Board Views",
-          "description": "Saved HanaAgent TaskBoard filters for quick board view switching.",
+          "title": "已保存看板视图（Saved Board Views）",
+          "description": "用于快速切换看板视图的已保存 HanaAgent 任务看板（TaskBoard）筛选器。",
           "default": [],
           "ui": { "control": "json" }
         },
         "boardWipLimits": {
           "type": "object",
-          "title": "Board WIP Limits",
-          "description": "Optional per-lane Kanban WIP limits. Use 0 or omit a lane for unlimited.",
+          "title": "看板在制品限制（Board WIP Limits）",
+          "description": "可选的按泳道看板在制品（WIP）限制。使用 0 或省略泳道表示无限制。",
           "default": {},
           "ui": { "control": "json" }
         },
         "sessionAliases": {
           "type": "array",
-          "title": "Session Aliases",
-          "description": "Workbench-local session title aliases used for Hermes-style rename display.",
+          "title": "会话别名（Session Aliases）",
+          "description": "工作台本地会话（Session）标题别名，用于 Hermes 风格的重命名显示。",
           "default": [],
           "ui": { "control": "json" }
         },
         "sessionTombstones": {
           "type": "array",
-          "title": "Session Tombstones",
-          "description": "Workbench-local hidden session markers used for Hermes-style delete cleanup without deleting host files.",
+          "title": "会话墓碑（Session Tombstones）",
+          "description": "工作台本地隐藏会话（Session）标记，用于 Hermes 风格的删除清理，而不删除宿主文件。",
           "default": [],
           "ui": { "control": "json" }
         },
         "workbenchModes": {
           "type": "array",
-          "title": "Workbench Modes",
-          "description": "Hermes-style saved workbench mode presets with model, session, board, and suggestion preferences.",
+          "title": "工作台模式（Workbench Modes）",
+          "description": "Hermes 风格的已保存工作台模式预设，包含模型、会话、看板和建议偏好。",
           "default": [],
           "ui": { "control": "json" }
         },
         "activeWorkbenchModeId": {
           "type": "string",
-          "title": "Active Workbench Mode ID",
-          "description": "Currently applied HanaAgent workbench mode preset id for drift detection.",
+          "title": "当前工作台模式 ID（Active Workbench Mode ID）",
+          "description": "当前应用的 HanaAgent 工作台模式预设 ID，用于漂移检测。",
           "default": "",
           "ui": { "control": "text" }
         },
         "workbenchNotifications": {
           "type": "object",
-          "title": "Workbench Notifications",
-          "description": "Hermes-style local notification settings for HanaAgent sounds, browser notifications, and mobile haptics.",
+          "title": "工作台通知（Workbench Notifications）",
+          "description": "Hermes 风格的本地通知设置，用于 HanaAgent 声音、浏览器通知与移动端触觉反馈。",
           "default": {
             "enabled": true,
             "volume": 0.28,
@@ -156,11 +156,11 @@
         },
         "workbenchSettings": {
           "type": "object",
-          "title": "Workbench Settings",
-          "description": "Hermes-style local workbench settings: theme, accent, editor preferences, context threshold, metrics footer, and mobile navigation mode.",
+          "title": "工作台设置（Workbench Settings）",
+          "description": "Hermes 风格的本地工作台设置：主题、强调色、编辑器偏好、上下文阈值、指标页脚与移动端导航模式。",
           "default": {
             "theme": "system",
-            "themePreset": "hermes",
+            "themePreset": "starmap",
             "accentColor": "blue",
             "editorFontSize": 13,
             "editorWordWrap": true,
@@ -174,8 +174,8 @@
         },
         "workbenchOnboarding": {
           "type": "object",
-          "title": "Workbench Onboarding",
-          "description": "Hermes-style onboarding tour state for HanaAgent Workbench.",
+          "title": "工作台引导（Workbench Onboarding）",
+          "description": "HanaAgent 工作台的 Hermes 风格引导教程状态。",
           "default": {
             "completed": false,
             "dismissed": false,
@@ -185,15 +185,15 @@
         },
         "hermesGatewayUrl": {
           "type": "string",
-          "title": "Hermes Gateway URL",
-          "description": "Hermes compatibility connection override. OpenHanako-safe default uses the host runtime.",
+          "title": "Hermes 网关 URL（Hermes Gateway URL）",
+          "description": "Hermes 兼容连接覆盖。OpenHanako 安全默认值使用宿主运行时。",
           "default": "",
           "ui": { "control": "text" }
         },
         "hermesDashboardUrl": {
           "type": "string",
-          "title": "Hermes Dashboard URL",
-          "description": "Hermes compatibility dashboard override. OpenHanako-safe default points at the HanaAgent workbench.",
+          "title": "Hermes 仪表盘 URL（Hermes Dashboard URL）",
+          "description": "Hermes 兼容仪表盘覆盖。OpenHanako 安全默认值指向 HanaAgent 工作台。",
           "default": "",
           "ui": { "control": "text" }
         }
@@ -204,7 +204,7 @@
     "scenarios": [
       {
         "id": "open-workbench",
-        "title": "Open HanaAgent Workbench",
+        "title": "打开 HanaAgent 智能体工作台",
         "steps": [
           { "openSurface": "/workbench" }
         ]

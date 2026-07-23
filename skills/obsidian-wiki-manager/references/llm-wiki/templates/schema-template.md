@@ -62,6 +62,14 @@ tags: [标签1, 标签2]
 created: YYYY-MM-DD
 updated: YYYY-MM-DD
 sources: [关联素材列表]
+# ── 生命周期（以下字段由 ingest/lint 自动维护，手动修改后下次 lint 会覆盖）──
+confidence_score:    # null = 未评分；0.0-1.0 的浮点数
+last_confirmed:      # null = 从未确认；YYYY-MM-DD
+evidence_count: 0    # 支持此页内容的来源数量
+contradicted_by: []  # 与本页矛盾的其他页面
+supersedes: []       # 本页取代的旧页面（wikilink 列表）
+superseded_by: null  # 取代本页的新页面（wikilink，null = 活跃）
+retention_class:     # stable | active | fading | stale | archived
 ---
 
 # 页面标题
@@ -164,22 +172,93 @@ prompt engineering = 提示工程 = 提示词工程
 3. 输出中文报告，对每个问题给出修复建议
 4. 如果发现问题，询问用户是否自动修复
 
-## 关系类型词汇表（可选，用于手动标注知识图谱）
+## 关系类型词汇表
 
-这张表提供 graph 工作流生成的 `wiki/knowledge-graph.md` 里**可选**的关系类型词汇。
-AI 生成图谱时默认全部用 `-->`（无标注），不自动判断关系类型。如果你想让图谱
-更清楚地表达节点之间的语义，可以用编辑器把最重要的几条箭头改写成带标注的形式：
+这张表定义图谱中可用的关系类型。ingest 时 Step 1 JSON 的 `connections[].type` 会被持久化到页面，
+build-graph-data.sh 会解析这些注释生成带类型的图谱边。
 
-| 类型关键词 | 含义 | Mermaid 写法示例 |
-|-----------|------|-----------------|
-| 实现       | A 是 B 的具体实现 | `A -->|实现| B` |
-| 依赖       | A 依赖 B 才能工作 | `A -->|依赖| B` |
-| 对比       | A 与 B 是同类可以比较 | `A -->|对比| B` |
-| 矛盾       | A 与 B 存在观点冲突 | `A -->|矛盾| B` |
-| 衍生       | A 从 B 演化而来 | `A -->|衍生| B` |
+| 类型关键词 | 含义 | HTML 注释写法 |
+|-----------|------|-------------|
+| 实现       | A 是 B 的具体实现 | `<!-- relation: 实现 -->` |
+| 依赖       | A 依赖 B 才能工作 | `<!-- relation: 依赖 -->` |
+| 对比       | A 与 B 是同类可以比较 | `<!-- relation: 对比 -->` |
+| 矛盾       | A 与 B 存在观点冲突 | `<!-- relation: 矛盾 -->` |
+| 衍生       | A 从 B 演化而来 | `<!-- relation: 衍生 -->` |
+| 取代       | A 取代了过时的 B | `<!-- relation: 取代 -->` |
 
-使用原则：
-- 只标最重要的 3-5 条关系，不要强行给所有箭头打标
-- 不确定的关系保持默认 `-->` 箭头
-- 自定义类型控制在 2 个以内，避免词汇表膨胀
-- 标注后在 Obsidian / VS Code（Markdown Preview Enhanced）/ Typora 里重新渲染就能看到标签
+### 关系标注格式
+
+在 `## 相关页面` 区域，把关系注释和 wikilink 放在同一行：
+
+```markdown
+## 相关页面
+
+<!-- relation: 实现 --><!-- confidence: INFERRED --> [[Zotero]]
+<!-- relation: 对比 --><!-- confidence: EXTRACTED --> [[Obsidian]]
+- [[其他页面]]
+```
+
+规则：
+- 只给最重要的关系打标，不确定的保持普通 wikilink（默认 EXTRACTED）
+- `<!-- relation: TYPE -->` 和 `<!-- confidence: LEVEL -->` 可以同时出现在一行
+- 如果同一行有多个 wikilink，注释应用于该行所有 wikilink
+- 普通的 `[[页面名]]` 不带注释时，默认 type=EXTRACTED
+
+## 生命周期规则
+
+### 置信度评分映射
+
+Step 1 JSON 的 confidence 标注映射到 frontmatter 的 `confidence_score`：
+
+| confidence 标注 | confidence_score | 含义 |
+|----------------|-----------------|------|
+| EXTRACTED | 0.70 | 从原文直接提取，字面可找到 |
+| INFERRED | 0.50 | 从多处原文推断得出 |
+| AMBIGUOUS | 0.30 | 原文说法不清晰或有歧义 |
+| UNVERIFIED | 0.20 | 来自背景知识，原文无证据 |
+| VERIFIED | 0.90 | 人工确认过的内容 |
+
+### Retention Class 计算规则
+
+lint 时自动计算（手动设置的值会被覆盖，除非设为 `archived`）：
+
+| 条件 | retention_class | 含义 |
+|------|----------------|------|
+| superseded_by 非空 | archived | 已被取代 |
+| confidence_score ≥ 0.7 且 last_confirmed < 180天 | stable | 高置信，近期确认 |
+| confidence_score ≥ 0.5 且 last_confirmed < 90天 | active | 中等置信，活跃 |
+> 按从上到下顺序匹配，首个命中条件生效；更严重的状态排列在前。
+
+| last_confirmed > 365天 或 confidence_score < 0.3 | stale | 已过时，建议归档或更新 |
+| last_confirmed > 180天 或 confidence_score < 0.5 | fading | 开始过时，需要复核 |
+
+### Supersession 规则
+
+当新信息覆盖或否定旧信息时：
+1. 在旧页面 frontmatter 设置 `superseded_by: [[新页面名]]`
+2. 在新页面 frontmatter 的 `supersedes: []` 列表里加入旧页面
+3. 旧页面的 `retention_class` 自动变为 `archived`
+4. 如果是矛盾而非完全取代，使用 `contradicted_by` 而非 `superseded_by`
+5. Supersession 链不应超过 3 层；超过时考虑合并
+
+### Ingest 生命周期写入规则
+
+ingest 时对每个新建或更新的页面：
+1. 从 Step 1 JSON 的 entities/topics/connections 提取 confidence 标注
+2. 映射到 `confidence_score`（见映射表）
+3. 设置 `last_confirmed` 为当前日期
+4. 设置 `evidence_count` 为 Step 1 JSON 中支持此页的来源数
+5. 检查 `contradictions` 字段，如果有矛盾，填充 `contradicted_by`
+6. 从 Step 1 JSON 的 `connections[].type` 提取关系类型，用 `<!-- relation: TYPE -->` 注释写入相关页面区域
+7. 对已有页面更新时：如果新信息与新于已有信息且内容有变更，递增 `evidence_count` 并更新 `last_confirmed`
+
+### Lint 生命周期检查项
+
+lint 时额外检查：
+- `confidence_score` 为 null 的页面（未评分）
+- `confidence_score < 0.5` 的页面（低置信度，需复核）
+- `last_confirmed` 超过 180 天的页面（可能过时）
+- `contradicted_by` 非空但未设置 `superseded_by` 的页面（矛盾未解决）
+- `superseded_by` 非空但 `retention_class` 不是 `archived` 的页面（状态不一致）
+- `evidence_count = 0` 的页面（无证据支撑）
+- 输出 retention class 分布统计

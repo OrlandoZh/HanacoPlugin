@@ -1,0 +1,41 @@
+{
+  "manifestVersion": 1,
+  "id": "starmap-os",
+  "name": "星图",
+  "version": "0.8.0",
+  "description": "把 Hanako 对话整理成可审核、可搜索、可复用的个人知识库与项目记忆。",
+  "minAppVersion": "0.347.6",
+  "trust": "full-access",
+  "capabilities": ["session.read", "model.sample", "network.fetch"],
+  "activationEvents": ["onStartup"],
+  "network": {
+    "allowedHosts": ["127.0.0.1", "localhost"],
+    "methods": ["GET", "POST"],
+    "allowLocalhost": true,
+    "defaultTimeoutMs": 12000,
+    "maxResponseBytes": 1048576
+  },
+  "hidden": false,
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "conversationSyncEnabled": {
+          "type": "boolean",
+          "title": "同步公开对话到星图",
+          "description": "安装后自动监听并同步公开主对话原文；启动时补读最近对话，只有用户点击 AI 提炼时才调用 Hanako 模型。",
+          "default": true
+        },
+        "starmapServerUrl": {
+          "type": "string",
+          "title": "星图本机服务地址",
+          "default": "http://127.0.0.1:8790"
+        }
+      }
+    },
+    "page": {
+      "title": "星图",
+      "route": "/page",
+      "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\"><path d=\"M12 3l8 4.5v9L12 21l-8-4.5v-9z\"/><path d=\"M12 12l8-4.5M12 12v9M12 12L4 7.5\"/></svg>"
+    }
+  }
+}

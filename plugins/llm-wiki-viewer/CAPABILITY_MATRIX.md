@@ -35,5 +35,6 @@
 | validate Step 1 JSON | Covered | Covered in v1.5 | Plugin wraps `validate-step1.sh` for agent workflow preflight. |
 | crystallize | Covered by agent workflow | Not pluginized | Agent-led conversation synthesis. |
 | optional URL adapters | Partially covered | Diagnostic only | Plugin reports adapter state but does not install, repair, or run extraction adapters. |
+| lifecycle diagnostics | Covered by lifecycle-diagnostics.js script | Covered in v1.17 | Plugin runs lifecycle-diagnostics.js to scan confidence scores, staleness, supersession chains, retention class distribution, and evidence coverage gaps. Read-only. |
 | upstream regression tests | Present in reference | Expanded through v1.14 | Plugin uses Node smoke tests plus selected graph HTML, graph failure, source signal, preview, adapter, and validation regression contracts. |
 | upstream installer/docs assets | Reference only | Not copied | Hana integration avoids upstream installer execution. |

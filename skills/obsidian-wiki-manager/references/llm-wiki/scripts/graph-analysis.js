@@ -40,6 +40,7 @@ function loadNodeDetails(nodes, degraded, maxLines) {
     const raw = fs.readFileSync(node.source_path, "utf8");
     const frontmatter = extractFrontmatter(raw);
     const parsedSources = parseSourcesFrontmatter(frontmatter.frontmatter);
+    const lifecycle = parseLifecycleFrontmatter(frontmatter.frontmatter);
     const normalizedNode = {
       ...node,
       content: normalizeBody(raw, degraded, maxLines),
@@ -48,12 +49,63 @@ function loadNodeDetails(nodes, degraded, maxLines) {
         sourceSignalAvailable: parsedSources.signalAvailable,
         sourceFieldPresent: parsedSources.hasField,
         sourceFieldParsed: parsedSources.parsed
-      }
+      },
+      _lifecycle: lifecycle
     };
     byId[node.id] = normalizedNode;
   }
 
   return byId;
+}
+
+function parseLifecycleFrontmatter(frontmatter) {
+  if (!frontmatter) {
+    return { has_lifecycle: false };
+  }
+  const fields = {};
+  const lines = frontmatter.split(/\r?\n/);
+  for (const line of lines) {
+    let m;
+    if ((m = line.match(/^confidence_score:\s*(.*)$/))) {
+      const v = m[1].trim();
+      if (v === "null" || v === "~" || !v) fields.confidence_score = null;
+      else fields.confidence_score = isNaN(Number(v)) ? null : Number(v);
+    } else if ((m = line.match(/^last_confirmed:\s*(.*)$/))) {
+      const v = m[1].trim();
+      fields.last_confirmed = (v === "null" || v === "~" || !v) ? null : v.replace(/^["']|["']$/g, "");
+    } else if ((m = line.match(/^evidence_count:\s*(.*)$/))) {
+      const v = m[1].trim();
+      fields.evidence_count = isNaN(Number(v)) ? 0 : Number(v);
+    } else if ((m = line.match(/^superseded_by:\s*(.*)$/))) {
+      const v = m[1].trim();
+      fields.superseded_by = (v === "null" || v === "~" || !v) ? null : v.replace(/^["']|["']$/g, "").replace(/^\[\[|\]\]$/g, "");
+    } else if ((m = line.match(/^retention_class:\s*(.*)$/))) {
+      const v = m[1].trim();
+      fields.retention_class = (v === "null" || v === "~" || !v) ? null : v;
+    } else if ((m = line.match(/^contradicted_by:\s*(.*)$/))) {
+      const v = m[1].trim();
+      if (v === "null" || v === "~" || !v) {
+        fields.contradicted_by = [];
+      } else if (v.startsWith("[")) {
+        const inner = v.slice(1, -1).trim();
+        fields.contradicted_by = inner ? inner.split(",").map(s => s.trim().replace(/^["']|["']$/g, "").replace(/^\[\[|\]\]$/g, "")).filter(Boolean) : [];
+      } else {
+        fields.contradicted_by = [v.replace(/^["']|["']$/g, "").replace(/^\[\[|\]\]$/g, "")];
+      }
+    } else if ((m = line.match(/^supersedes:\s*(.*)$/))) {
+      const v = m[1].trim();
+      if (v === "null" || v === "~" || !v) {
+        fields.supersedes = [];
+      } else if (v.startsWith("[")) {
+        const inner = v.slice(1, -1).trim();
+        fields.supersedes = inner ? inner.split(",").map(s => s.trim().replace(/^["']|["']$/g, "").replace(/^\[\[|\]\]$/g, "")).filter(Boolean) : [];
+      } else {
+        fields.supersedes = [v.replace(/^["']|["']$/g, "").replace(/^\[\[|\]\]$/g, "")];
+      }
+    }
+  }
+  const hasAny = Object.keys(fields).length > 0;
+  return { has_lifecycle: hasAny, ...fields };
 }
 
 function buildInlinks(edges) {
@@ -633,7 +685,8 @@ function analyzeGraph(nodes, edges, options = {}) {
     type: node.type,
     source_path: node.source_path,
     community: communityAssignments.get(node.id) || null,
-    content: nodesById[node.id].content
+    content: nodesById[node.id].content,
+    lifecycle: nodesById[node.id]._lifecycle || { has_lifecycle: false }
   }));
 
   const analyzedEdges = edges.map((edge) => {
@@ -649,6 +702,7 @@ function analyzeGraph(nodes, edges, options = {}) {
       from: edge.from,
       to: edge.to,
       type: edge.type,
+      relation_type: edge.relation_type || null,
       weight: metrics.weight,
       source_signal_available: metrics.source_signal_available,
       signals: metrics.signals
@@ -723,6 +777,7 @@ module.exports = {
   computePairMetrics,
   extractFrontmatter,
   normalizeBody,
+  parseLifecycleFrontmatter,
   parseSourcesFrontmatter,
   runLouvain,
   typeAffinity

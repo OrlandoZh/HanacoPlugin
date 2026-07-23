@@ -2,7 +2,7 @@
 import { executeProxyTool, SIDE_EFFECT_PERMISSION } from "../lib/tool-proxy.js";
 
 export const name = "browser_dom";
-export const description = "DOM 操作：受控表达式，或 Page-Agent-inspired 结构化 observe/verify（不嵌入第二个 LLM）";
+export const description = "DOM 操作：受控表达式，或 Page-Agent-inspired 结构化 observe/verify（不嵌入第二个 LLM） 【权限说明】observe/verify 模式为只读操作，但因 HanaAgent 框架当前不支持按参数动态分级权限，统一标记为需要 review。expression 模式可执行 DOM 读写，需要 review 是合理的。";
 export const parameters = {
   "type": "object",
   "properties": {

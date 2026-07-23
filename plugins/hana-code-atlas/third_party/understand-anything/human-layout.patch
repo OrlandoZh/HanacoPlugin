@@ -1,0 +1,817 @@
+diff --git a/understand-anything-plugin/packages/dashboard/src/components/ContainerNode.tsx b/understand-anything-plugin/packages/dashboard/src/components/ContainerNode.tsx
+index e0d4f1c..cae065d 100644
+--- a/understand-anything-plugin/packages/dashboard/src/components/ContainerNode.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/components/ContainerNode.tsx
+@@ -24,8 +24,8 @@ function ContainerNodeComponent({ data, width, height }: NodeProps<ContainerFlow
+   const borderColor = data.isDiffAffected
+     ? "var(--color-diff-changed)"
+     : data.isExpanded || data.isFocusedViaChild
+-      ? "rgba(212,165,116,0.6)"
+-      : "rgba(212,165,116,0.25)";
++      ? "var(--color-accent)"
++      : "var(--color-border-medium)";
+   const borderWidth = data.isExpanded || data.isFocusedViaChild ? 1.5 : 1;
+ 
+   const labelDimmed = data.name === "~";
+@@ -42,11 +42,11 @@ function ContainerNodeComponent({ data, width, height }: NodeProps<ContainerFlow
+       tabIndex={0}
+       aria-expanded={data.isExpanded}
+       aria-label={`${labelText} container, ${data.childCount} item${data.childCount !== 1 ? "s" : ""}, ${data.isExpanded ? "expanded" : "collapsed"}`}
+-      className="rounded-xl cursor-pointer transition-all focus:outline-none focus:ring-2 focus:ring-[rgba(212,165,116,0.6)]"
++      className="rounded-xl cursor-pointer transition-all motion-reduce:transition-none focus:outline-none focus:ring-2 focus:ring-accent/70"
+       style={{
+         width,
+         height,
+-        background: "rgba(255,255,255,0.02)",
++        background: "color-mix(in srgb, var(--color-elevated) 88%, var(--color-accent) 12%)",
+         border: `${borderWidth}px solid ${borderColor}`,
+         position: "relative",
+       }}
+@@ -79,8 +79,8 @@ function ContainerNodeComponent({ data, width, height }: NodeProps<ContainerFlow
+               style={{
+                 marginLeft: 6,
+                 fontSize: 10,
+-                background: "rgba(212,165,116,0.2)",
+-                color: "var(--color-gold, #d4a574)",
++                background: "var(--color-accent-dim)",
++                color: "var(--color-accent)",
+                 padding: "1px 6px",
+                 borderRadius: 8,
+               }}
+@@ -89,7 +89,9 @@ function ContainerNodeComponent({ data, width, height }: NodeProps<ContainerFlow
+             </span>
+           )}
+         </span>
+-        <span style={{ color: "#a39787", fontSize: 11 }}>{data.childCount}</span>
++        <span style={{ color: "var(--color-text-secondary)", fontSize: 11 }}>
++          {data.childCount}
++        </span>
+       </div>
+     </div>
+   );
+diff --git a/understand-anything-plugin/packages/dashboard/src/components/CustomNode.tsx b/understand-anything-plugin/packages/dashboard/src/components/CustomNode.tsx
+index a0f8ca2..b4bfe80 100644
+--- a/understand-anything-plugin/packages/dashboard/src/components/CustomNode.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/components/CustomNode.tsx
+@@ -145,8 +145,17 @@ function CustomNodeComponent({
+ 
+   return (
+     <div
+-      className={`relative rounded-lg bg-elevated border border-border-subtle ${extraClass} min-w-[180px] max-w-[220px] overflow-hidden transition-[box-shadow,outline,opacity,filter] duration-200 cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.3)]`}
++      role="button"
++      tabIndex={0}
++      aria-label={`${data.nodeType} ${name}`}
++      className={`relative rounded-lg bg-elevated border border-border-medium hover:border-accent/50 ${extraClass} min-w-[180px] max-w-[220px] overflow-hidden transition-[box-shadow,border-color,outline,opacity,filter] motion-reduce:transition-none duration-200 cursor-pointer shadow-[0_3px_14px_rgba(0,0,0,0.42)] focus:outline-none focus:ring-2 focus:ring-accent/70`}
+       onClick={() => data.onNodeClick?.(id)}
++      onKeyDown={(event) => {
++        if (event.key === "Enter" || event.key === " ") {
++          event.preventDefault();
++          data.onNodeClick?.(id);
++        }
++      }}
+     >
+       {/* Left color bar */}
+       <div
+diff --git a/understand-anything-plugin/packages/dashboard/src/components/GraphView.tsx b/understand-anything-plugin/packages/dashboard/src/components/GraphView.tsx
+index ef2ffe8..47ac306 100644
+--- a/understand-anything-plugin/packages/dashboard/src/components/GraphView.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/components/GraphView.tsx
+@@ -39,6 +39,7 @@ import {
+   PORTAL_NODE_WIDTH,
+   PORTAL_NODE_HEIGHT,
+   ELK_DEFAULT_LAYOUT_OPTIONS,
++  ELK_COMPACT_LAYOUT_OPTIONS,
+   nodesToElkInput,
+   mergeElkPositions,
+ } from "../utils/layout";
+@@ -50,8 +51,12 @@ import {
+   computePortals,
+   findCrossLayerFileNodes,
+ } from "../utils/edgeAggregation";
+-import { deriveContainers } from "../utils/containers";
++import { deriveContainers, FLAT_LAYOUT_NODE_LIMIT } from "../utils/containers";
+ import type { DerivedContainer } from "../utils/containers";
++import {
++  collectHoverNeighborhood,
++  formatAggregatedEdgeLabel,
++} from "../utils/graphFocus";
+ import { computeLayerStats } from "../utils/layerStats";
+ 
+ const nodeTypes = {
+@@ -298,12 +303,16 @@ function useOverviewGraph() {
+       id: `le-${i}`,
+       source: agg.sourceLayerId,
+       target: agg.targetLayerId,
+-      label: `${agg.count}`,
++      label: formatAggregatedEdgeLabel(agg.count, agg.edgeTypes, true),
+       style: {
+-        stroke: "rgba(212,165,116,0.4)",
++        stroke: "var(--color-edge)",
+         strokeWidth: Math.min(1 + Math.log2(agg.count + 1), 5),
+       },
+-      labelStyle: { fill: "#a39787", fontSize: 11, fontWeight: 600 },
++      labelStyle: {
++        fill: "var(--color-text-secondary)",
++        fontSize: 11,
++        fontWeight: 600,
++      },
+     }));
+ 
+     const dims = new Map<string, { width: number; height: number }>();
+@@ -495,7 +504,9 @@ function useLayerDetailTopology(): LayerDetailTopology & {
+       );
+     }
+ 
+-    // Derive containers + bucket edges
++    // Human-scale layers stay flat and preserve their semantic hierarchy.
++    // Larger layers keep the existing folder/community lazy containers.
++    const useCompactLayout = filteredGraphNodes.length <= FLAT_LAYOUT_NODE_LIMIT;
+     const { containers, ungrouped } = deriveContainers(
+       filteredGraphNodes,
+       filteredGraphEdges,
+@@ -586,21 +597,27 @@ function useLayerDetailTopology(): LayerDetailTopology & {
+     // diffMode dims unaffected aggregated edges (no per-edge diff data — we
+     // can't tell which underlying edges are impacted without expanding a
+     // container, so just fade everything in diff mode at this stage).
++    const showRelationshipTypes = containers.length === 0;
+     const aggEdges: Edge[] = interContainerAggregated.map((agg, i) => {
+       const baseStyle = diffMode
+         ? { stroke: "rgba(212,165,116,0.08)", strokeWidth: 1 }
+         : {
+-            stroke: "rgba(212,165,116,0.4)",
++            stroke: "var(--color-edge)",
+             strokeWidth: Math.min(1 + Math.log2(agg.count + 1), 5),
+           };
++      const label = formatAggregatedEdgeLabel(
++        agg.count,
++        agg.edgeTypes,
++        showRelationshipTypes,
++      );
+       return {
+         id: `agg-${i}`,
+         source: agg.sourceContainerId,
+         target: agg.targetContainerId,
+-        label: String(agg.count),
++        label: label || undefined,
+         style: baseStyle,
+         labelStyle: {
+-          fill: diffMode ? "rgba(163,151,135,0.3)" : "#a39787",
++          fill: diffMode ? "rgba(163,151,135,0.3)" : "var(--color-text-secondary)",
+           fontSize: 11,
+         },
+       };
+@@ -647,6 +664,7 @@ function useLayerDetailTopology(): LayerDetailTopology & {
+     }
+ 
+     return {
++      useCompactLayout,
+       containers,
+       ungrouped,
+       nodeToContainer,
+@@ -693,6 +711,7 @@ function useLayerDetailTopology(): LayerDetailTopology & {
+     }
+     let cancelled = false;
+     const {
++      useCompactLayout,
+       containers,
+       nodeToContainer,
+       intraContainer,
+@@ -751,7 +770,9 @@ function useLayerDetailTopology(): LayerDetailTopology & {
+ 
+     const elkInput: ElkInput = {
+       id: "layer",
+-      layoutOptions: ELK_DEFAULT_LAYOUT_OPTIONS,
++      layoutOptions: useCompactLayout
++        ? ELK_COMPACT_LAYOUT_OPTIONS
++        : ELK_DEFAULT_LAYOUT_OPTIONS,
+       children: stage1Children,
+       edges: stage1Edges,
+     };
+@@ -1326,6 +1347,7 @@ function GraphViewInner() {
+   const drillIntoLayer = useDashboardStore((s) => s.drillIntoLayer);
+   const focusNodeId = useDashboardStore((s) => s.focusNodeId);
+   const setFocusNode = useDashboardStore((s) => s.setFocusNode);
++  const diffMode = useDashboardStore((s) => s.diffMode);
+   const setReactFlowInstance = useDashboardStore((s) => s.setReactFlowInstance);
+   const tourHighlightedNodeIds = useDashboardStore((s) => s.tourHighlightedNodeIds);
+   const expandContainer = useDashboardStore((s) => s.expandContainer);
+@@ -1350,6 +1372,8 @@ function GraphViewInner() {
+ 
+   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
++  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
++  const graphRootRef = useRef<HTMLDivElement>(null);
+ 
+   const { fitView, getViewport, setCenter } = useReactFlow();
+ 
+@@ -1361,6 +1385,39 @@ function GraphViewInner() {
+     setEdges(initialEdges);
+   }, [initialEdges, setEdges]);
+ 
++  useEffect(() => {
++    setHoveredNodeId(null);
++  }, [navigationLevel, activeLayerId, diffMode]);
++
++  useEffect(() => {
++    const root = graphRootRef.current;
++    if (!root) return;
++
++    const nodeIdFromTarget = (target: EventTarget | null) =>
++      target instanceof Element
++        ? target.closest(".react-flow__node")?.getAttribute("data-id") ?? null
++        : null;
++    const handleFocusIn = (event: FocusEvent) => {
++      if (diffMode) return;
++      const id = nodeIdFromTarget(event.target);
++      if (id) setHoveredNodeId(id);
++    };
++    const handleFocusOut = (event: FocusEvent) => {
++      const sourceId = nodeIdFromTarget(event.target);
++      const targetId = nodeIdFromTarget(event.relatedTarget);
++      if (sourceId && sourceId !== targetId) {
++        setHoveredNodeId((current) => current === sourceId ? null : current);
++      }
++    };
++
++    root.addEventListener("focusin", handleFocusIn, true);
++    root.addEventListener("focusout", handleFocusOut, true);
++    return () => {
++      root.removeEventListener("focusin", handleFocusIn, true);
++      root.removeEventListener("focusout", handleFocusOut, true);
++    };
++  }, [diffMode, graph]);
++
+   // Fit view on level/layer transitions. Layout is async (~125ms+ for
+   // medium layers), so a fixed-delay timer can fire before positions
+   // arrive and leave the viewport on the previous layer. Instead, mark
+@@ -1516,9 +1573,65 @@ function GraphViewInner() {
+   );
+ 
+   const onPaneClick = useCallback(() => {
++    setHoveredNodeId(null);
+     selectNode(null);
+   }, [selectNode]);
+ 
++  const hoverNeighborhood = useMemo(() => {
++    if (
++      diffMode ||
++      !hoveredNodeId ||
++      !nodes.some((node) => node.id === hoveredNodeId)
++    ) {
++      return null;
++    }
++    return collectHoverNeighborhood(hoveredNodeId, nodes, edges);
++  }, [diffMode, hoveredNodeId, nodes, edges]);
++
++  const renderedNodes = useMemo(() => {
++    if (!hoverNeighborhood) return nodes;
++    return nodes.map((node) => ({
++      ...node,
++      style: {
++        ...node.style,
++        opacity: hoverNeighborhood.has(node.id) ? 1 : 0.14,
++      },
++    }));
++  }, [nodes, hoverNeighborhood]);
++
++  const renderedEdges = useMemo(() => {
++    if (!hoverNeighborhood || !hoveredNodeId) return edges;
++    return edges.map((edge) => {
++      const isConnected =
++        edge.source === hoveredNodeId || edge.target === hoveredNodeId;
++      return {
++        ...edge,
++        animated: isConnected ? edge.animated : false,
++        style: {
++          ...edge.style,
++          opacity: isConnected ? 1 : 0.08,
++        },
++        labelStyle: {
++          ...edge.labelStyle,
++          opacity: isConnected ? 1 : 0.12,
++        },
++      };
++    });
++  }, [edges, hoveredNodeId, hoverNeighborhood]);
++
++  const onNodeMouseEnter = useCallback(
++    (_: React.MouseEvent, node: Node) => {
++      if (!diffMode) setHoveredNodeId(node.id);
++    },
++    [diffMode],
++  );
++  const onNodeMouseLeave = useCallback(
++    (_: React.MouseEvent, node: Node) => {
++      setHoveredNodeId((current) => current === node.id ? null : current);
++    },
++    [],
++  );
++
+   if (!graph) {
+     return (
+       <div className="h-full w-full flex items-center justify-center bg-root rounded-lg">
+@@ -1528,7 +1641,7 @@ function GraphViewInner() {
+   }
+ 
+   return (
+-    <div className="h-full w-full relative">
++    <div ref={graphRootRef} className="h-full w-full relative">
+       <Breadcrumb />
+       {focusNodeId && navigationLevel === "layer-detail" && (
+         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-10">
+@@ -1542,17 +1655,20 @@ function GraphViewInner() {
+         </div>
+       )}
+       <ReactFlow
+-        nodes={nodes}
+-        edges={edges}
++        nodes={renderedNodes}
++        edges={renderedEdges}
+         onNodesChange={onNodesChange}
+         onEdgesChange={onEdgesChange}
+         onNodeClick={onNodeClick}
++        onNodeMouseEnter={onNodeMouseEnter}
++        onNodeMouseLeave={onNodeMouseLeave}
+         onPaneClick={onPaneClick}
+         onMove={navigationLevel === "layer-detail" ? onMove : undefined}
+         onInit={setReactFlowInstance}
+         nodeTypes={nodeTypes}
+         nodesDraggable={false}
+         nodesConnectable={false}
++        nodesFocusable={false}
+         edgesFocusable={false}
+         edgesReconnectable={false}
+         elementsSelectable={false}
+diff --git a/understand-anything-plugin/packages/dashboard/src/components/LayerClusterNode.tsx b/understand-anything-plugin/packages/dashboard/src/components/LayerClusterNode.tsx
+index f7c51ec..5dffd5b 100644
+--- a/understand-anything-plugin/packages/dashboard/src/components/LayerClusterNode.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/components/LayerClusterNode.tsx
+@@ -31,12 +31,21 @@ function LayerClusterNode({
+ 
+   return (
+     <div
+-      className="relative rounded-xl bg-elevated border border-border-subtle overflow-hidden cursor-pointer transition-all duration-200 hover:border-gold/40 hover:shadow-lg group"
++      role="button"
++      tabIndex={0}
++      aria-label={`${data.layerName}, ${data.fileCount} nodes`}
++      className="relative rounded-xl bg-elevated border border-border-subtle overflow-hidden cursor-pointer transition-all motion-reduce:transition-none duration-200 hover:border-gold/40 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-accent/70 group"
+       style={{
+         width: 300,
+         boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+       }}
+       onClick={() => data.onDrillIn(data.layerId)}
++      onKeyDown={(event) => {
++        if (event.key === "Enter" || event.key === " ") {
++          event.preventDefault();
++          data.onDrillIn(data.layerId);
++        }
++      }}
+     >
+       {/* Left color bar */}
+       <div
+@@ -84,7 +93,7 @@ function LayerClusterNode({
+         {/* Footer */}
+         <div className="flex items-center justify-between">
+           <span className="text-[11px] text-text-muted">
+-            {data.fileCount} file{data.fileCount !== 1 ? "s" : ""}
++            {data.fileCount} node{data.fileCount !== 1 ? "s" : ""}
+           </span>
+           <span className="text-[10px] text-text-muted opacity-0 group-hover:opacity-100 transition-opacity">
+             Click to explore →
+diff --git a/understand-anything-plugin/packages/dashboard/src/components/PortalNode.tsx b/understand-anything-plugin/packages/dashboard/src/components/PortalNode.tsx
+index 04f9421..b9a2827 100644
+--- a/understand-anything-plugin/packages/dashboard/src/components/PortalNode.tsx
++++ b/understand-anything-plugin/packages/dashboard/src/components/PortalNode.tsx
+@@ -20,13 +20,22 @@ function PortalNode({
+ 
+   return (
+     <div
+-      className="relative rounded-lg bg-elevated/60 overflow-hidden cursor-pointer transition-all duration-200 hover:bg-elevated/80"
++      role="button"
++      tabIndex={0}
++      aria-label={`Navigate to ${data.targetLayerName}, ${data.connectionCount} connections`}
++      className="relative rounded-lg bg-elevated/60 overflow-hidden cursor-pointer transition-all motion-reduce:transition-none duration-200 hover:bg-elevated/80 focus:outline-none focus:ring-2 focus:ring-accent/70"
+       style={{
+         width: 220,
+         border: `2px dashed ${color.border}`,
+         boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+       }}
+       onClick={() => data.onNavigate(data.targetLayerId)}
++      onKeyDown={(event) => {
++        if (event.key === "Enter" || event.key === " ") {
++          event.preventDefault();
++          data.onNavigate(data.targetLayerId);
++        }
++      }}
+     >
+       <Handle
+         type="target"
+diff --git a/understand-anything-plugin/packages/dashboard/src/utils/__tests__/containers.test.ts b/understand-anything-plugin/packages/dashboard/src/utils/__tests__/containers.test.ts
+index b5d6d40..d331c30 100644
+--- a/understand-anything-plugin/packages/dashboard/src/utils/__tests__/containers.test.ts
++++ b/understand-anything-plugin/packages/dashboard/src/utils/__tests__/containers.test.ts
+@@ -1,5 +1,5 @@
+ import { describe, it, expect } from "vitest";
+-import { deriveContainers } from "../containers";
++import { deriveContainers, FLAT_LAYOUT_NODE_LIMIT } from "../containers";
+ import type { GraphNode, GraphEdge } from "@understand-anything/core/types";
+ 
+ function node(id: string, filePath?: string): GraphNode {
+@@ -14,6 +14,10 @@ function node(id: string, filePath?: string): GraphNode {
+   } as GraphNode;
+ }
+ 
++function deriveGrouped(nodes: GraphNode[], edges: GraphEdge[] = []) {
++  return deriveContainers(nodes, edges, { flatLayoutNodeLimit: 0 });
++}
++
+ describe("deriveContainers — folder strategy", () => {
+   it("groups nodes by first folder segment after LCP", () => {
+     const nodes = [
+@@ -22,7 +26,7 @@ describe("deriveContainers — folder strategy", () => {
+       node("c", "src/cart/cart.go"),
+       node("d", "src/cart/checkout.go"),
+     ];
+-    const { containers, ungrouped } = deriveContainers(nodes, []);
++    const { containers, ungrouped } = deriveGrouped(nodes);
+     expect(ungrouped).toEqual([]);
+     expect(containers).toHaveLength(2);
+     const names = containers.map((c) => c.name).sort();
+@@ -37,7 +41,7 @@ describe("deriveContainers — folder strategy", () => {
+       node("a", "monorepo/backend/src/auth/login.go"),
+       node("b", "monorepo/backend/src/cart/cart.go"),
+     ];
+-    const { containers } = deriveContainers(nodes, []);
++    const { containers } = deriveGrouped(nodes);
+     const names = containers.map((c) => c.name).sort();
+     expect(names).toEqual(["auth", "cart"]);
+   });
+@@ -48,7 +52,7 @@ describe("deriveContainers — folder strategy", () => {
+       node("b", "auth/services/token.go"),
+       node("c", "cart/cart.go"),
+     ];
+-    const { containers } = deriveContainers(nodes, []);
++    const { containers } = deriveGrouped(nodes);
+     expect(containers.find((c) => c.name === "auth")?.nodeIds.sort()).toEqual(["a", "b"]);
+   });
+ 
+@@ -59,7 +63,7 @@ describe("deriveContainers — folder strategy", () => {
+       node("c"),
+       node("d"),
+     ];
+-    const { containers } = deriveContainers(nodes, []);
++    const { containers } = deriveGrouped(nodes);
+     expect(containers.find((c) => c.name === "~")?.nodeIds.sort()).toEqual(["c", "d"]);
+   });
+ 
+@@ -69,7 +73,7 @@ describe("deriveContainers — folder strategy", () => {
+       node("b", "auth/oauth.go"),
+       node("c", "cart/cart.go"),
+     ];
+-    const { containers, ungrouped } = deriveContainers(nodes, []);
++    const { containers, ungrouped } = deriveGrouped(nodes);
+     // 'cart' has only 1 child → suppressed
+     expect(containers.find((c) => c.name === "cart")).toBeUndefined();
+     expect(ungrouped).toContain("c");
+@@ -77,15 +81,22 @@ describe("deriveContainers — folder strategy", () => {
+     expect(containers.find((c) => c.name === "auth")?.nodeIds.sort()).toEqual(["a", "b"]);
+   });
+ 
+-  it("returns flat (no containers) when total nodes < 8", () => {
+-    const nodes = [
+-      node("a", "auth/x.go"),
+-      node("b", "cart/y.go"),
+-      node("c", "logs/z.go"),
+-    ];
++  it("returns flat at the 20-node human-layout boundary", () => {
++    const nodes = Array.from({ length: FLAT_LAYOUT_NODE_LIMIT }, (_, i) =>
++      node(`n${i}`, `${i % 2 === 0 ? "auth" : "cart"}/n${i}.go`),
++    );
+     const { containers, ungrouped } = deriveContainers(nodes, []);
+     expect(containers).toHaveLength(0);
+-    expect(ungrouped.sort()).toEqual(["a", "b", "c"]);
++    expect(ungrouped).toHaveLength(FLAT_LAYOUT_NODE_LIMIT);
++  });
++
++  it("keeps container derivation above the 20-node boundary", () => {
++    const nodes = Array.from({ length: FLAT_LAYOUT_NODE_LIMIT + 1 }, (_, i) =>
++      node(`n${i}`, `${i % 2 === 0 ? "auth" : "cart"}/n${i}.go`),
++    );
++    const { containers, ungrouped } = deriveContainers(nodes, []);
++    expect(containers.map((container) => container.name).sort()).toEqual(["auth", "cart"]);
++    expect(ungrouped).toEqual([]);
+   });
+ });
+ 
+@@ -106,7 +117,7 @@ describe("deriveContainers — community fallback", () => {
+         if (i !== j) edges.push({ source: `n${i}`, target: `n${j}`, type: "calls" } as GraphEdge);
+       }
+     }
+-    const { containers } = deriveContainers(nodes, edges);
++    const { containers } = deriveGrouped(nodes, edges);
+     expect(containers.length).toBeGreaterThanOrEqual(2);
+     for (const c of containers) {
+       expect(c.strategy).toBe("community");
+@@ -120,7 +131,7 @@ describe("deriveContainers — community fallback", () => {
+       node("a", "small1/a.go"),
+       node("b", "small2/b.go"),
+     ];
+-    const { containers, ungrouped } = deriveContainers(nodes, []);
++    const { containers, ungrouped } = deriveGrouped(nodes);
+     // Folder strategy would have produced a 'big' container with 8 children.
+     // Community fallback (no edges) gives each node its own community → all
+     // single-child → all suppressed. The non-vacuous evidence the fallback
+diff --git a/understand-anything-plugin/packages/dashboard/src/utils/__tests__/elk-layout.test.ts b/understand-anything-plugin/packages/dashboard/src/utils/__tests__/elk-layout.test.ts
+index fc13b59..cba5bd7 100644
+--- a/understand-anything-plugin/packages/dashboard/src/utils/__tests__/elk-layout.test.ts
++++ b/understand-anything-plugin/packages/dashboard/src/utils/__tests__/elk-layout.test.ts
+@@ -1,5 +1,6 @@
+ import { describe, it, expect } from "vitest";
+ import { applyElkLayout, repairElkInput, type ElkInput } from "../elk-layout";
++import { ELK_COMPACT_LAYOUT_OPTIONS } from "../layout";
+ 
+ describe("repairElkInput", () => {
+   it("ensures node dimensions when missing", () => {
+@@ -90,6 +91,20 @@ describe("applyElkLayout", () => {
+     }
+   });
+ 
++  it("lays out the compact human preset from left to right", async () => {
++    const result = await applyElkLayout({
++      id: "root",
++      children: [
++        { id: "a", width: 100, height: 50 },
++        { id: "b", width: 100, height: 50 },
++      ],
++      edges: [{ id: "e1", sources: ["a"], targets: ["b"] }],
++      layoutOptions: ELK_COMPACT_LAYOUT_OPTIONS,
++    });
++    const byId = new Map(result.positioned.children.map((child) => [child.id, child]));
++    expect(byId.get("b")!.x).toBeGreaterThan(byId.get("a")!.x!);
++  });
++
+   it("returns fatal issue when ELK rejects (without throwing in non-strict)", async () => {
+     // Force ELK rejection by giving an invalid algorithm
+     const result = await applyElkLayout(
+diff --git a/understand-anything-plugin/packages/dashboard/src/utils/containers.ts b/understand-anything-plugin/packages/dashboard/src/utils/containers.ts
+index dd88521..944ad81 100644
+--- a/understand-anything-plugin/packages/dashboard/src/utils/containers.ts
++++ b/understand-anything-plugin/packages/dashboard/src/utils/containers.ts
+@@ -16,6 +16,12 @@ export interface DeriveResult {
+   ungrouped: string[];
+ }
+ 
++export interface DeriveOptions {
++  flatLayoutNodeLimit?: number;
++}
++
++export const FLAT_LAYOUT_NODE_LIMIT = 20;
++
+ const MIN_BUCKET_COUNT = 2;
+ const MAX_CONCENTRATION = 0.7;
+ const MIN_NODES_FOR_SUPPRESSION = 3;
+@@ -91,11 +97,18 @@ function shouldFallbackToCommunity(
+ export function deriveContainers(
+   nodes: GraphNode[],
+   edges: GraphEdge[],
++  options: DeriveOptions = {},
+ ): DeriveResult {
+   if (nodes.length === 0) {
+     return { containers: [], ungrouped: [] };
+   }
+ 
++  const flatLayoutNodeLimit =
++    options.flatLayoutNodeLimit ?? FLAT_LAYOUT_NODE_LIMIT;
++  if (nodes.length <= flatLayoutNodeLimit) {
++    return { containers: [], ungrouped: nodes.map((node) => node.id) };
++  }
++
+   const { groups, rooted } = groupByFolder(nodes);
+ 
+   const useCommunity = shouldFallbackToCommunity(groups, rooted, nodes.length);
+diff --git a/understand-anything-plugin/packages/dashboard/src/utils/layout.ts b/understand-anything-plugin/packages/dashboard/src/utils/layout.ts
+index b35328c..d14f19b 100644
+--- a/understand-anything-plugin/packages/dashboard/src/utils/layout.ts
++++ b/understand-anything-plugin/packages/dashboard/src/utils/layout.ts
+@@ -203,6 +203,18 @@ export const ELK_DEFAULT_LAYOUT_OPTIONS: Record<string, string> = {
+   "elk.padding": "[top=40,left=20,right=20,bottom=20]",
+ };
+ 
++/**
++ * Compact semantic layout for human-scale graphs. Small graphs are easier to
++ * scan left-to-right without folder containers or large empty gutters.
++ */
++export const ELK_COMPACT_LAYOUT_OPTIONS: Record<string, string> = {
++  ...ELK_DEFAULT_LAYOUT_OPTIONS,
++  "elk.direction": "RIGHT",
++  "elk.layered.spacing.nodeNodeBetweenLayers": "48",
++  "elk.spacing.nodeNode": "28",
++  "elk.padding": "[top=16,left=16,right=16,bottom=16]",
++};
++
+ export function nodesToElkInput(
+   nodes: Node[],
+   edges: Edge[],
+diff --git a/.reference-origin.json b/.reference-origin.json
+new file mode 100644
+index 0000000..0763a57
+--- /dev/null
++++ b/.reference-origin.json
+@@ -0,0 +1,20 @@
++{
++  "refId": "understand-anything",
++  "sourceUrl": "https://github.com/Egonex-AI/Understand-Anything.git",
++  "commit": "f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8",
++  "tag": "v2.9.0",
++  "materializedAt": "2026-07-19T03:07:00+08:00",
++  "mode": "permanent",
++  "reason": "Build and verify a human-readable UA Viewer layout patch for cbm2ua architecture bundles.",
++  "license": "MIT",
++  "safeToDelete": false,
++  "adaptation": {
++    "id": "human-layout-20",
++    "branch": "local/human-layout-v2.9.0",
++    "scope": "viewer-only",
++    "flatLayoutNodeLimit": 20,
++    "schemaChanged": false,
++    "factGraphChanged": false,
++    "documentation": "HUMAN_LAYOUT_PATCH.md"
++  }
++}
+diff --git a/HUMAN_LAYOUT_PATCH.md b/HUMAN_LAYOUT_PATCH.md
+new file mode 100644
+index 0000000..0a101b8
+--- /dev/null
++++ b/HUMAN_LAYOUT_PATCH.md
+@@ -0,0 +1,71 @@
++# UA Human Layout Patch
++
++## Baseline
++
++- Upstream: https://github.com/Egonex-AI/Understand-Anything
++- Tag: `v2.9.0`
++- Commit: `f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8`
++- Local branch: `local/human-layout-v2.9.0`
++- License: MIT
++
++## Purpose
++
++Make structural graphs easier to read without changing the knowledge-graph schema or analysis pipeline. The patch treats graphs with 20 or fewer visible nodes as human-scale semantic diagrams and preserves the upstream lazy container path for larger graphs.
++
++## Behavior
++
++- `0..20` visible nodes: no folder/community containers; compact left-to-right ELK layout.
++- `21+` visible nodes: unchanged upstream folder/community derivation, edge aggregation, and lazy Stage 2 layout.
++- Flat and overview graphs label edges with relationship types instead of meaningless singleton counts.
++- Hover or keyboard focus keeps the node, its one-hop neighbors, and direct parent/children visible; unrelated nodes and edges fade without relayout. Diff mode disables this overlay so change semantics remain authoritative.
++- React Flow wrapper focus is disabled; each visible graph card exposes one keyboard focus target with Enter/Space activation and an aria-label.
++- Dark themes use stronger node borders and a higher-contrast container surface.
++- Overview cards report `nodes`, not `files`, because semantic projections can contain concepts and modules.
++
++## Build And Test
++
++```bash
++corepack pnpm install --frozen-lockfile
++corepack pnpm --filter @understand-anything/core build
++corepack pnpm --filter @understand-anything/dashboard test
++corepack pnpm --filter @understand-anything/dashboard build
++corepack pnpm exec eslint understand-anything-plugin/packages/dashboard/src
++```
++
++The standalone local artifact combines the official v2.9.0 token-gated `viewer.mjs` with the rebuilt dashboard `dist/`:
++
++```text
++.run/ua-human-viewer/v2.9.0-human-20/
++```
++
++Run it with:
++
++```bash
++UNDERSTAND_ACCESS_TOKEN=<token> node .run/ua-human-viewer/v2.9.0-human-20/bin/viewer.mjs <project-dir> --port 5176 --no-open
++```
++
++## Hermes Acceptance Evidence
++
++Architecture Bundle:
++
++- 6 overview nodes, 8 edges.
++- `智能体与任务`: 7 semantic objects plus 2 cross-layer portals.
++- 0 folder/community containers in the drill-in view.
++- 6 internal `contains` edge labels.
++- Hover and keyboard focus both kept 4 one-hop objects visible and faded 5 unrelated objects; the focused node exposes a role and Chinese aria-label.
++
++Full Bundle:
++
++- 8,864 nodes, 20,604 edges, 11 layers loaded.
++- Large `服务端能力与协议适配` layer retained community containers.
++- Fuzzy search found `electron/main.cjs` at 100%.
++- Source preview endpoint returned 417 lines / 11,357 bytes.
++- Invalid token returned 403; unlisted source path returned 404.
++
++Screenshots and CDP capture harness are under `.run/ua-human-viewer/`.
++
++## Boundaries
++
++- This patch does not merge the Architecture and Full bundles into one URL.
++- It does not modify cbm2ua structural facts, semantic overlays, path finding, or source allowlists.
++- The official standalone server remains the security boundary for graph and source access.
+diff --git a/understand-anything-plugin/packages/dashboard/src/utils/graphFocus.ts b/understand-anything-plugin/packages/dashboard/src/utils/graphFocus.ts
+new file mode 100644
+index 0000000..3fb482f
+--- /dev/null
++++ b/understand-anything-plugin/packages/dashboard/src/utils/graphFocus.ts
+@@ -0,0 +1,37 @@
++import type { Edge, Node } from "@xyflow/react";
++
++export function formatAggregatedEdgeLabel(
++  count: number,
++  edgeTypes: string[],
++  showTypes: boolean,
++): string {
++  if (showTypes && edgeTypes.length > 0) {
++    return edgeTypes.join(" · ");
++  }
++  return count === 1 ? "" : String(count);
++}
++
++/**
++ * Collect the hovered node, its one-hop graph neighbors, and direct
++ * parent/children so nested React Flow nodes never fade their own container.
++ */
++export function collectHoverNeighborhood(
++  hoveredNodeId: string,
++  nodes: Pick<Node, "id" | "parentId">[],
++  edges: Pick<Edge, "source" | "target">[],
++): Set<string> {
++  const visible = new Set<string>([hoveredNodeId]);
++
++  for (const edge of edges) {
++    if (edge.source === hoveredNodeId) visible.add(String(edge.target));
++    if (edge.target === hoveredNodeId) visible.add(String(edge.source));
++  }
++
++  const hoveredNode = nodes.find((node) => node.id === hoveredNodeId);
++  if (hoveredNode?.parentId) visible.add(hoveredNode.parentId);
++  for (const node of nodes) {
++    if (node.parentId === hoveredNodeId) visible.add(node.id);
++  }
++
++  return visible;
++}
+diff --git a/understand-anything-plugin/packages/dashboard/src/utils/__tests__/graphFocus.test.ts b/understand-anything-plugin/packages/dashboard/src/utils/__tests__/graphFocus.test.ts
+new file mode 100644
+index 0000000..d105512
+--- /dev/null
++++ b/understand-anything-plugin/packages/dashboard/src/utils/__tests__/graphFocus.test.ts
+@@ -0,0 +1,51 @@
++import { describe, expect, it } from "vitest";
++import type { Edge, Node } from "@xyflow/react";
++import {
++  collectHoverNeighborhood,
++  formatAggregatedEdgeLabel,
++} from "../graphFocus";
++
++const nodes = [
++  { id: "a" },
++  { id: "b" },
++  { id: "c" },
++  { id: "group" },
++  { id: "child", parentId: "group" },
++] as Node[];
++
++const edges = [
++  { id: "a-b", source: "a", target: "b" },
++  { id: "b-c", source: "b", target: "c" },
++] as Edge[];
++
++describe("formatAggregatedEdgeLabel", () => {
++  it("shows relationship types for flat human-scale graphs", () => {
++    expect(formatAggregatedEdgeLabel(1, ["calls"], true)).toBe("calls");
++    expect(formatAggregatedEdgeLabel(3, ["calls", "imports"], true)).toBe("calls · imports");
++  });
++
++  it("hides meaningless singleton counts for grouped graphs", () => {
++    expect(formatAggregatedEdgeLabel(1, ["calls"], false)).toBe("");
++    expect(formatAggregatedEdgeLabel(4, ["calls"], false)).toBe("4");
++  });
++});
++
++describe("collectHoverNeighborhood", () => {
++  it("keeps only the hovered node and its one-hop graph neighbors", () => {
++    expect([...collectHoverNeighborhood("a", nodes, edges)].sort()).toEqual(["a", "b"]);
++  });
++
++  it("keeps a nested node together with its parent container", () => {
++    expect([...collectHoverNeighborhood("child", nodes, edges)].sort()).toEqual([
++      "child",
++      "group",
++    ]);
++  });
++
++  it("keeps direct children when hovering their parent container", () => {
++    expect([...collectHoverNeighborhood("group", nodes, edges)].sort()).toEqual([
++      "child",
++      "group",
++    ]);
++  });
++});

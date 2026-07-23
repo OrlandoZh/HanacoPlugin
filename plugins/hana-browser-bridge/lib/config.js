@@ -5,11 +5,18 @@ import path from "node:path";
 const CONNECTION_MODES = Object.freeze(["dedicated", "existing-chrome"]);
 const CHROME_CHANNELS = Object.freeze(["stable", "beta", "dev", "canary"]);
 
+function defaultChromeExecutable(platform = process.platform) {
+  if (platform === "darwin") return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+  if (platform === "win32") return "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+  if (platform === "linux") return "/usr/bin/google-chrome";
+  return "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+}
+
 const DEFAULTS = Object.freeze({
   connectionMode: "dedicated",
   cdpHost: "127.0.0.1",
   cdpPort: 19282,
-  chromeExecutable: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  chromeExecutable: defaultChromeExecutable(),
   chromeProfileDir: "~/.hanako/browser-bridge/chrome-profile",
   autoStartChrome: true,
   existingChromeChannel: "stable",

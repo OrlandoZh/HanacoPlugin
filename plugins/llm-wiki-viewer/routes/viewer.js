@@ -1368,15 +1368,19 @@ async function renderViewer(c, ctx) {
 async function serveGraphFile(c, wikiRoot, filePath, options = {}) {
   const token = c.req.query("token") || "";
   const wikiRootParam = c.req.query("wikiRoot") || wikiRoot;
-  const suffix = `?${new URLSearchParams({ token, wikiRoot: wikiRootParam }).toString()}`;
+  const theme = options.theme || c.req.query("theme") || "";
+  const query = { token, wikiRoot: wikiRootParam };
+  if (theme) query.theme = theme;
+  const suffix = `?${new URLSearchParams(query).toString()}`;
   if (options.graphPlaceholder) {
     const status = await getStatus(wikiRoot);
-    if (!status.graphExists) return c.html(renderGraphPlaceholder(status, options.theme), 404);
+    if (!status.graphExists) return c.html(renderGraphPlaceholder(status, theme), 404);
   }
   return serveWikiFile(c, wikiRoot, filePath, {
     assetBase: "/api/plugins/llm-wiki-viewer/graph-assets/",
     fileBase: "/api/plugins/llm-wiki-viewer/wiki-file/",
-    theme: options.theme,
+    graphHref: `/api/plugins/llm-wiki-viewer/graph${suffix}`,
+    theme,
     suffix,
   });
 }

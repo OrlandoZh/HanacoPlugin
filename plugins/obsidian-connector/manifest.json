@@ -1,0 +1,93 @@
+{
+  "manifestVersion": 1,
+  "id": "obsidian-connector",
+  "name": "Obsidian Connector",
+  "version": "0.2.0",
+  "description": "REST-first OpenHanako connector for Obsidian vault operations, with the legacy Obsidian CLI proxy kept as a diagnostic fallback.",
+  "minAppVersion": "0.171.3",
+  "trust": "full-access",
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "restBaseUrl": {
+          "type": "string",
+          "title": "Local REST API base URL",
+          "description": "Primary Obsidian Local REST API URL. HTTPS is preferred when available.",
+          "default": "https://127.0.0.1:27124",
+          "ui": { "control": "text" }
+        },
+        "restFallbackBaseUrl": {
+          "type": "string",
+          "title": "Local REST API fallback URL",
+          "description": "Fallback Obsidian Local REST API URL, usually the insecure HTTP server.",
+          "default": "http://127.0.0.1:27123",
+          "ui": { "control": "text" }
+        },
+        "restApiKey": {
+          "type": "string",
+          "title": "Local REST API key",
+          "description": "Optional API key. Prefer restApiKeyFile when possible so the key is not stored in plugin settings.",
+          "default": "",
+          "ui": { "control": "password" }
+        },
+        "restApiKeyFile": {
+          "type": "string",
+          "title": "Local REST API key file",
+          "description": "Optional path to a file containing either the API key or the Local REST API data.json.",
+          "default": "",
+          "ui": { "control": "text" }
+        },
+        "defaultVaultPath": {
+          "type": "string",
+          "title": "Default vault path",
+          "description": "Optional vault filesystem path used to auto-read .obsidian/plugins/obsidian-local-rest-api/data.json for the REST API key.",
+          "default": "",
+          "ui": { "control": "text" }
+        },
+        "restRejectUnauthorized": {
+          "type": "boolean",
+          "title": "Reject self-signed HTTPS certificate",
+          "description": "Set true only if the Obsidian Local REST API certificate is trusted by the runtime. Defaults false for the plugin's self-signed certificate.",
+          "default": false,
+          "ui": { "control": "checkbox" }
+        },
+        "restTransport": {
+          "type": "string",
+          "title": "REST transport",
+          "description": "HTTP transport for obsidian_rest. auto tries native Node HTTP first, then a controlled curl subprocess if the runtime blocks local networking.",
+          "default": "auto",
+          "enum": ["auto", "native", "curl"],
+          "ui": { "control": "select" }
+        },
+        "obsidianBinaryPath": {
+          "type": "string",
+          "title": "Legacy Obsidian CLI binary path",
+          "description": "Legacy diagnostic fallback only. The native Obsidian CLI may SIGSEGV in HanaAgent sandboxes; prefer obsidian_rest.",
+          "default": "",
+          "ui": { "control": "text" }
+        },
+        "defaultVault": {
+          "type": "string",
+          "title": "Legacy CLI default vault",
+          "description": "Optional Obsidian vault name passed to the legacy obsidian_cli tool.",
+          "default": "",
+          "ui": { "control": "text" }
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "title": "Default timeout",
+          "description": "Maximum time in milliseconds for each REST or legacy CLI call.",
+          "default": 15000,
+          "ui": { "control": "number" }
+        },
+        "maxOutputChars": {
+          "type": "integer",
+          "title": "Max returned output characters",
+          "description": "Long stdout/stderr is truncated before returning to the agent.",
+          "default": 12000,
+          "ui": { "control": "number" }
+        }
+      }
+    }
+  }
+}

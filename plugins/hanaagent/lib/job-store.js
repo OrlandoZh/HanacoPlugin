@@ -22,7 +22,7 @@ export function createJob(dataDir, input = {}) {
   const now = new Date().toISOString();
   const job = normalizeJob({
     id: clean(input.id) || randomUUID(),
-    title: clean(input.title) || "HanaAgent Job",
+    title: clean(input.title) || "HanaAgent 定时作业",
     description: clean(input.description),
     type: clean(input.type) || "autopilot-tick",
     schedule: normalizeSchedule(input.schedule || input.cron || "manual"),
@@ -121,7 +121,7 @@ function normalizeJob(value) {
   const updatedAt = clean(value.updatedAt) || createdAt;
   return {
     id,
-    title: clean(value.title) || "HanaAgent Job",
+    title: clean(value.title) || "HanaAgent 定时作业",
     description: clean(value.description),
     type,
     schedule: normalizeSchedule(value.schedule || value.cron || "manual"),

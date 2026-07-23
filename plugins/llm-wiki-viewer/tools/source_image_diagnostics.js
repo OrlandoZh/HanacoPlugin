@@ -1,4 +1,4 @@
-import { sourceImageDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.14";
+import { sourceImageDiagnostics, toToolResult } from "../lib/wiki-core.js?v=0.1.17";
 
 export const name = "llm_wiki_source_image_diagnostics";
 export const description = "Run read-only llm-wiki source image diagnostics for image_paths consistency and missing local assets.";

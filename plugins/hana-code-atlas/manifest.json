@@ -1,0 +1,141 @@
+{
+  "manifestVersion": 1,
+  "id": "hana-code-atlas",
+  "name": "Hana Code Atlas",
+  "version": "0.2.5",
+  "description": "代码架构可视化插件：cbm 结构索引 → cbm2ua 语义转换 → Understand-Anything 交互图谱，在 Hana 内直接浏览项目架构总览与完整依赖图。",
+  "minAppVersion": "0.407.15",
+  "trust": "full-access",
+  "capabilities": [
+    "agent",
+    "session",
+    "provider.read",
+    "provider.credentials.read"
+  ],
+  "activationEvents": [
+    "onStartup"
+  ],
+  "contributes": {
+    "page": {
+      "title": {
+        "zh": "代码图谱",
+        "en": "Code Atlas"
+      },
+      "route": "/viewer",
+      "icon": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\"><path d=\"M4 20h16v2H4zm16-10h2v10h-2zM2 10h2v10H2zm2-2h2v2H4zm2-2h2v2H6zm2-2h2v2H8zm2-2h4v2h-4zm4 2h2v2h-2zm2 2h2v2h-2zm2 2h2v2h-2zM8 14h2v6H8zm2-2h4v2h-4zm4 2h2v6h-2z\"/></svg>"
+    },
+    "configuration": {
+      "properties": {
+        "cbmBinary": {
+          "type": "string",
+          "title": "codebase-memory-mcp binary path",
+          "description": "codebase-memory-mcp CLI 可执行文件绝对路径。留空时优先复用 Hana MCP connector 配置，再探测 PATH 中的 codebase-memory-mcp。",
+          "default": "",
+          "ui": {
+            "control": "text"
+          }
+        },
+        "pythonBinary": {
+          "type": "string",
+          "title": "Python 3 binary path",
+          "description": "Python ≥3.10 可执行文件路径。留空时使用 python3。",
+          "default": "python3",
+          "ui": {
+            "control": "text"
+          }
+        },
+        "cbmCacheDir": {
+          "type": "string",
+          "title": "CBM cache directory",
+          "description": "codebase-memory-mcp 项目 registry 目录（CBM_CACHE_DIR）。留空时依次复用进程环境、Hana MCP connector 配置和 cbm 默认目录；插件发现与 Python 管线始终使用同一目录。",
+          "default": "",
+          "ui": {
+            "control": "text"
+          }
+        },
+        "pipelineTimeoutSeconds": {
+          "type": "integer",
+          "title": "Pipeline timeout (seconds)",
+          "description": "cbm2ua 单次构建超时秒数（30-3600）。默认 300。",
+          "default": 300,
+          "ui": {
+            "control": "number"
+          },
+          "minimum": 30,
+          "maximum": 3600
+        },
+        "maxConcurrentBuilds": {
+          "type": "integer",
+          "title": "Max concurrent builds",
+          "description": "全局最大并发构建数（1-4）。默认 1。",
+          "default": 1,
+          "ui": {
+            "control": "number"
+          },
+          "minimum": 1,
+          "maximum": 4
+        },
+        "architectureProviderId": {
+          "type": "string",
+          "title": "Architecture LLM provider",
+          "description": "可选。生成 Architecture 语义草稿时优先使用的 Hana chat provider ID；留空时使用界面选择或自动选择。",
+          "default": "",
+          "ui": {
+            "control": "text"
+          }
+        },
+        "architectureModel": {
+          "type": "string",
+          "title": "Architecture LLM model",
+          "description": "可选。生成 Architecture 语义草稿时优先使用的模型 ID；留空时使用界面选择或 provider 的首个 chat 模型。",
+          "default": "",
+          "ui": {
+            "control": "text"
+          }
+        },
+        "architectureReviewProviderId": {
+          "type": "string",
+          "title": "Architecture review provider",
+          "description": "可选。独立复审 Architecture 草稿的 Hana chat provider ID；留空时复用生成模型。",
+          "default": "",
+          "ui": {
+            "control": "text"
+          }
+        },
+        "architectureReviewModel": {
+          "type": "string",
+          "title": "Architecture review model",
+          "description": "可选。独立复审 Architecture 草稿的模型 ID；留空时复用生成模型。",
+          "default": "",
+          "ui": {
+            "control": "text"
+          }
+        },
+        "cbmTimeoutSeconds": {
+          "type": "integer",
+          "title": "CBM command timeout (seconds)",
+          "description": "单个 cbm CLI 命令超时秒数（5-900），独立于整体 pipeline 超时。默认 120。",
+          "default": 120,
+          "ui": {
+            "control": "number"
+          },
+          "minimum": 5,
+          "maximum": 900
+        }
+      }
+    }
+  },
+  "dev": {
+    "scenarios": [
+      {
+        "id": "open-atlas",
+        "title": "Open Code Atlas Viewer",
+        "steps": [
+          {
+            "openSurface": "/viewer"
+          }
+        ]
+      }
+    ]
+  }
+}

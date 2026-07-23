@@ -83,7 +83,16 @@ scan_kind() {
     case "$id" in
       index|log|purpose|.wiki-schema|README) continue ;;
     esac
-    label=$(awk '/^# / { sub(/^# +/, ""); gsub(/[[:space:]]+$/, ""); print; exit }' "$f")
+    label=$(awk '
+      BEGIN { in_fm = 0; fm_closed = 0 }
+      /^---$/ {
+        if (in_fm) { fm_closed = 1; in_fm = 0 }
+        else { in_fm = 1 }
+        next
+      }
+      !fm_closed { next }
+      /^# / { sub(/^# +/, ""); gsub(/[[:space:]]+$/, ""); print; exit }
+    ' "$f")
     [ -n "$label" ] || label="$id"
     printf '%s\t%s\t%s\t%s\n' "$id" "$label" "$type" "$f" >> "$NODES_TSV"
   done < <(find "$dir" -type f -name '*.md' | LC_ALL=C sort)
@@ -156,10 +165,22 @@ while IFS=$'\t' read -r id label type path; do
     {
       line = $0
       conf = ""
+      rel = ""
       if (match(line, /<!--[[:space:]]*confidence:[[:space:]]*[A-Z]+[[:space:]]*-->/)) {
         kind_str = substr(line, RSTART, RLENGTH)
         if (match(kind_str, /[A-Z]+/)) {
           conf = substr(kind_str, RSTART, RLENGTH)
+        }
+      }
+      if (match(line, /<!--[[:space:]]*relation:[[:space:]]*[^>]+?--[[:space:]]*>/)) {
+        rel_str = substr(line, RSTART, RLENGTH)
+        # 提取 relation: 后面的值
+        if (match(rel_str, /relation:[[:space:]]*/)) {
+          after = substr(rel_str, RSTART + RLENGTH)
+          # 去掉尾部 -->
+          sub(/[[:space:]]*-->.*/, "", after)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", after)
+          if (after != "") rel = after
         }
       }
       rest = line
@@ -170,7 +191,7 @@ while IFS=$'\t' read -r id label type path; do
         if (n > 0) inner = substr(inner, 1, n - 1)
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", inner)
         if (inner == "" || inner == src) continue
-        print src "\t" NR "\t" inner "\t" conf
+        print src "\t" NR "\t" inner "\t" conf "\t" rel
       }
     }
   ' "$path" >> "$EDGES_RAW"
@@ -193,25 +214,29 @@ awk -F'\t' -v valids="$VALID_IDS" '
     close(valids)
   }
   {
-    from = $1; to = $3; conf = $4
+    from = $1; to = $3; conf = $4; rel = $5
     if (!(to in valid)) next
     if (from == to) next
     key = from "\t" to
     if (!(key in seen)) {
       seen[key] = 1
-      saved_conf[key] = conf  # 可能为空，在 END 中兜底为 EXTRACTED
-      order[++count] = key
-    } else if (conf != "" && saved_conf[key] == "") {
-      # 升级：之前未见显式 conf（留空），现在有，采用
       saved_conf[key] = conf
+      saved_rel[key] = rel
+      order[++count] = key
+    } else {
+      # 升级：优先采用非空值
+      if (conf != "" && saved_conf[key] == "") saved_conf[key] = conf
+      if (rel != "" && saved_rel[key] == "") saved_rel[key] = rel
     }
   }
   END {
     for (i = 1; i <= count; i++) {
       split(order[i], parts, "\t")
       t = saved_conf[order[i]]
-      if (t != "EXTRACTED" && t != "INFERRED" && t != "AMBIGUOUS") t = "EXTRACTED"
-      print parts[1] "\t" parts[2] "\t" t
+      if (t != "EXTRACTED" && t != "INFERRED" && t != "AMBIGUOUS" && t != "UNVERIFIED" && t != "VERIFIED") t = "EXTRACTED"
+      r = saved_rel[order[i]]
+      if (r == "") r = "-"
+      print parts[1] "\t" parts[2] "\t" t "\t" r
     }
   }
 ' "$EDGES_RAW" > "$EDGES_TSV"
@@ -247,14 +272,15 @@ done < "$NODES_TSV"
 EDGES_JSONL="$TMPDIR/edges.jsonl"
 : > "$EDGES_JSONL"
 idx=0
-while IFS=$'\t' read -r from to etype; do
+while IFS=$'\t' read -r from to etype reltype; do
   idx=$((idx + 1))
   jq -n \
     --arg id "e$idx" \
     --arg from "$from" \
     --arg to "$to" \
     --arg etype "$etype" \
-    '{id: $id, from: $from, to: $to, type: $etype}' >> "$EDGES_JSONL"
+    --arg reltype "$reltype" \
+    '{id: $id, from: $from, to: $to, type: $etype, relation_type: ($reltype | if . == "-" then null else . end)}' >> "$EDGES_JSONL"
 done < "$EDGES_TSV"
 
 if [ "${LLM_WIKI_TEST_MODE:-0}" = "1" ]; then
@@ -306,8 +332,10 @@ else
 fi
 
 INITIAL_VIEW=$(jq \
-  --argjson nodes "$(cat "$TMPDIR/nodes.sorted.json")" \
+  --slurpfile nodes_file "$TMPDIR/nodes.sorted.json" \
   '
+  ($nodes_file[0]) as $nodes
+  |
   . as $edges
   | (
       reduce $edges[] as $e (
@@ -341,10 +369,9 @@ jq -n \
   --argjson total_nodes "$NODE_COUNT" \
   --argjson total_edges "$EDGE_COUNT" \
   --argjson initial_view "$INITIAL_VIEW" \
-  --argjson nodes "$(cat "$TMPDIR/nodes.sorted.json")" \
-  --argjson edges "$(cat "$TMPDIR/edges.sorted.json")" \
-  --argjson insights "$(jq '.insights' "$ANALYSIS_JSON")" \
-  --argjson learning "$(jq '.learning' "$ANALYSIS_JSON")" \
+  --slurpfile nodes_file "$TMPDIR/nodes.sorted.json" \
+  --slurpfile edges_file "$TMPDIR/edges.sorted.json" \
+  --slurpfile analysis_file "$ANALYSIS_JSON" \
   --argjson degraded "$DEGRADE" \
   --argjson insights_degraded "$INSIGHTS_DEGRADED" \
   '{
@@ -357,10 +384,10 @@ jq -n \
       degraded: ($degraded == 1),
       insights_degraded: $insights_degraded
     },
-    nodes: $nodes,
-    edges: $edges,
-    insights: $insights,
-    learning: $learning
+    nodes: $nodes_file[0],
+    edges: $edges_file[0],
+    insights: $analysis_file[0].insights,
+    learning: $analysis_file[0].learning
   }' > "$OUTPUT_TMP"
 
 mv "$OUTPUT_TMP" "$OUTPUT"

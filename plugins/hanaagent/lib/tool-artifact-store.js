@@ -108,7 +108,9 @@ function writeToolArtifact(dataDir, input = {}) {
     createdAt: clean(input.createdAt) || now,
     updatedAt: now
   };
-  fs.writeFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  const contentTmp = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(contentTmp, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.renameSync(contentTmp, filePath);
   const artifact = {
     id: artifactId,
     artifactId,
@@ -139,9 +141,9 @@ function writeToolArtifact(dataDir, input = {}) {
 
 function compactToolArtifactPointer(artifact) {
   return [
-    artifact.summary || `Tool output externalized as artifact ${artifact.artifactId}.`,
-    `Preview: ${artifact.preview || artifact.contentPreview}`,
-    `Open via /api/artifacts/${encodeURIComponent(artifact.artifactId)} for full content.`
+    artifact.summary || `工具输出已外置为产物 ${artifact.artifactId}。`,
+    `预览：${artifact.preview || artifact.contentPreview}`,
+    `通过 /api/artifacts/${encodeURIComponent(artifact.artifactId)} 打开完整内容。`
   ].join("\n");
 }
 
@@ -208,7 +210,10 @@ function upsertToolArtifactIndex(dataDir, artifact) {
   const index = readToolArtifactIndex(dataDir);
   const next = index.artifacts.filter((item) => item.artifactId !== artifact.artifactId);
   next.push(normalizeArtifact(artifact));
-  fs.writeFileSync(toolArtifactIndexPath(dataDir), `${JSON.stringify({ artifacts: next }, null, 2)}\n`, "utf8");
+  const indexFile = toolArtifactIndexPath(dataDir);
+  const indexTmp = `${indexFile}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(indexTmp, `${JSON.stringify({ artifacts: next }, null, 2)}\n`, "utf8");
+  fs.renameSync(indexTmp, indexFile);
 }
 
 function normalizeArtifact(value) {
@@ -219,7 +224,7 @@ function normalizeArtifact(value) {
     id: artifactId,
     artifactId,
     kind: clean(value.kind) || "tool-output",
-    title: clean(value.title) || "Tool output",
+    title: clean(value.title) || "工具输出",
     summary: clean(value.summary),
     sessionId: clean(value.sessionId || value.sessionPath),
     sessionPath: clean(value.sessionPath || value.sessionId),

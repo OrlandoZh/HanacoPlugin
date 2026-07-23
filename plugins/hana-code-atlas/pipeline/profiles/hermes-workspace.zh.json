@@ -1,0 +1,392 @@
+{
+  "version": "1.0.0",
+  "language": "zh",
+  "evidenceStatus": "repository-and-cbm-backed-semantic-inference",
+  "project": {
+    "name": "Hermes Workspace",
+    "description": "Hermes Agent 的桌面与 Web 控制中枢：统一承载对话、会话、多智能体编排、任务、文件、终端、记忆、Skills、MCP、运行监控和 Electron 桌面交付。结构事实来自 codebase-memory-mcp；本 overlay 仅提供中文语义分层、代表节点说明和导览。",
+    "frameworks": [
+      "React 19",
+      "TanStack Router/Start",
+      "Electron",
+      "Node.js",
+      "Vite",
+      "WebSocket",
+      "Zod",
+      "Zustand"
+    ]
+  },
+  "architectureOverview": {
+    "projectName": "Hermes Workspace · 架构总览",
+    "projectDescription": "面向人类阅读的宏观架构投影：以六个领域呈现系统主干，并保留十一层语义结构和代表源码入口。完整代码图谱由独立分析视图承载。",
+    "representativesPerLayer": 2,
+    "maxBackboneEdges": 8,
+    "macroDomains": [
+      {
+        "id": "macro-runtime-delivery",
+        "name": "运行时与交付",
+        "description": "桌面进程、生产入口、工程基础、质量验证和多渠道交付。",
+        "layerIds": [
+          "layer-desktop-runtime",
+          "layer-quality-delivery",
+          "layer-project-foundation"
+        ]
+      },
+      {
+        "id": "macro-backend-protocols",
+        "name": "服务端与协议",
+        "description": "Gateway、API、认证、WebSocket、文件终端和外部运行时适配。",
+        "layerIds": ["layer-backend-adapters"]
+      },
+      {
+        "id": "macro-agent-operations",
+        "name": "智能体与任务",
+        "description": "Agent、Swarm、Conductor、任务、作业和工作区操作闭环。",
+        "layerIds": [
+          "layer-agent-control-plane",
+          "layer-workspace-tools"
+        ]
+      },
+      {
+        "id": "macro-user-interaction",
+        "name": "对话与用户交互",
+        "description": "会话、流式对话、模型交互和用户直接操作的核心体验。",
+        "layerIds": ["layer-chat-session"]
+      },
+      {
+        "id": "macro-knowledge-experience",
+        "name": "知识与扩展体验",
+        "description": "记忆、Skills、MCP 能力，以及 Playground、Hermes World 等扩展场景。",
+        "layerIds": [
+          "layer-knowledge-capabilities",
+          "layer-experience-surfaces"
+        ]
+      },
+      {
+        "id": "macro-shell-governance",
+        "name": "应用外壳与治理",
+        "description": "路由、共享界面、状态组织、运行观测、配置与应用治理。",
+        "layerIds": [
+          "layer-app-shell",
+          "layer-observability-settings"
+        ]
+      }
+    ]
+  },
+  "excludePaths": [
+    "electron/server-bundle.cjs",
+    "dist/**",
+    "build/**",
+    "release/**",
+    "node_modules/**",
+    ".output/**",
+    ".tanstack/**",
+    "src/routeTree.gen.ts",
+    "public/assets/**",
+    "docs/screenshots/**",
+    "memory/**"
+  ],
+  "layers": [
+    {
+      "id": "layer-quality-delivery",
+      "name": "质量、构建与交付",
+      "description": "测试、构建脚本、CI、容器与发布材料。该层验证工作区能否稳定构建、跨平台打包并在变更后维持行为一致。",
+      "patterns": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "e2e/**",
+        "scripts/**",
+        ".github/**",
+        "docs/**",
+        "docker/**",
+        "Dockerfile*",
+        "nix/**"
+      ]
+    },
+    {
+      "id": "layer-desktop-runtime",
+      "name": "桌面运行时与进程边界",
+      "description": "Electron 主进程、preload 桥接和生产 HTTP 入口。负责窗口生命周期、本地服务拉起、更新、安全绑定以及桌面端与 Web 应用之间的边界。",
+      "patterns": [
+        "electron/main.cjs",
+        "electron/preload.cjs",
+        "electron/prod-server.cjs",
+        "server-entry.js"
+      ]
+    },
+    {
+      "id": "layer-backend-adapters",
+      "name": "服务端能力与协议适配",
+      "description": "服务端状态、认证、Gateway/WebSocket、MCP Hub、文件与终端访问以及对 Hermes Dashboard/Claude/OpenAI 兼容接口的适配。它把外部运行时能力收敛为 Workspace 可消费的 API。",
+      "patterns": [
+        "src/server/**",
+        "src/routes/api/**",
+        "playground-ws-worker/**"
+      ]
+    },
+    {
+      "id": "layer-agent-control-plane",
+      "name": "多智能体编排与控制面",
+      "description": "Agent、Swarm、Conductor、任务板、审批与运行状态的控制面。负责角色路由、mission 分解、worker 生命周期、检查点、报告与人工决策入口。",
+      "patterns": [
+        "agents/**",
+        "swarm.yaml",
+        "src/screens/agents/**",
+        "src/screens/swarm/**",
+        "src/screens/swarm2/**",
+        "src/screens/gateway/**",
+        "src/components/agent-swarm/**",
+        "src/components/agent-view/**",
+        "src/components/swarm/**",
+        "src/routes/swarm.tsx",
+        "src/routes/swarm2.tsx",
+        "src/routes/conductor.tsx",
+        "src/routes/operations.tsx"
+      ]
+    },
+    {
+      "id": "layer-chat-session",
+      "name": "对话、会话与模型交互",
+      "description": "面向用户的流式对话体验，包括消息渲染、输入与附件、上下文用量、会话导航和 Agent 对话面板，并通过后端适配层连接不同模型与运行时。",
+      "patterns": [
+        "src/screens/chat/**",
+        "src/routes/chat/**",
+        "src/components/agent-chat/**",
+        "src/components/prompt-kit/**",
+        "src/components/chat-panel.tsx",
+        "src/components/chat-panel-toggle.tsx",
+        "src/components/attachment-*.tsx",
+        "src/components/context-meter.tsx",
+        "src/components/usage-meter/**"
+      ]
+    },
+    {
+      "id": "layer-knowledge-capabilities",
+      "name": "记忆、Skills 与 MCP 能力层",
+      "description": "负责长期记忆浏览与编辑、Skills 发现和来源管理、MCP 配置与市场接入。它把 Agent 的知识资产和外部工具能力投影为可搜索、可配置的工作区界面。",
+      "patterns": [
+        "skills/**",
+        "src/screens/memory/**",
+        "src/screens/skills/**",
+        "src/screens/mcp/**",
+        "src/components/memory-viewer/**",
+        "src/routes/memory.tsx",
+        "src/routes/skills.tsx",
+        "src/routes/mcp.tsx"
+      ]
+    },
+    {
+      "id": "layer-workspace-tools",
+      "name": "任务与工作区工具",
+      "description": "将任务、作业、文件系统、预览和终端汇集成日常操作面。用户可在不离开 Workspace 的情况下安排工作、检查产物和直接操作项目文件。",
+      "patterns": [
+        "src/screens/tasks/**",
+        "src/screens/jobs/**",
+        "src/screens/files/**",
+        "src/components/file-explorer/**",
+        "src/components/terminal/**",
+        "src/components/cron-manager/**",
+        "src/components/terminal-panel.tsx",
+        "src/routes/tasks.tsx",
+        "src/routes/jobs.tsx",
+        "src/routes/files.tsx",
+        "src/routes/terminal.tsx"
+      ]
+    },
+    {
+      "id": "layer-observability-settings",
+      "name": "观测、配置与应用治理",
+      "description": "聚合会话、模型、成本、缓存、运行健康和注意事项，同时提供连接、Provider、主题、Profile 与更新设置，是运维判断和系统治理的主要入口。",
+      "patterns": [
+        "src/screens/dashboard/**",
+        "src/screens/settings/**",
+        "src/screens/profiles/**",
+        "src/components/settings/**",
+        "src/components/settings-dialog/**",
+        "src/components/system-metrics-footer.tsx",
+        "src/components/update-center-notifier*.tsx",
+        "src/components/theme-toggle.tsx",
+        "src/routes/dashboard.tsx",
+        "src/routes/settings.tsx",
+        "src/routes/settings/**",
+        "src/routes/profiles.tsx"
+      ]
+    },
+    {
+      "id": "layer-experience-surfaces",
+      "name": "扩展体验与可视化场景",
+      "description": "Playground、Agora、Crew、Hermes World、Echo Studio 等沉浸式或实验性界面，展示 Agent 协作、三维场景和特定业务体验，但不承担核心控制面职责。",
+      "patterns": [
+        "src/screens/playground/**",
+        "src/screens/agora/**",
+        "src/screens/crew/**",
+        "src/screens/echo-studio/**",
+        "src/screens/vt-capital/**",
+        "src/components/avatars/**",
+        "src/routes/playground.tsx",
+        "src/routes/agora.tsx",
+        "src/routes/hermes-world.tsx",
+        "src/routes/world.tsx",
+        "src/routes/echo-studio.tsx",
+        "src/routes/vt-capital.tsx",
+        "src/routes/reserve.tsx",
+        "src/routes/reserve/**"
+      ]
+    },
+    {
+      "id": "layer-app-shell",
+      "name": "应用外壳、路由与共享界面",
+      "description": "TanStack Router 根布局、页面路由、全局导航、搜索、快捷键、通用组件和状态存储。该层把各业务能力组织成一致的 Web/PWA 工作区体验。",
+      "patterns": [
+        "src/routes/**",
+        "src/components/**",
+        "src/hooks/**",
+        "src/stores/**",
+        "src/lib/**",
+        "src/types/**",
+        "src/utils/**",
+        "src/styles.css"
+      ]
+    }
+  ],
+  "fallbackLayer": {
+    "id": "layer-project-foundation",
+    "name": "工程根与共享资产",
+    "description": "未归入业务层的根级配置、类型声明、静态资源和项目元数据。它们为构建、开发和运行提供基础约束。"
+  },
+  "nodeSummaries": [
+    {
+      "selector": { "filePath": "electron/main.cjs", "types": ["file"] },
+      "summary": "Electron 主进程入口：管理单实例、桌面窗口、本地 Workspace 服务、Hermes Gateway/Dashboard 探测、后台安装与应用更新。",
+      "tags": ["桌面入口", "进程边界", "Electron"]
+    },
+    {
+      "selector": { "filePath": "server-entry.js", "types": ["file"] },
+      "summary": "生产 Web 服务入口：以本地回环地址为安全默认值，托管构建产物并把动态请求交给 TanStack Start 服务端处理。",
+      "tags": ["服务入口", "安全绑定", "SSR"]
+    },
+    {
+      "selector": { "filePath": "src/routes/__root.tsx", "types": ["file"] },
+      "summary": "应用根布局：装配 QueryClient、认证、主题、全局搜索、终端快捷键、引导流程、错误边界和 Workspace Shell。",
+      "tags": ["应用外壳", "根路由", "全局状态"]
+    },
+    {
+      "selector": { "filePath": "src/server/gateway.ts", "types": ["file"] },
+      "summary": "Hermes Gateway WebSocket 客户端：建立带设备身份签名的连接，管理 RPC、事件、重连、心跳、超时和熔断。",
+      "tags": ["Gateway", "WebSocket", "设备身份", "熔断"]
+    },
+    {
+      "selector": { "filePath": "src/screens/chat/chat-screen.tsx", "types": ["file"] },
+      "summary": "核心对话工作台：协调会话、流式响应、工具调用、上下文状态和多种聊天后端，是用户与 Agent 交互的主界面。",
+      "tags": ["对话主界面", "流式响应", "会话"]
+    },
+    {
+      "selector": { "filePath": "src/screens/gateway/conductor.tsx", "types": ["file"] },
+      "summary": "Conductor 任务编排界面：发起 mission、跟踪分解与执行状态，并在 Dashboard API 不可用时承接原生 Swarm 降级路径。",
+      "tags": ["任务编排", "Mission", "降级路径"]
+    },
+    {
+      "selector": { "filePath": "src/server/swarm-foundation.ts", "types": ["file"] },
+      "summary": "Swarm 控制面的结构契约：定义 worker 状态、任务、产物、预览、会话传输、插件权限和运行边界的数据模型。",
+      "tags": ["Swarm", "控制面契约", "运行边界"]
+    },
+    {
+      "selector": { "filePath": "src/server/mcp-hub/index.ts", "types": ["file"] },
+      "summary": "MCP Hub 聚合入口：并行检索内置与用户来源，执行超时、降级、去重和安装状态标记。",
+      "tags": ["MCP", "能力市场", "来源聚合"]
+    },
+    {
+      "selector": { "filePath": "src/screens/memory/memory-browser-screen.tsx", "types": ["file"] },
+      "summary": "记忆浏览器：列出、搜索、阅读和编辑 MEMORY.md 与日期记忆文件，并把定位结果映射回具体行。",
+      "tags": ["长期记忆", "搜索", "编辑器"]
+    },
+    {
+      "selector": { "filePath": "src/screens/dashboard/dashboard-screen.tsx", "types": ["file"] },
+      "summary": "运行观测总览：汇总会话、模型、成本、缓存效率、日志、技能使用和待处理事项，支持可编辑布局。",
+      "tags": ["可观测性", "成本", "运行总览"]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "从桌面进程和生产服务启动",
+      "description": "先看 Electron 如何管理桌面生命周期，再看 server-entry 如何以本地安全默认值托管 Workspace。这里定义了桌面模式和 Web 模式共同依赖的运行边界。",
+      "selectors": [
+        { "filePath": "electron/main.cjs", "types": ["file"] },
+        { "filePath": "electron/preload.cjs", "types": ["file"] },
+        { "filePath": "server-entry.js", "types": ["file"] }
+      ]
+    },
+    {
+      "order": 2,
+      "title": "进入应用外壳与路由",
+      "description": "根路由装配认证、主题、全局快捷键和 Workspace Shell；各页面路由再把聊天、文件、任务、记忆等能力组合成统一导航。",
+      "selectors": [
+        { "filePath": "src/routes/__root.tsx", "types": ["file"] },
+        { "filePath": "src/routes/index.tsx", "types": ["file"] }
+      ]
+    },
+    {
+      "order": 3,
+      "title": "理解 Gateway 与服务适配层",
+      "description": "Gateway 客户端负责 RPC 和事件通道，服务端模块负责认证、状态和多种后端协议适配。先理解这一层，才能判断 UI 数据来自哪里以及如何降级。",
+      "selectors": [
+        { "filePath": "src/server/gateway.ts", "types": ["file"] },
+        { "filePath": "src/server/gateway-capabilities.ts", "types": ["file"] },
+        { "filePath": "src/server/chat-backends.ts", "types": ["file"] }
+      ]
+    },
+    {
+      "order": 4,
+      "title": "沿对话主链路理解用户交互",
+      "description": "从 ChatScreen 进入会话、流式消息和工具调用，再延伸到输入、消息列表与上下文计量组件。这是 Workspace 最常用的人机交互主链。",
+      "selectors": [
+        { "filePath": "src/screens/chat/chat-screen.tsx", "types": ["file"] },
+        { "filePath": "src/components/agent-chat/AgentChatInput.tsx", "types": ["file"] },
+        { "filePath": "src/components/context-meter.tsx", "types": ["file"] }
+      ]
+    },
+    {
+      "order": 5,
+      "title": "进入 Conductor 与 Swarm 控制面",
+      "description": "Conductor 把用户目标转成 mission；Swarm 基础模型、worker roster 和生命周期模块负责执行、检查点、报告与人工决策。",
+      "selectors": [
+        { "filePath": "src/screens/gateway/conductor.tsx", "types": ["file"] },
+        { "filePath": "src/server/swarm-foundation.ts", "types": ["file"] },
+        { "filePath": "src/server/swarm-lifecycle.ts", "types": ["file"] }
+      ]
+    },
+    {
+      "order": 6,
+      "title": "理解记忆、Skills 与 MCP 能力扩展",
+      "description": "记忆提供持续上下文，Skills 提供可复用行为资产，MCP Hub 连接外部工具来源。三者共同构成 Agent 的知识与能力扩展面。",
+      "selectors": [
+        { "filePath": "src/screens/memory/memory-browser-screen.tsx", "types": ["file"] },
+        { "filePath": "src/screens/skills/skills-screen.tsx", "types": ["file"] },
+        { "filePath": "src/server/mcp-hub/index.ts", "types": ["file"] }
+      ]
+    },
+    {
+      "order": 7,
+      "title": "掌握任务、文件与终端操作面",
+      "description": "任务与作业承载计划执行，文件浏览器和终端提供直接操作能力。该层把 Agent 产物与人的检查、修改和继续执行连成闭环。",
+      "selectors": [
+        { "filePath": "src/screens/tasks/tasks-screen.tsx", "types": ["file"] },
+        { "filePath": "src/screens/files/files-screen.tsx", "types": ["file"] },
+        { "filePath": "src/components/terminal/terminal-workspace.tsx", "types": ["file"] }
+      ]
+    },
+    {
+      "order": 8,
+      "title": "最后回到观测与配置",
+      "description": "Dashboard 汇总系统运行事实，Settings 和 Profiles 决定连接、模型、主题与工作方式。这里是判断系统是否健康以及如何调整行为的入口。",
+      "selectors": [
+        { "filePath": "src/screens/dashboard/dashboard-screen.tsx", "types": ["file"] },
+        { "filePath": "src/routes/settings/index.tsx", "types": ["file"] },
+        { "filePath": "src/routes/profiles.tsx", "types": ["file"] }
+      ]
+    }
+  ]
+}

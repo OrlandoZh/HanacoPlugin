@@ -28,6 +28,7 @@ const {
   initWiki,
   listHanaAgents,
   listHanaSessions,
+  lifecycleDiagnostics,
   linkDiagnostics,
   lintFixPreview,
   maintenanceDiagnostics,
@@ -44,6 +45,7 @@ const {
   runSkillScript,
   saveWikiRoot,
   sendHanaAgentWorkflow,
+  serveWikiFile,
   rewriteGraphSourcePaths,
   sourceCoverage,
   sourceContractDiagnostics,
@@ -982,6 +984,42 @@ test("maintenance diagnostics reports source, raw, cache, source signal, index, 
   assert.equal(nonWiki.error, "not_llm_wiki_root");
 });
 
+test("lifecycle diagnostics scans lifecycle fields and rejects non-wiki roots", async () => {
+  const wikiRoot = await tempDir();
+  await fsp.mkdir(path.join(wikiRoot, "wiki", "sources"), { recursive: true });
+  await fsp.mkdir(path.join(wikiRoot, "wiki", "entities"), { recursive: true });
+  await fsp.writeFile(path.join(wikiRoot, ".wiki-schema.md"), "# schema\n");
+
+  // 创建一个带 lifecycle 字段的测试页面
+  await fsp.writeFile(path.join(wikiRoot, "wiki", "entities", "TestEntity.md"), [
+    "---",
+    "tags: [实体]",
+    "created: 2026-06-28",
+    "updated: 2026-06-28",
+    "confidence_score: 0.70",
+    "last_confirmed: 2026-06-28",
+    "evidence_count: 1",
+    "retention_class: stable",
+    "---",
+    "",
+    "# TestEntity",
+    "",
+    "Test content.",
+  ].join("\n"));
+
+  const result = await lifecycleDiagnostics(wikiRoot);
+  assert.equal(result.ok, true);
+  assert.ok(result.diagnostics);
+  assert.equal(typeof result.diagnostics.summary.total_pages, "number");
+  assert.ok(result.diagnostics.summary.total_pages >= 1);
+
+  // 非法 wiki root
+  const nonWiki = await tempDir();
+  const nonWikiResult = await lifecycleDiagnostics(nonWiki);
+  assert.equal(nonWikiResult.ok, false);
+  assert.equal(nonWikiResult.error, "not_llm_wiki_root");
+});
+
 test("cache status and Step 1 validation are read-only wrappers", async () => {
   const wikiRoot = await createSampleWiki();
   await fsp.mkdir(path.join(wikiRoot, "raw", "notes"), { recursive: true });
@@ -1191,6 +1229,7 @@ test("static tool files satisfy Hana loader contract", async () => {
     "llm_wiki_diagnostics",
     "llm_wiki_graph_source_paths",
     "llm_wiki_init",
+    "llm_wiki_lifecycle_diagnostics",
     "llm_wiki_link_diagnostics",
     "llm_wiki_lint",
     "llm_wiki_lint_fix_preview",
@@ -1266,6 +1305,7 @@ test("OpenHanako PluginManager loads viewer routes and tools", { skip: !hasOpenH
     "llm-wiki-viewer_llm_wiki_diagnostics",
     "llm-wiki-viewer_llm_wiki_graph_source_paths",
     "llm-wiki-viewer_llm_wiki_init",
+    "llm-wiki-viewer_llm_wiki_lifecycle_diagnostics",
     "llm-wiki-viewer_llm_wiki_link_diagnostics",
     "llm-wiki-viewer_llm_wiki_lint",
     "llm-wiki-viewer_llm_wiki_lint_fix_preview",
@@ -1292,6 +1332,54 @@ test("rewriteGraphSourcePaths rewrites wiki-local markdown links only", () => {
   const rewritten = rewriteGraphSourcePaths(html, wikiRoot, wikiDir, "/wiki-file/", "?token=t");
   assert.ok(rewritten.includes('"source_path": "/wiki-file/entities/A.md?token=t"'));
   assert.ok(rewritten.includes('"source_path": "/tmp/outside.md"'));
+});
+
+test("serveWikiFile renders markdown source pages with reader actions", async () => {
+  const root = await tempDir();
+  await fsp.mkdir(path.join(root, "wiki", "sources"), { recursive: true });
+  const sourcePath = path.join(root, "wiki", "sources", "note.md");
+  await fsp.writeFile(sourcePath, [
+    "---",
+    "source_type: article",
+    "source_path: raw/articles/note.md",
+    "---",
+    "",
+    "# Source Note",
+    "",
+    "Content with **markdown**.",
+  ].join("\n"));
+
+  const response = await serveWikiFile(testContext(), root, sourcePath, {
+    assetBase: "/assets/",
+    graphHref: "/graph?token=t",
+    suffix: "?token=t",
+    theme: "dark",
+  });
+  const body = await response.text();
+  assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
+  assert.match(body, /<html lang="zh-CN" data-effective-theme="dark">/);
+  assert.match(body, /返回图谱/);
+  assert.match(body, /图谱首页/);
+  assert.match(body, /Obsidian 打开/);
+  assert.match(body, /obsidian:\/\/open\?path=/);
+  assert.match(body, /marked\.min\.js\?token=t/);
+  assert.match(body, /purify\.min\.js\?token=t/);
+  assert.match(body, /DOMPurify\.sanitize/);
+  assert.match(body, /Source Note/);
+  assert.match(body, /sources\/note\.md/);
+  assert.match(body, /source_type/);
+  assert.match(body, /const graphHref = "\/graph\?token=t"/);
+});
+
+test("serveWikiFile can still return raw markdown when rendering is disabled", async () => {
+  const root = await tempDir();
+  await fsp.mkdir(path.join(root, "wiki", "entities"), { recursive: true });
+  const filePath = path.join(root, "wiki", "entities", "A.md");
+  await fsp.writeFile(filePath, "# A\n");
+
+  const response = await serveWikiFile(testContext(), root, filePath, { renderMarkdown: false });
+  assert.equal(response.headers.get("content-type"), "text/markdown; charset=utf-8");
+  assert.equal(await response.text(), "# A\n");
 });
 
 test("applyGraphTheme injects dark graph theme without rewriting source html files", () => {
@@ -1924,6 +2012,14 @@ async function createSampleWiki() {
 
 async function tempDir() {
   return fsp.mkdtemp(path.join(os.tmpdir(), "llm-wiki-viewer-"));
+}
+
+function testContext() {
+  return {
+    text(body, status = 200) {
+      return new Response(String(body), { status, headers: { "content-type": "text/plain; charset=utf-8" } });
+    },
+  };
 }
 
 function registerRoutesForTest(options = {}) {

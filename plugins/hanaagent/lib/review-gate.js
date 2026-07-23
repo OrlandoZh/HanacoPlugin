@@ -16,7 +16,7 @@ export function buildReviewGate(input = {}) {
   const missionRunRecords = runRecords.filter((record) => belongsToMissionRunRecord(record, mission, assignments));
 
   if (!assignments.length) {
-    findings.push(finding("no-assignments", "fail", "Mission 没有 worker assignments", "创建或同步 assignments 后再交付。"));
+    findings.push(finding("no-assignments", "fail", "任务没有执行智能体分派", "创建或同步任务分派后再交付。"));
   }
 
   for (const assignment of assignments) {
@@ -27,7 +27,7 @@ export function buildReviewGate(input = {}) {
         `blocked-${assignment.id}`,
         "fail",
         `${label} 仍有阻塞`,
-        blocker || "Assignment state is blocked.",
+        blocker || "任务分派状态为阻塞。",
         { assignmentId: assignment.id, taskId: assignment.taskId || null }
       ));
     }
@@ -45,7 +45,7 @@ export function buildReviewGate(input = {}) {
         `missing-evidence-${assignment.id}`,
         "warn",
         `${label} 缺少可追踪证据`,
-        "需要 assignment result、checkpoint result、产物或命令记录之一。",
+        "需要任务分派结果、检查点结果、产物或命令记录之一。",
         { assignmentId: assignment.id, taskId: assignment.taskId || null }
       ));
     }
@@ -58,7 +58,7 @@ export function buildReviewGate(input = {}) {
       findings.push(finding(
         `checkpoint-blocker-${checkpoint.id}`,
         "fail",
-        "Checkpoint 显示阻塞或需要输入",
+        "检查点显示阻塞或需要输入",
         blocker || checkpoint.result || checkpoint.nextAction || state,
         { checkpointId: checkpoint.id, taskId: checkpoint.taskId || null }
       ));
@@ -67,7 +67,7 @@ export function buildReviewGate(input = {}) {
       findings.push(finding(
         `checkpoint-incomplete-${checkpoint.id}`,
         "warn",
-        "Checkpoint 合约不完整",
+        "检查点合约不完整",
         "缺少 STATE / RESULT / NEXT_ACTION 中的关键字段。",
         { checkpointId: checkpoint.id, taskId: checkpoint.taskId || null }
       ));
@@ -80,7 +80,7 @@ export function buildReviewGate(input = {}) {
       `pending-approval-${approval.id}`,
       "fail",
       `审批仍待处理：${approval.title}`,
-      approval.summary || approval.requester || "Approval state is pending.",
+      approval.summary || approval.requester || "审批状态为待处理。",
       { recordId: approval.id, assignmentId: approval.assignmentId || null }
     ));
   }
@@ -91,32 +91,32 @@ export function buildReviewGate(input = {}) {
       `denied-approval-${approval.id}`,
       "fail",
       `审批已拒绝：${approval.title}`,
-      approval.summary || "Approval state is denied.",
+      approval.summary || "审批状态为已拒绝。",
       { recordId: approval.id, assignmentId: approval.assignmentId || null }
     ));
   }
 
   const artifactRecords = missionRunRecords.filter((record) => record.type === "artifact");
   if (!artifactRecords.length) {
-    findings.push(finding("missing-artifact", "warn", "缺少交付产物记录", "至少记录一个 artifact，或把报告/交付物文件化。"));
+    findings.push(finding("missing-artifact", "warn", "缺少交付产物记录", "至少记录一个产物，或把报告/交付物文件化。"));
   } else if (!artifactRecords.some((record) => meaningfulText(record.path) || meaningfulText(record.content))) {
-    findings.push(finding("missing-artifact-content", "warn", "产物没有文件或内容", "artifact 需要 content 或 materialized file path 才能复核。"));
+    findings.push(finding("missing-artifact-content", "warn", "产物没有文件或内容", "产物需要内容或已文件化路径才能复核。"));
   }
 
   if (!missionCheckpoints.length) {
-    findings.push(finding("missing-checkpoints", "warn", "缺少 checkpoint 证据", "同步会话历史或手动提交 worker checkpoint。"));
+    findings.push(finding("missing-checkpoints", "warn", "缺少检查点证据", "同步会话历史或手动提交执行智能体检查点。"));
   }
 
   const hasReviewEvidence = assignments.some((assignment) => {
     const lane = String(assignment.lane || assignment.roleId || "").toLowerCase();
     const label = String(assignment.label || "").toLowerCase();
-    return REVIEW_LANES.has(lane) || REVIEW_LANES.has(label) || label.includes("复核") || label.includes("验证");
+    return REVIEW_LANES.has(lane) || REVIEW_LANES.has(label) || ["review", "qa", "verification", "复核", "验证"].some((term) => label.includes(term));
   }) && (
     missionCheckpoints.some((checkpoint) => checkpoint.state === "DONE" || checkpoint.state === "NEEDS_REVIEW" || checkpoint.columnSuggestion === "review") ||
     assignments.some((assignment) => REVIEW_LANES.has(String(assignment.lane || assignment.roleId || "").toLowerCase()) && meaningfulText(assignment.result || assignment.output))
   );
   if (!hasReviewEvidence) {
-    findings.push(finding("missing-review-evidence", "warn", "缺少 reviewer / QA 证据", "需要 reviewer 或 QA assignment 的结果、checkpoint 或复核记录。"));
+    findings.push(finding("missing-review-evidence", "warn", "缺少复核或质量保证证据", "需要复核者或质量保证任务分派的结果、检查点或复核记录。"));
   }
 
   const status = findings.some((item) => item.severity === "fail")
@@ -172,7 +172,7 @@ export function formatReviewGateReport(gate) {
     lines.push("- No findings.");
   } else {
     for (const item of gate.findings) {
-      lines.push(`- [${item.severity}] ${item.title}${item.detail ? ` — ${item.detail}` : ""}`);
+      lines.push(`- [${reviewSeverityLabel(item.severity)}] ${item.title}${item.detail ? ` — ${item.detail}` : ""}`);
     }
   }
   return lines.join("\n");
@@ -233,6 +233,14 @@ function summarize(status, findings) {
   if (status === "pass") return "Review gate passed. Mission has delivery evidence and no blocking findings.";
   if (status === "fail") return `Review gate failed with ${fail} blocking finding${fail === 1 ? "" : "s"} and ${warn} warning${warn === 1 ? "" : "s"}.`;
   return `Review gate has ${warn} warning${warn === 1 ? "" : "s"}; force-complete is possible with operator judgment.`;
+}
+
+function reviewStatusLabel(value) {
+  return value === "pass" ? "通过" : value === "fail" ? "未通过" : value === "warn" ? "警告" : value || "未知";
+}
+
+function reviewSeverityLabel(value) {
+  return value === "fail" ? "阻塞" : value === "warn" ? "警告" : value === "pass" ? "通过" : value || "信息";
 }
 
 function normalizeMission(value) {

@@ -4,6 +4,21 @@ import { randomUUID } from "node:crypto";
 
 const VALID_STATES = new Set(["DONE", "BLOCKED", "NEEDS_INPUT", "HANDOFF", "IN_PROGRESS", "NEEDS_REVIEW"]);
 
+let writeChain = Promise.resolve();
+
+function withWriteLock(work) {
+  let result;
+  let error;
+  try {
+    result = work();
+  } catch (e) {
+    error = e;
+  }
+  writeChain = writeChain.then(() => {}).catch(() => {});
+  if (error) throw error;
+  return result;
+}
+
 export function parseCheckpointText(text = "") {
   const rawText = typeof text === "string" ? text : "";
   const fields = {};
@@ -75,134 +90,144 @@ export function createCheckpoint(dataDir, input = {}) {
   const parsed = parseCheckpointText(input.text || input.rawText || "");
   if (!parsed.state) return { ok: false, error: "state_required", parsed };
 
-  const file = readCheckpointFile(dataDir);
-  const now = new Date().toISOString();
-  let checkpoint = normalizeCheckpoint({
-    id: clean(input.id) || randomUUID(),
-    taskId: clean(input.taskId) || null,
-    sessionPath: clean(input.sessionPath) || null,
-    agentId: clean(input.agentId) || null,
-    source: clean(input.source) || "manual",
-    createdAt: now,
-    ...parsed
+  return withWriteLock(() => {
+    const file = readCheckpointFile(dataDir);
+    const now = new Date().toISOString();
+    let checkpoint = normalizeCheckpoint({
+      id: clean(input.id) || randomUUID(),
+      taskId: clean(input.taskId) || null,
+      sessionPath: clean(input.sessionPath) || null,
+      agentId: clean(input.agentId) || null,
+      source: clean(input.source) || "manual",
+      createdAt: now,
+      ...parsed
+    });
+    const checkpoints = file.checkpoints.map(normalizeCheckpoint).filter(Boolean);
+    checkpoint = annotateCheckpointConflict(checkpoint, checkpoints);
+    checkpoints.push(checkpoint);
+    const next = refreshConflictMetadata(checkpoints);
+    writeCheckpointFile(dataDir, { checkpoints: next });
+    checkpoint = next.find((item) => item.id === checkpoint.id) || checkpoint;
+    return { ok: true, checkpoint };
   });
-  const checkpoints = file.checkpoints.map(normalizeCheckpoint).filter(Boolean);
-  checkpoint = annotateCheckpointConflict(checkpoint, checkpoints);
-  checkpoints.push(checkpoint);
-  const next = refreshConflictMetadata(checkpoints);
-  writeCheckpointFile(dataDir, { checkpoints: next });
-  checkpoint = next.find((item) => item.id === checkpoint.id) || checkpoint;
-  return { ok: true, checkpoint };
 }
 
 export function resolveCheckpointConflict(dataDir, input = {}) {
   const checkpointId = clean(input.checkpointId || input.acceptedCheckpointId);
   if (!checkpointId) return { ok: false, error: "checkpointId_required" };
-  const file = readCheckpointFile(dataDir);
-  const checkpoints = file.checkpoints.map(normalizeCheckpoint).filter(Boolean);
-  const accepted = checkpoints.find((item) => item.id === checkpointId);
-  if (!accepted) return { ok: false, error: "checkpoint_not_found" };
-  const groupKey = accepted.conflictGroup || conflictKey(accepted);
-  const now = new Date().toISOString();
-  const resolvedBy = clean(input.resolvedBy) || "hanaagent";
-  const next = checkpoints.map((item) => {
-    if ((item.conflictGroup || conflictKey(item)) !== groupKey) return item;
-    if (item.id === accepted.id) {
+  return withWriteLock(() => {
+    const file = readCheckpointFile(dataDir);
+    const checkpoints = file.checkpoints.map(normalizeCheckpoint).filter(Boolean);
+    const accepted = checkpoints.find((item) => item.id === checkpointId);
+    if (!accepted) return { ok: false, error: "checkpoint_not_found" };
+    const groupKey = accepted.conflictGroup || conflictKey(accepted);
+    const now = new Date().toISOString();
+    const resolvedBy = clean(input.resolvedBy) || "hanaagent";
+    const next = checkpoints.map((item) => {
+      if ((item.conflictGroup || conflictKey(item)) !== groupKey) return item;
+      if (item.id === accepted.id) {
+        return {
+          ...item,
+          accepted: true,
+          superseded: false,
+          conflict: false,
+          resolvedAt: now,
+          resolvedBy,
+          resolution: clean(input.resolution) || "accepted"
+        };
+      }
       return {
         ...item,
-        accepted: true,
-        superseded: false,
+        accepted: false,
+        superseded: true,
         conflict: false,
         resolvedAt: now,
         resolvedBy,
-        resolution: clean(input.resolution) || "accepted"
+        resolution: "superseded"
       };
-    }
+    });
+    writeCheckpointFile(dataDir, { checkpoints: next });
     return {
-      ...item,
-      accepted: false,
-      superseded: true,
-      conflict: false,
-      resolvedAt: now,
-      resolvedBy,
-      resolution: "superseded"
+      ok: true,
+      accepted: next.find((item) => item.id === accepted.id),
+      superseded: next.filter((item) => (item.conflictGroup || conflictKey(item)) === groupKey && item.id !== accepted.id),
+      groupKey
     };
   });
-  writeCheckpointFile(dataDir, { checkpoints: next });
-  return {
-    ok: true,
-    accepted: next.find((item) => item.id === accepted.id),
-    superseded: next.filter((item) => (item.conflictGroup || conflictKey(item)) === groupKey && item.id !== accepted.id),
-    groupKey
-  };
 }
 
 export function updateCheckpointReminder(dataDir, checkpointId, input = {}) {
   const id = clean(checkpointId || input.checkpointId);
   if (!id) return { ok: false, error: "checkpointId_required" };
-  const file = readCheckpointFile(dataDir);
-  const checkpoints = file.checkpoints.map(normalizeCheckpoint).filter(Boolean);
-  const index = checkpoints.findIndex((item) => item.id === id);
-  if (index === -1) return { ok: false, error: "checkpoint_not_found" };
-  const current = checkpoints[index];
-  const action = clean(input.action).toLowerCase();
-  const now = new Date().toISOString();
+  return withWriteLock(() => {
+    const file = readCheckpointFile(dataDir);
+    const checkpoints = file.checkpoints.map(normalizeCheckpoint).filter(Boolean);
+    const index = checkpoints.findIndex((item) => item.id === id);
+    if (index === -1) return { ok: false, error: "checkpoint_not_found" };
+    const current = checkpoints[index];
+    const action = clean(input.action).toLowerCase();
+    const now = new Date().toISOString();
 
-  if (["clear", "remove", "dismiss"].includes(action)) {
+    if (["clear", "remove", "dismiss"].includes(action)) {
+      checkpoints[index] = {
+        ...current,
+        reminderAt: "",
+        reminderNote: "",
+        reminderCreatedAt: current.reminderCreatedAt || "",
+        reminderClearedAt: now,
+        reminderTriggeredAt: action === "dismiss" ? (current.reminderTriggeredAt || now) : ""
+      };
+      writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(checkpoints) });
+      return { ok: true, checkpoint: checkpoints[index], cleared: true };
+    }
+
+    if (action === "trigger") {
+      checkpoints[index] = {
+        ...current,
+        reminderTriggeredAt: now
+      };
+      writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(checkpoints) });
+      return { ok: true, checkpoint: checkpoints[index], triggered: true };
+    }
+
+    const reminderAt = normalizeReminderAt(input);
+    if (!reminderAt) return { ok: false, error: "reminderAt_required" };
     checkpoints[index] = {
       ...current,
-      reminderAt: "",
-      reminderNote: "",
-      reminderCreatedAt: current.reminderCreatedAt || "",
-      reminderClearedAt: now,
-      reminderTriggeredAt: action === "dismiss" ? (current.reminderTriggeredAt || now) : ""
+      reminderAt,
+      reminderNote: clean(input.note || input.reminderNote) || current.nextAction || current.blocker || current.result,
+      reminderCreatedAt: now,
+      reminderClearedAt: "",
+      reminderTriggeredAt: ""
     };
     writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(checkpoints) });
-    return { ok: true, checkpoint: checkpoints[index], cleared: true };
-  }
-
-  if (action === "trigger") {
-    checkpoints[index] = {
-      ...current,
-      reminderTriggeredAt: now
-    };
-    writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(checkpoints) });
-    return { ok: true, checkpoint: checkpoints[index], triggered: true };
-  }
-
-  const reminderAt = normalizeReminderAt(input);
-  if (!reminderAt) return { ok: false, error: "reminderAt_required" };
-  checkpoints[index] = {
-    ...current,
-    reminderAt,
-    reminderNote: clean(input.note || input.reminderNote) || current.nextAction || current.blocker || current.result,
-    reminderCreatedAt: now,
-    reminderClearedAt: "",
-    reminderTriggeredAt: ""
-  };
-  writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(checkpoints) });
-  return { ok: true, checkpoint: checkpoints[index], reminder: checkpointReminderPayload(checkpoints[index]) };
+    return { ok: true, checkpoint: checkpoints[index], reminder: checkpointReminderPayload(checkpoints[index]) };
+  });
 }
 
 export function deleteCheckpoint(dataDir, checkpointId) {
-  const file = readCheckpointFile(dataDir);
-  const checkpoints = file.checkpoints.map(normalizeCheckpoint).filter(Boolean);
-  const next = checkpoints.filter((item) => item.id !== checkpointId);
-  if (next.length === checkpoints.length) return { ok: false, error: "checkpoint_not_found" };
-  writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(next) });
-  return { ok: true, removed: 1 };
+  return withWriteLock(() => {
+    const file = readCheckpointFile(dataDir);
+    const checkpoints = file.checkpoints.map(normalizeCheckpoint).filter(Boolean);
+    const next = checkpoints.filter((item) => item.id !== checkpointId);
+    if (next.length === checkpoints.length) return { ok: false, error: "checkpoint_not_found" };
+    writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(next) });
+    return { ok: true, removed: 1 };
+  });
 }
 
 export function clearCheckpoints(dataDir, filters = {}) {
-  const checkpoints = readCheckpointFile(dataDir).checkpoints.map(normalizeCheckpoint).filter(Boolean);
-  const next = checkpoints.filter((item) => {
-    if (filters.taskId && item.taskId !== filters.taskId) return true;
-    if (filters.sessionPath && item.sessionPath !== filters.sessionPath) return true;
-    if (filters.state && item.state !== normalizeState(filters.state)) return true;
-    return false;
+  return withWriteLock(() => {
+    const checkpoints = readCheckpointFile(dataDir).checkpoints.map(normalizeCheckpoint).filter(Boolean);
+    const next = checkpoints.filter((item) => {
+      if (filters.taskId && item.taskId !== filters.taskId) return true;
+      if (filters.sessionPath && item.sessionPath !== filters.sessionPath) return true;
+      if (filters.state && item.state !== normalizeState(filters.state)) return true;
+      return false;
+    });
+    writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(next) });
+    return { ok: true, removed: checkpoints.length - next.length };
   });
-  writeCheckpointFile(dataDir, { checkpoints: refreshConflictMetadata(next) });
-  return { ok: true, removed: checkpoints.length - next.length };
 }
 
 export function stateToColumn(state) {

@@ -15,14 +15,6 @@
     ]
   },
   "contributes": {
-    "page": {
-      "title": {
-        "zh": "Browser Bridge",
-        "en": "Browser Bridge"
-      },
-      "route": "/page",
-      "icon": "<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5'><circle cx='12' cy='12' r='9'/><path d='M3 10h18M8 3.8 12 10l4-6.2M8 20.2 12 14l4 6.2'/></svg>"
-    },
     "configuration": {
       "properties": {
         "connectionMode": {
@@ -64,14 +56,15 @@
         },
         "existingChromeRequireExplicitStart": {
           "type": "boolean",
-          "title": "Require explicit reviewed start",
-          "description": "安全硬门禁。existing-chrome 必须先通过审核的启动操作连接，不能关闭。",
+          "title": "Require explicit reviewed start (locked)",
+          "description": "安全硬门禁。existing-chrome 必须先通过审核的启动操作连接，不能关闭。此设置为锁定值，无法修改。",
           "default": true,
           "enum": [
             true
           ],
           "ui": {
-            "control": "switch"
+            "control": "text",
+            "readOnly": true
           }
         },
         "cdpHost": {
@@ -156,14 +149,6 @@
           },
           {
             "expectToolText": "Browser Bridge"
-          }
-        ]
-      },
-      {
-        "id": "open-page",
-        "steps": [
-          {
-            "openSurface": "/page"
           }
         ]
       }

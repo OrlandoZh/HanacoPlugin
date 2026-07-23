@@ -213,5 +213,44 @@ else
 fi
 echo ""
 
+# ── 检查 7：生命周期诊断 ──
+echo ""
+echo "--- 生命周期诊断 ---"
+_LIFECYCLE_SCRIPT="$(cd "$(dirname "$0")" && pwd)/lifecycle-diagnostics.js"
+if [ -f "$_LIFECYCLE_SCRIPT" ] && command -v node >/dev/null 2>&1; then
+  _LIFECYCLE_JSON=$(node "$_LIFECYCLE_SCRIPT" "$WIKI_ROOT" 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$_LIFECYCLE_JSON" ]; then
+    echo "$_LIFECYCLE_JSON" | node -e '
+      let input = "";
+      process.stdin.on("data", (chunk) => input += chunk);
+      process.stdin.on("end", () => {
+        try {
+          const data = JSON.parse(input);
+          const s = data.summary;
+          console.log("  总页面：" + s.total_pages);
+          console.log("  已评分：" + s.scored_pages);
+          console.log("  平均置信度：" + (s.avg_confidence !== null ? s.avg_confidence : "N/A"));
+          console.log("  未评分：" + s.flagged_counts.no_confidence);
+          console.log("  低置信度：" + s.flagged_counts.low_confidence);
+          console.log("  过时页面：" + s.flagged_counts.stale_pages);
+          console.log("  无证据：" + s.flagged_counts.no_evidence);
+          console.log("  矛盾未解决：" + s.flagged_counts.unsolved_contradictions);
+          console.log("  状态不一致：" + s.flagged_counts.inconsistent_state);
+          console.log("  retention 不匹配：" + s.flagged_counts.retention_mismatch);
+          const d = s.retention_distribution;
+          console.log("  retention 分布：stable=" + d.stable + " active=" + d.active + " fading=" + d.fading + " stale=" + d.stale + " archived=" + d.archived + " unset=" + d.unset);
+        } catch (e) {
+          console.log("  （lifecycle JSON 解析失败）");
+        }
+      });
+    '
+  else
+    echo "  （lifecycle 脚本执行失败，跳过）"
+  fi
+else
+  echo "  （lifecycle 脚本或 node 不可用，跳过）"
+fi
+
+echo ""
 echo "=== 机械检查完成。矛盾检测、交叉引用、置信度抽查由 AI 继续执行 ==="
 exit 0

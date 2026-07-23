@@ -181,7 +181,7 @@ export function buildAutopilotPlan({ mission, tasks = [], checkpoints = [], sess
   const suggestions = [];
   const normalizedMission = mission && typeof mission === "object" ? mission : null;
   if (!normalizedMission) {
-    return { ok: false, error: "mission_required", suggestions: [], summary: "No active mission." };
+    return { ok: false, error: "mission_required", suggestions: [], summary: "暂无活动任务。" };
   }
 
   const now = Date.now();
@@ -210,7 +210,7 @@ export function buildAutopilotPlan({ mission, tasks = [], checkpoints = [], sess
         mission: normalizedMission,
         assignment,
         task,
-        reason: "Assignment is queued and has not been sent to a worker yet.",
+        reason: "任务分派仍在排队，尚未发送给执行智能体。",
         payload: { assignmentId: assignment.id, sessionPath: assignment.sessionPath || normalizedMission.sessionPath || "" }
       }));
     }
@@ -223,7 +223,7 @@ export function buildAutopilotPlan({ mission, tasks = [], checkpoints = [], sess
           mission: normalizedMission,
           assignment,
           task,
-          reason: "Running worker can be scanned for proof-bearing checkpoints.",
+          reason: "可以扫描运行中的执行智能体，查找包含证据的检查点。",
           payload: {
             sessionPath: assignment.sessionPath,
             taskId: assignment.taskId || "",
@@ -240,12 +240,12 @@ export function buildAutopilotPlan({ mission, tasks = [], checkpoints = [], sess
           mission: normalizedMission,
           assignment,
           task,
-          reason: `Worker appears stale after ${Math.max(ageMinutes, statusAgeMinutes, 0)} minutes without a fresh update.`,
+          reason: `执行智能体已 ${Math.max(ageMinutes, statusAgeMinutes, 0)} 分钟没有新更新，可能已经停滞。`,
           payload: {
             assignmentId: assignment.id,
             state: "blocked",
-            blocker: "Autopilot stale-worker detection: no recent checkpoint or session update.",
-            nextAction: "Review worker output, sync session history, or re-dispatch the assignment."
+            blocker: "自动驾驶检测到执行智能体停滞：近期没有检查点或会话更新。",
+            nextAction: "复核执行智能体输出、同步会话历史，或重新投递任务分派。"
           }
         }));
       }
@@ -259,11 +259,11 @@ export function buildAutopilotPlan({ mission, tasks = [], checkpoints = [], sess
         mission: normalizedMission,
         assignment,
         task,
-        reason: assignment.blocker || latestCheckpoint?.blocker || "Assignment is blocked and needs operator attention.",
+        reason: assignment.blocker || latestCheckpoint?.blocker || "任务分派受阻，需要操作员处理。",
         payload: {
           assignmentId: assignment.id,
           blocker: assignment.blocker || latestCheckpoint?.blocker || "",
-          nextAction: assignment.nextAction || latestCheckpoint?.nextAction || "Ask for clarification or route to reviewer."
+          nextAction: assignment.nextAction || latestCheckpoint?.nextAction || "请求澄清，或转交复核者。"
         }
       }));
     }
@@ -276,7 +276,7 @@ export function buildAutopilotPlan({ mission, tasks = [], checkpoints = [], sess
         mission: normalizedMission,
         assignment,
         task,
-        reason: "Worker handed off output that should be reviewed before completion.",
+        reason: "执行智能体已交接输出，完成前应先复核。",
         payload: { assignmentId: assignment.id, state: "review" }
       }));
     }
@@ -289,7 +289,7 @@ export function buildAutopilotPlan({ mission, tasks = [], checkpoints = [], sess
       action: "complete",
       severity: "info",
       mission: normalizedMission,
-      reason: "All assignments are done; mission can be marked complete.",
+      reason: "所有任务分派均已完成，可以将任务标记为完成。",
       payload: { missionId: normalizedMission.id }
     }));
   }
@@ -299,7 +299,7 @@ export function buildAutopilotPlan({ mission, tasks = [], checkpoints = [], sess
       action: "monitor",
       severity: "info",
       mission: normalizedMission,
-      reason: "No routing changes needed. Continue monitoring active workers.",
+      reason: "无需调整路由，继续监控活动中的执行智能体。",
       payload: { missionId: normalizedMission.id }
     }));
   }

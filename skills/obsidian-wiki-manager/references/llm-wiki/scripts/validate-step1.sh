@@ -35,7 +35,7 @@ jq -e '.contradictions | type == "array"' "$JSON_FILE" >/dev/null 2>&1 || { echo
 jq -e '.new_vs_existing | type == "object"' "$JSON_FILE" >/dev/null 2>&1 || { echo "ERROR: 'new_vs_existing' must be an object"; exit 1; }
 
 # 检查每个 entity 的必需子字段
-VALID_CONFIDENCE="EXTRACTED|INFERRED|AMBIGUOUS|UNVERIFIED"
+VALID_CONFIDENCE="EXTRACTED|INFERRED|AMBIGUOUS|UNVERIFIED|VERIFIED"
 
 ENTITY_COUNT=$(jq '.entities | length' "$JSON_FILE" 2>/dev/null)
 if [ "$ENTITY_COUNT" -gt 0 ] 2>/dev/null; then
@@ -137,6 +137,13 @@ if [ "$CONN_COUNT" -gt 0 ] 2>/dev/null; then
     ' "$JSON_FILE" 2>/dev/null)
     if [ "$NO_CONN_EVIDENCE" -gt 0 ] 2>/dev/null; then
         echo "WARN: $NO_CONN_EVIDENCE connection(s) with EXTRACTED/INFERRED confidence missing 'evidence' field"
+    fi
+
+    INVALID_TYPE=$(jq -r '.connections[]? | select(.type != null) | .type' "$JSON_FILE" 2>/dev/null | \
+        grep -v -E '^(实现|依赖|对比|矛盾|衍生|取代)$' | head -3)
+    if [ -n "$INVALID_TYPE" ]; then
+        echo "WARN: invalid connection type(s): $INVALID_TYPE"
+        echo "       Valid types: 实现 | 依赖 | 对比 | 矛盾 | 衍生 | 取代"
     fi
 fi
 

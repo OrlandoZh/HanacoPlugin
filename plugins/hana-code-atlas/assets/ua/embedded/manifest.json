@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "kind": "hana-code-atlas-embedded-viewer",
+  "source": {
+    "viewerVersion": "2.9.0",
+    "viewerCommit": "f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8",
+    "assetSetSha256": "ed1318e82bf4e9b9dc2a9086c2826b8e536201296259d6285c25f5270e1f020e",
+    "entry": "assets/index-B7Tthg6s.js",
+    "styles": [
+      "assets/xyflow-BZV40eAE.css",
+      "assets/index-DY_xk737.css"
+    ]
+  },
+  "generator": {
+    "name": "esbuild",
+    "version": "0.27.4",
+    "options": [
+      "--bundle",
+      "--format=esm",
+      "--platform=browser",
+      "--target=es2022",
+      "--minify",
+      "--legal-comments=inline"
+    ]
+  },
+  "files": [
+    {
+      "path": "viewer.js",
+      "sizeBytes": 2560166,
+      "sha256": "9d1190ae70b4f9d5e60a23b21c400a6050df92eb451127170fa5f5e4d6872874"
+    },
+    {
+      "path": "viewer.css",
+      "sizeBytes": 71877,
+      "sha256": "65bb6522746a348bfcc4bd9d2383da91d8be1640787f5861554c790a16a29cfc"
+    }
+  ]
+}

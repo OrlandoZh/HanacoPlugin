@@ -264,15 +264,15 @@ export function swarmRosterToProfile(rosterInput = {}, options = {}) {
   const label = clean(options.label)
     || clean(roster.roster.metadata?.profileLabel)
     || clean(roster.roster.name)
-    || "Swarm Roster";
+    || "Swarm 名单（Swarm Roster）";
   const lanes = workers.map((worker, index) => rosterWorkerToLane(worker, index));
   const roles = unique(lanes.map((lane) => lane.roleId).filter(Boolean)).slice(0, MAX_PROFILE_ROLES);
   const defaultCwd = clean(options.defaultCwd) || clean(workers.find((worker) => clean(worker.defaultCwd || worker.cwd))?.defaultCwd) || "";
   const profile = normalizeProfile({
     id,
     label,
-    role: clean(options.role) || "Swarm Roster",
-    mission: clean(options.mission) || clean(roster.roster.mission) || "Coordinate an imported Hermes-style swarm roster.",
+    role: clean(options.role) || "Swarm 名单（Swarm Roster）",
+    mission: clean(options.mission) || clean(roster.roster.mission) || "协调导入的 Hermes 风格 Swarm 名单。",
     roles,
     maxWorkers: clampInt(options.maxWorkers || roles.length || workers.length, 1, MAX_PROFILE_LANES, Math.min(Math.max(roles.length || workers.length, 1), MAX_PROFILE_LANES)),
     tags: ["swarm", "roster", "hermes"],
@@ -363,7 +363,7 @@ export function seedOperationProfileFromPreset(dataDir, presetId, input = {}) {
     ...input,
     id: clean(input.id) || `${preset.id}-profile`,
     presetId: preset.id,
-    label: clean(input.label) || `${preset.label} Team`,
+    label: clean(input.label) || `${preset.label} 团队`,
     builtin: false
   });
 }
@@ -406,8 +406,8 @@ function normalizeProfile(value) {
   return {
     id,
     label,
-    role: clean(value.role) || "Operations",
-    mission: clean(value.mission) || "Coordinate an agent team and produce checkpointed results.",
+    role: clean(value.role) || "运维（Operations）",
+    mission: clean(value.mission) || "协调智能体（Agent）团队并产出带检查点（Checkpoint）的结果。",
     roles: roles.length ? roles : ["orchestrator", "builder", "reviewer"],
     maxWorkers: clampInt(value.maxWorkers, 1, MAX_PROFILE_LANES, roles.length || 3),
     tags,
@@ -509,8 +509,8 @@ function normalizeLane(lane, roles, index) {
 function laneToRosterWorker(lane, profile) {
   const worker = {
     id: clean(lane.id) || clean(lane.roleId) || "worker",
-    name: clean(lane.label || lane.name) || clean(lane.id) || "Worker",
-    role: clean(lane.role || lane.roleId) || "Worker"
+    name: clean(lane.label || lane.name) || clean(lane.id) || "工作器（Worker）",
+    role: clean(lane.role || lane.roleId) || "工作器（Worker）"
   };
   const defaults = {
     mission: clean(lane.mission) || profile.mission,

@@ -16,24 +16,39 @@ export function cdpVersionUrl(config) {
   return `http://${host}:${config.cdpPort}/json/version`;
 }
 
-export async function probeCdp(config, timeoutMs = 1000) {
+/**
+ * Probe a CDP HTTP /json/version endpoint at an arbitrary host:port.
+ * Returns { ok, statusCode, version } where version is null on failure.
+ * Used by both probeCdp (config-based) and inspectExistingChrome (dynamic port).
+ */
+async function probeCdpEndpoint(host, port, timeoutMs = 1000) {
+  const normalizedHost = host === "::1" ? "[::1]" : host;
+  const url = `http://${normalizedHost}:${port}/json/version`;
   return await new Promise((resolve) => {
-    const req = http.get(cdpVersionUrl(config), { timeout: timeoutMs }, (res) => {
+    const req = http.get(url, { timeout: timeoutMs }, (res) => {
       let body = "";
       res.setEncoding("utf8");
       res.on("data", (chunk) => { body += chunk; });
       res.on("end", () => {
+        if (res.statusCode !== 200) {
+          resolve({ ok: false, statusCode: res.statusCode, version: null });
+          return;
+        }
         try {
           const parsed = JSON.parse(body);
-          resolve({ ok: res.statusCode === 200, statusCode: res.statusCode, version: parsed });
+          resolve({ ok: true, statusCode: res.statusCode, version: parsed });
         } catch {
-          resolve({ ok: false, statusCode: res.statusCode, error: "Invalid CDP response" });
+          resolve({ ok: false, statusCode: res.statusCode, version: null, error: "Invalid CDP response" });
         }
       });
     });
     req.on("timeout", () => req.destroy(new Error("CDP probe timed out")));
-    req.on("error", (error) => resolve({ ok: false, error: error.message }));
+    req.on("error", (error) => resolve({ ok: false, version: null, error: error.message }));
   });
+}
+
+export async function probeCdp(config, timeoutMs = 1000) {
+  return await probeCdpEndpoint(config.cdpHost, config.cdpPort, timeoutMs);
 }
 
 
@@ -69,13 +84,28 @@ export async function inspectExistingChrome(config) {
   try {
     const content = fs.readFileSync(activePortPath, "utf8");
     const parsed = parseDevToolsActivePort(content);
+    // Step 1: fast TCP probe to filter out clearly-dead ports
     const tcp = await probeTcpPort(parsed.port);
+    if (!tcp.ok) {
+      return {
+        ok: false,
+        activePortPresent: true,
+        port: parsed.port,
+        userDataDir: config.existingChromeUserDataDir,
+        error: "Chrome remote debugging TCP endpoint is not reachable",
+      };
+    }
+    // Step 2: HTTP /json/version probe to verify CDP protocol availability
+    // TCP connect success does not guarantee CDP is ready (Chrome 150+ may
+    // return 404 on /json/* while the port is listening).
+    const cdp = await probeCdpEndpoint("127.0.0.1", parsed.port);
     return {
-      ok: tcp.ok,
+      ok: cdp.ok,
       activePortPresent: true,
       port: parsed.port,
       userDataDir: config.existingChromeUserDataDir,
-      error: tcp.ok ? null : "Chrome remote debugging endpoint is not reachable",
+      version: cdp.version,
+      error: cdp.ok ? null : (cdp.error || `CDP /json/version returned HTTP ${cdp.statusCode || "unknown"}`),
     };
   } catch (error) {
     return {

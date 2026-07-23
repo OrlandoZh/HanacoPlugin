@@ -65,11 +65,16 @@ for (const toolName of WORKFLOW_TOOLS) {
       },
     ];
   }
+  // Tool-specific description annotations for known permission model limitations.
+  const DESCRIPTION_ANNOTATIONS = {
+    browser_dom: ' 【权限说明】observe/verify 模式为只读操作，但因 HanaAgent 框架当前不支持按参数动态分级权限，统一标记为需要 review。expression 模式可执行 DOM 读写，需要 review 是合理的。',
+  };
+  const description = mod.description + (DESCRIPTION_ANNOTATIONS[toolName] || '');
   const permission = READ_ONLY.has(toolName) ? "READ_ONLY_PERMISSION" : "SIDE_EFFECT_PERMISSION";
   const source = `// Generated from browser-bridge/tools/${toolName}.js. Do not edit manually.\n` +
 `import { executeProxyTool, ${permission} } from "../lib/tool-proxy.js";\n\n` +
 `export const name = ${JSON.stringify(mod.name)};\n` +
-`export const description = ${JSON.stringify(mod.description)};\n` +
+`export const description = ${JSON.stringify(description)};\n` +
 `export const parameters = ${JSON.stringify(parameters, null, 2)};\n` +
 `export const sessionPermission = ${permission};\n` +
 `export async function execute(input, ctx) { return await executeProxyTool(name, input, ctx); }\n`;

@@ -401,6 +401,29 @@ export async function sourceCoverage(wikiRoot) {
   return output;
 }
 
+export async function lifecycleDiagnostics(wikiRoot) {
+  const status = await getStatus(wikiRoot);
+  if (!status.ok) {
+    return { ok: false, error: "not_llm_wiki_root", wikiRoot: status.wikiRoot, status };
+  }
+
+  const result = await runSkillScript("lifecycle-diagnostics.js", [status.wikiRoot]);
+  const output = {
+    ...result,
+    wikiRoot: status.wikiRoot,
+    skillRoot: status.skillRoot,
+    status,
+  };
+  if (result.stdout) {
+    try {
+      output.diagnostics = JSON.parse(result.stdout);
+    } catch {
+      // Keep raw stdout as the source of truth when the script emits non-JSON diagnostics.
+    }
+  }
+  return output;
+}
+
 export async function sourceSignalEligibility(wikiRoot) {
   const status = await getStatus(wikiRoot);
   if (!status.ok) {
@@ -1485,6 +1508,17 @@ export async function serveWikiFile(c, wikiRoot, filePath, options = {}) {
   if (!resolved.startsWith(wikiDir + path.sep)) return c.text("Forbidden", 403);
   try {
     let body = await fsp.readFile(resolved);
+    if (resolved.endsWith(".md") && options.renderMarkdown !== false) {
+      return new Response(renderMarkdownViewerPage({
+        markdown: String(body),
+        filePath: resolved,
+        relativePath: path.relative(wikiDir, resolved).split(path.sep).join("/"),
+        assetBase: options.assetBase || "/api/plugins/llm-wiki-viewer/graph-assets/",
+        graphHref: options.graphHref || "/api/plugins/llm-wiki-viewer/graph",
+        suffix: options.suffix || "",
+        theme: options.theme || "",
+      }), { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
     if (resolved.endsWith("knowledge-graph.html")) {
       const base = options.assetBase || "/api/plugins/llm-wiki-viewer/graph-assets/";
       const fileBase = options.fileBase || "/api/plugins/llm-wiki-viewer/wiki-file/";
@@ -1501,6 +1535,173 @@ export async function serveWikiFile(c, wikiRoot, filePath, options = {}) {
   } catch {
     return c.text("Not found. Generate the graph first.", 404);
   }
+}
+
+export function renderMarkdownViewerPage({
+  markdown,
+  filePath,
+  relativePath,
+  assetBase = "/api/plugins/llm-wiki-viewer/graph-assets/",
+  graphHref = "/api/plugins/llm-wiki-viewer/graph",
+  suffix = "",
+  theme = "",
+} = {}) {
+  const source = String(markdown || "");
+  const frontmatter = extractMarkdownFrontmatter(source);
+  const title = markdownTitle(source) || path.basename(String(relativePath || filePath || "来源"));
+  const displayPath = String(relativePath || filePath || "");
+  const mode = theme === "dark" ? "dark" : "light";
+  const obsidianHref = `obsidian://open?path=${encodeURIComponent(String(filePath || ""))}`;
+  const markedSrc = `${assetBase}marked.min.js${suffix}`;
+  const purifySrc = `${assetBase}purify.min.js${suffix}`;
+
+  return `<!doctype html>
+<html lang="zh-CN" data-effective-theme="${mode}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)} - 来源阅读</title>
+  <style>
+    :root { color-scheme: light; --bg:#f7f5ef; --panel:#fffdf8; --field:#ffffff; --line:#ddd4c2; --text:#26221d; --muted:#6f665a; --accent:#8b2e24; --accent-text:#ffffff; --code:#171410; --code-text:#f6eee1; --shadow:rgba(38,34,29,.12); }
+    html[data-effective-theme="dark"] { color-scheme: dark; --bg:#080c12; --panel:#121820; --field:#0b1118; --line:#2d3b4d; --text:#e6edf3; --muted:#94a3b8; --accent:#f06455; --accent-text:#fff8f4; --code:#070b10; --code-text:#dbe7ef; --shadow:rgba(0,0,0,.42); }
+    * { box-sizing:border-box; }
+    html, body { margin:0; min-height:100%; font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; color:var(--text); background:var(--bg); }
+    body { display:grid; grid-template-rows:auto 1fr; }
+    .reader-bar { position:sticky; top:0; z-index:10; display:grid; grid-template-columns:auto auto 1fr auto; gap:8px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter:blur(12px); }
+    .reader-action { min-height:34px; border:1px solid var(--line); border-radius:6px; background:var(--field); color:var(--text); padding:0 10px; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; gap:6px; cursor:pointer; white-space:nowrap; font:13px/1.2 inherit; }
+    .reader-action.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-text); }
+    .reader-action:hover { border-color:var(--accent); }
+    .reader-action:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    .reader-title { min-width:0; }
+    .reader-title strong { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; line-height:1.35; }
+    .reader-title span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-top:2px; color:var(--muted); font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    main { width:min(920px, calc(100% - 32px)); margin:22px auto 44px; border:1px solid var(--line); border-radius:8px; background:var(--panel); box-shadow:0 18px 38px var(--shadow); overflow:hidden; }
+    .frontmatter { display:${frontmatter ? "grid" : "none"}; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px; padding:14px 18px; border-bottom:1px solid var(--line); background:color-mix(in srgb, var(--field) 72%, var(--panel)); }
+    .frontmatter div { min-width:0; }
+    .frontmatter dt { color:var(--muted); font-size:12px; line-height:1.4; }
+    .frontmatter dd { margin:2px 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; line-height:1.4; }
+    .markdown-body { padding:24px 28px 32px; font-size:15px; line-height:1.78; }
+    .markdown-body > :first-child { margin-top:0; }
+    .markdown-body > :last-child { margin-bottom:0; }
+    .markdown-body h1, .markdown-body h2, .markdown-body h3 { line-height:1.35; margin:1.55em 0 .65em; }
+    .markdown-body h1 { font-size:26px; }
+    .markdown-body h2 { font-size:21px; padding-bottom:6px; border-bottom:1px solid var(--line); }
+    .markdown-body h3 { font-size:17px; }
+    .markdown-body p, .markdown-body ul, .markdown-body ol, .markdown-body blockquote, .markdown-body pre, .markdown-body table { margin:0 0 1em; }
+    .markdown-body a { color:var(--accent); text-decoration-thickness:1px; text-underline-offset:3px; }
+    .markdown-body blockquote { border-left:3px solid var(--accent); padding:8px 12px; color:var(--muted); background:color-mix(in srgb, var(--field) 70%, var(--panel)); border-radius:0 6px 6px 0; }
+    .markdown-body code { padding:.15em .35em; border-radius:5px; background:color-mix(in srgb, var(--field) 70%, var(--line)); font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.92em; }
+    .markdown-body pre { overflow:auto; padding:13px 14px; border-radius:8px; background:var(--code); color:var(--code-text); }
+    .markdown-body pre code { padding:0; background:transparent; color:inherit; }
+    .markdown-body table { width:100%; border-collapse:collapse; display:block; overflow:auto; }
+    .markdown-body th, .markdown-body td { border:1px solid var(--line); padding:7px 9px; }
+    .markdown-body img { max-width:100%; border-radius:6px; }
+    .empty { color:var(--muted); }
+    @media (max-width: 680px) {
+      .reader-bar { grid-template-columns:auto 1fr auto; }
+      .reader-title { grid-column:1 / -1; grid-row:2; }
+      main { width:100%; margin:0; border-left:0; border-right:0; border-radius:0; box-shadow:none; }
+      .markdown-body { padding:20px 18px 28px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="reader-bar" aria-label="来源阅读操作">
+    <button class="reader-action" type="button" id="backButton">返回图谱</button>
+    <a class="reader-action" href="${escapeAttr(graphHref)}">图谱首页</a>
+    <div class="reader-title">
+      <strong>${escapeHtml(title)}</strong>
+      <span title="${escapeAttr(displayPath)}">${escapeHtml(displayPath)}</span>
+    </div>
+    <a class="reader-action primary" href="${escapeAttr(obsidianHref)}">Obsidian 打开</a>
+  </nav>
+  <main>
+    <dl class="frontmatter" id="frontmatter"></dl>
+    <article class="markdown-body" id="markdownBody"><p class="empty">正在渲染 Markdown...</p></article>
+  </main>
+  <script src="${escapeAttr(markedSrc)}"></script>
+  <script src="${escapeAttr(purifySrc)}"></script>
+  <script type="application/json" id="markdown-source">${escapeScriptJson(source)}</script>
+  <script type="application/json" id="markdown-frontmatter">${escapeScriptJson(frontmatter)}</script>
+  <script>
+    const graphHref = ${JSON.stringify(graphHref)};
+    const sourceEl = document.getElementById("markdown-source");
+    const frontmatterEl = document.getElementById("markdown-frontmatter");
+    const bodyEl = document.getElementById("markdownBody");
+    const frontmatterList = document.getElementById("frontmatter");
+    const backButton = document.getElementById("backButton");
+
+    backButton.addEventListener("click", () => {
+      if (history.length > 1) history.back();
+      else location.href = graphHref;
+    });
+
+    function readJsonScript(el, fallback) {
+      try { return JSON.parse(el?.textContent || ""); } catch { return fallback; }
+    }
+
+    function stripFrontmatter(text) {
+      return String(text || "").replace(/^---\\s*[\\r\\n][\\s\\S]*?[\\r\\n]---\\s*[\\r\\n]?/, "").trim();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (ch) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[ch]));
+    }
+
+    const frontmatter = readJsonScript(frontmatterEl, null);
+    if (frontmatter && typeof frontmatter === "object") {
+      const entries = Object.entries(frontmatter).filter(([, value]) => String(value ?? "").trim());
+      frontmatterList.innerHTML = entries.slice(0, 8).map(([key, value]) => (
+        "<div><dt>" + escapeHtml(key) + "</dt><dd title=\\"" + escapeHtml(value) + "\\">" + escapeHtml(value) + "</dd></div>"
+      )).join("");
+    }
+
+    const raw = stripFrontmatter(readJsonScript(sourceEl, ""));
+    if (!raw) {
+      bodyEl.innerHTML = '<p class="empty">这个来源页面没有可渲染内容。</p>';
+    } else {
+      const html = typeof marked === "undefined" ? "<pre>" + escapeHtml(raw) + "</pre>" : marked.parse(raw, { breaks: false, gfm: true });
+      bodyEl.innerHTML = typeof DOMPurify === "undefined" ? html : DOMPurify.sanitize(html, { ADD_ATTR: ["target", "data-target", "tabindex"] });
+    }
+  </script>
+</body>
+</html>`;
+}
+
+function extractMarkdownFrontmatter(markdown) {
+  const match = String(markdown || "").match(/^---\s*[\r\n]([\s\S]*?)[\r\n]---(?:\s*[\r\n]|$)/);
+  if (!match) return null;
+  const out = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const item = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (!item) continue;
+    out[item[1]] = item[2].trim();
+  }
+  return out;
+}
+
+function markdownTitle(markdown) {
+  const body = String(markdown || "").replace(/^---\s*[\r\n][\s\S]*?[\r\n]---\s*[\r\n]?/, "");
+  const match = body.match(/^#\s+(.+)$/m);
+  return match ? match[1].trim() : "";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[ch]));
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
+function escapeScriptJson(value) {
+  return JSON.stringify(value ?? "").replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
 }
 
 export function applyGraphTheme(html, theme = "") {

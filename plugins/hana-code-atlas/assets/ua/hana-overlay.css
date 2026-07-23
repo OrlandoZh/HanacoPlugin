@@ -1,0 +1,78 @@
+/* Hana Code Atlas pixel-farm controls. Fixed daytime palette by design. */
+:root {
+  --hca-farm-ink: #4a3525;
+  --hca-farm-outline: #6c4930;
+  --hca-farm-wood: #d5a45f;
+  --hca-farm-wood-light: #f2d69a;
+  --hca-farm-wood-shadow: #a96d3f;
+  --hca-farm-leaf: #5f7d3c;
+  --hca-farm-leaf-shadow: #3e5c32;
+  --hca-farm-cream: #fff5d6;
+}
+
+.hca-farm-toolbar {
+  gap: 2px !important;
+  padding: 2px !important;
+  border: 2px solid var(--hca-farm-outline) !important;
+  border-radius: 4px !important;
+  background: var(--hca-farm-wood-light) !important;
+  box-shadow:
+    inset 0 -2px 0 var(--hca-farm-wood),
+    inset 0 2px 0 #fff0c4,
+    0 1px 0 rgb(67 43 27 / 25%) !important;
+}
+
+.hca-farm-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  min-height: 28px;
+  border-radius: 2px !important;
+}
+
+.hca-farm-toolbar > .hca-farm-button {
+  padding: 4px 8px !important;
+  color: var(--hca-farm-ink) !important;
+}
+
+.hca-farm-toolbar > .hca-farm-button:hover {
+  background: #e7bd78 !important;
+  color: #332317 !important;
+}
+
+.hca-farm-toolbar > .hca-farm-button.text-accent {
+  background: var(--hca-farm-leaf) !important;
+  color: var(--hca-farm-cream) !important;
+  box-shadow: inset 0 -2px 0 var(--hca-farm-leaf-shadow) !important;
+}
+
+.hca-farm-action {
+  min-height: 30px;
+  padding: 4px 8px !important;
+  border: 2px solid var(--hca-farm-outline) !important;
+  border-radius: 4px !important;
+  background: var(--hca-farm-wood-light) !important;
+  color: var(--hca-farm-ink) !important;
+  box-shadow: inset 0 -2px 0 var(--hca-farm-wood-shadow) !important;
+}
+
+.hca-farm-action:hover {
+  background: #e7bd78 !important;
+  color: #332317 !important;
+}
+
+.hca-pixel-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  overflow: visible;
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
+}
+
+@media (max-width: 900px) {
+  .hca-farm-toolbar > .hca-farm-button {
+    padding-inline: 6px !important;
+  }
+}
